@@ -1,0 +1,26 @@
+name: power_perceiver
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python>=3.9
+
+  # Scientific Python
+  - numpy
+  - pandas
+  - matplotlib
+  - xarray
+  - h5netcdf
+  - pathy
+  - hydra-core
+
+  # Machine learning
+  - pytorch::pytorch  # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
+  - pytorch-lightning
+  - einops
+
+  # Development tools
+  - pytest
+  - pytest-cov
+  - flake8
+  - black

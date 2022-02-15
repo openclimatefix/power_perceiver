@@ -1,0 +1,3 @@
+defaults:
+  - data: gcp_bucket
+  
