@@ -131,3 +131,4 @@ dmypy.json
 # power_perceiver
 .vscode/
 outputs/
+data_for_testing/
