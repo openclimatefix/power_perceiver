@@ -8,6 +8,7 @@ from gcsfs import GCSFileSystem
 
 from power_perceiver.consts import REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS, DataSourceName
 
+INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING = (0, 1)
 _log = logging.getLogger(__name__)
 
 
@@ -28,8 +29,10 @@ def get_filename_of_batch_of_data_and_maybe_download(
     Returns:
         Path: The full path to the local data.
     """
-    assert batch_idx in [0, 1], f"batch_idx must be 0 or 1, not {batch_idx}"
-    local_data_path = _get_path_of_local_data_for_testing()
+    assert (
+        batch_idx in INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING
+    ), f"batch_idx must be {INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING}, not {batch_idx}"
+    local_data_path = get_path_of_local_data_for_testing()
     local_path_for_data_source = local_data_path / data_source_name.value
     if not local_path_for_data_source.exists():
         _log.info(f"Creating path for local testing data: {local_path_for_data_source}")
@@ -46,11 +49,30 @@ def get_filename_of_batch_of_data_and_maybe_download(
     return local_batch_filename
 
 
+def download_batches_for_data_source_if_necessary(data_source_name: DataSourceName) -> list[Path]:
+    """Download batches locally, if necessary.
+
+    Args:
+        data_source_name (DataSourceName):
+
+    Returns:
+        list[Path]: A list of the Paths pointing to the local files.
+    """
+    filenames = []
+    for batch_idx in INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING:
+        filename = get_filename_of_batch_of_data_and_maybe_download(
+            data_source_name=data_source_name,
+            batch_idx=batch_idx,
+        )
+        filenames.append(filename)
+    return filenames
+
+
 def _get_path_of_power_perceiver_package() -> Path:
     import power_perceiver
 
     return Path(power_perceiver.__file__).parents[1]
 
 
-def _get_path_of_local_data_for_testing() -> Path:
+def get_path_of_local_data_for_testing() -> Path:
     return _get_path_of_power_perceiver_package() / "data_for_testing"

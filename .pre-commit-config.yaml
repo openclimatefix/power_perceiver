@@ -17,10 +17,12 @@ repos:
     rev: 6.1.1
     hooks:
       - id: pydocstyle
-        args:
-          [
+        args: [
             --convention=google,
             "--add-ignore=D200,D202,D210,D212,D415",
+            # Exclude test files.
+            # From https://github.com/PyCQA/pydocstyle/issues/186#issuecomment-699609528
+            "--match='(?!test_).*\\.py'",
             "power_perceiver",
           ]
   - repo: https://github.com/PyCQA/flake8
