@@ -31,4 +31,5 @@ def test_init(max_n_batches_per_epoch: int, expected: int):
         data_source_names=_DATA_SOURCES_TO_DOWNLOAD,
         max_n_batches_per_epoch=max_n_batches_per_epoch,
     )
-    assert dataset.n_batches_available == expected
+    assert dataset.n_batches == expected
+    assert len(dataset) == expected
