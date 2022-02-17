@@ -8,4 +8,5 @@ Machine learning experiments using the Perceiver IO model to forecast the electr
 conda env create -f environment.yml
 conda activate power_perceiver
 pip install -e .
+pre-commit install
 ```
