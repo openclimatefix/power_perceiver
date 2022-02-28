@@ -13,6 +13,7 @@ dependencies:
   - xarray
   - h5netcdf
   - pathy
+  - ipykernel
 
   # Development tools
   - flake8
