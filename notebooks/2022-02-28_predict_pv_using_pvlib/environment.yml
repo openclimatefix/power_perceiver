@@ -1,0 +1,18 @@
+name: pvlib
+channels:
+  - conda-forge
+  - pvlib
+dependencies:
+  - python>=3.9
+  - pvlib
+
+  # Scientific Python
+  - numpy
+  - pandas
+  - matplotlib
+  - xarray
+  - h5netcdf
+  - pathy
+
+  # Development tools
+  - flake8
