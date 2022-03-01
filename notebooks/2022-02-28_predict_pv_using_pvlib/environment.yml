@@ -11,9 +11,11 @@ dependencies:
   - pandas
   - matplotlib
   - xarray
+  - zarr
   - h5netcdf
   - pathy
   - ipykernel
+  - pyproj
 
   # Development tools
   - flake8
