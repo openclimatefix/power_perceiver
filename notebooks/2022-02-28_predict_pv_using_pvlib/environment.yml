@@ -16,6 +16,8 @@ dependencies:
   - pathy
   - ipykernel
   - pyproj
+  - geopandas
+  - cartopy
 
   # Development tools
   - flake8
