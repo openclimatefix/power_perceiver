@@ -11,6 +11,7 @@ class DataSourceName(Enum):  # noqa: D101
     opticalflow = "opticalflow"
     pv = "pv"
     satellite = "satellite"
+    hrvsatellite = "hrvsatellite"
     sun = "sun"
     topographic = "topographic"
 
@@ -19,9 +20,14 @@ class BatchKey(Enum):
     """The names of the different elements of each batch.
 
     This is also where we document the exact shape of each element.
+
+    This is basically a superset of DataSourceName, because each DataSource
+    may be split into several different BatchKey elements. For example, the
+    pv DataSource yields `pv` and `pv_system_id` BatchKeys.
     """
 
     satellite = "satellite"
+    hrvsatellite = "hrvsatellite"
     pv = "pv"
     pv_system_id = "pv_system_id"
 

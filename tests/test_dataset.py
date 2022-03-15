@@ -10,8 +10,8 @@ from power_perceiver.testing import (
 
 _DATA_SOURCES_TO_DOWNLOAD = (
     DataSourceName.satellite,
+    DataSourceName.hrvsatellite,
     DataSourceName.pv,
-    DataSourceName.nwp,
     DataSourceName.nwp,
 )
 
