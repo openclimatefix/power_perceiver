@@ -36,7 +36,7 @@ SAT_STD = {
 
 
 class HRVSatelliteLoader(DataLoader):
-    def to_numpy(self, data: xr.Dataset) -> dict[BatchKey, np.ndarray]:
+    def to_numpy(self, dataset: xr.Dataset) -> dict[BatchKey, np.ndarray]:
         """This is called from Dataset.__getitem__.
 
         This processes this modality's xr.Dataset, to convert the xr.Dataset
@@ -45,8 +45,8 @@ class HRVSatelliteLoader(DataLoader):
         """
         batch: dict[BatchKey, np.ndarray] = {}
 
-        # Prepare the imagery itself
-        hrvsatellite = data["data"]
+        # Prepare the satellite imagery itself
+        hrvsatellite = dataset["data"]
         hrvsatellite = hrvsatellite.astype(np.float32)
         hrvsatellite -= SAT_MEAN["HRV"]
         hrvsatellite /= SAT_STD["HRV"]
@@ -58,14 +58,15 @@ class HRVSatelliteLoader(DataLoader):
             "x_geostationary_index",
         )
         batch[BatchKey.hrvsatellite] = hrvsatellite.values
+        del hrvsatellite
 
         # If present, then get the angle in degrees and distance from PV system.
-        if "angle_in_degrees_from_pv_system" in data:
-            batch[BatchKey.hrvsatellite_angle_in_degrees_from_pv_system] = data[
+        if "angle_in_degrees_from_pv_system" in dataset:
+            batch[BatchKey.hrvsatellite_angle_in_degrees_from_pv_system] = dataset[
                 "angle_in_degrees_from_pv_system"
             ].values
-        if "distance_in_meters_from_pv_system" in data:
-            batch[BatchKey.hrvsatellite_distance_in_meters_from_pv_system] = data[
+        if "distance_in_meters_from_pv_system" in dataset:
+            batch[BatchKey.hrvsatellite_distance_in_meters_from_pv_system] = dataset[
                 "distance_in_meters_from_pv_system"
             ].values
         return batch

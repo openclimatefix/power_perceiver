@@ -44,11 +44,11 @@ class DataLoader:
         return self.full_data_path / f"{batch_idx:06d}.{self.filename_suffix}"
 
     def get_n_batches_available(self) -> int:
-        n_batches = len(list(self.full_data_path.glob(f"*{self.filename_suffix}")))
+        n_batches = len(list(self.full_data_path.glob(f"*.{self.filename_suffix}")))
         _log.info(f"{self.data_source_name} has {n_batches} batches.")
         return n_batches
 
-    def to_numpy(self, data: xr.Dataset) -> dict[BatchKey, np.ndarray]:
+    def to_numpy(self, dataset: xr.Dataset) -> dict[BatchKey, np.ndarray]:
         """This is called from Dataset.__getitem__.
 
         This processes this modality's xr.Dataset, to convert the xr.Dataset

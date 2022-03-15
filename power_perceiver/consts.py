@@ -23,17 +23,19 @@ class BatchKey(Enum):
 
     This is basically a superset of DataSourceName, because each DataSource
     may be split into several different BatchKey elements. For example, the
-    pv DataSource yields `pv` and `pv_system_id` BatchKeys.
+    pv DataSource yields `pv` and `pv_system_row_number` BatchKeys.
     """
 
+    # -------------- SATELLITE AND HRV ------------------------------
     satellite = "satellite"
     hrvsatellite = "hrvsatellite"
     hrvsatellite_angle_in_degrees_from_pv_system = "hrvsatellite_angle_in_degrees_from_pv_system"
     hrvsatellite_distance_in_meters_from_pv_system = (
         "hrvsatellite_distance_in_meters_from_pv_system"
     )
+    # -------------- PV ---------------------------------------------
     pv = "pv"
-    pv_system_id = "pv_system_id"
+    pv_system_row_number = "pv_system_row_number"
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(
