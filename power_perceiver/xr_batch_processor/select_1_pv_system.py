@@ -91,7 +91,7 @@ class Select1PVSystem:
         Getting the OSGB boundaries for the PV systems is a bit fiddly because the satellite image
         is a skewed rectangle. We want the regular rectangle that fits within the OSGB boundaries:
 
-            skewed satellite image
+            skewed satellite image                # noqa W605
             \--------\
              \         \-------\
               \    |===========|\
