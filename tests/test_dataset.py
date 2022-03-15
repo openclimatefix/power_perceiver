@@ -10,6 +10,7 @@ from power_perceiver.testing import (
     download_batches_for_data_source_if_necessary,
     get_path_of_local_data_for_testing,
 )
+from power_perceiver.xr_batch_processor.select_1_pv_system import Select1PVSystem
 
 _DATA_SOURCES_TO_DOWNLOAD = (
     DataSourceName.satellite,
@@ -52,10 +53,30 @@ def test_dataset_with_single_data_source(
         data_path=get_path_of_local_data_for_testing(),
         data_source_names=[data_source_name],
     )
-    np_data = dataset[0]
-    assert len(np_data) > 0
-    assert isinstance(np_data, dict)
-    assert all([isinstance(key, BatchKey) for key in np_data])
-    assert all([isinstance(value, np.ndarray) for value in np_data.values()])
+    np_batch = dataset[0]
+    assert len(np_batch) > 0
+    assert isinstance(np_batch, dict)
+    assert all([isinstance(key, BatchKey) for key in np_batch])
+    assert all([isinstance(value, np.ndarray) for value in np_batch.values()])
     for batch_key in expected_batch_keys:
-        assert batch_key in np_data, f"{batch_key} not in np_data!"
+        assert batch_key in np_batch, f"{batch_key} not in np_data!"
+
+
+@pytest.mark.parametrize(
+    argnames="encode_pixel_positions_relative_to_pv_system",
+    argvalues=(True, False),
+)
+def test_select_1_pv_system(encode_pixel_positions_relative_to_pv_system: bool):
+    xr_batch_processors = [
+        Select1PVSystem(
+            encode_pixel_positions_relative_to_pv_system=encode_pixel_positions_relative_to_pv_system
+        )
+    ]
+
+    dataset = NowcastingDataset(
+        data_path=get_path_of_local_data_for_testing(),
+        data_source_names=[DataSourceName.hrvsatellite, DataSourceName.pv],
+        xr_batch_processors=xr_batch_processors,
+    )
+    np_batch = dataset[0]  # TODO: Do something with this!
+    assert np_batch[BatchKey.pv_system_row_number].shape == (32, 1)

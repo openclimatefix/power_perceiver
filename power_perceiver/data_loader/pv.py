@@ -1,19 +1,18 @@
-import numpy as np
 import xarray as xr
 
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import BatchKey, NumpyBatch
 from power_perceiver.data_loader.data_loader import DataLoader
 
 
 class PVLoader(DataLoader):
-    def to_numpy(self, dataset: xr.Dataset) -> dict[BatchKey, np.ndarray]:
+    def to_numpy(self, dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
 
         This processes this modality's xr.Dataset, to convert the xr.Dataset
         into a dictionary mapping BatchKeys to numpy arrays, as documented
         in the BatchKey class.
         """
-        batch: dict[BatchKey, np.ndarray] = {}
+        batch: NumpyBatch = {}
 
         # PV power
         # Note that, in v15 of the dataset, the keys are incorrectly named

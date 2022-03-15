@@ -2,6 +2,8 @@
 
 from enum import Enum
 
+import numpy as np
+import xarray as xr
 from pathy import Pathy
 
 
@@ -36,6 +38,10 @@ class BatchKey(Enum):
     # -------------- PV ---------------------------------------------
     pv = "pv"
     pv_system_row_number = "pv_system_row_number"
+
+
+XarrayBatch = dict[DataSourceName, xr.Dataset]
+NumpyBatch = dict[BatchKey, np.ndarray]
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(

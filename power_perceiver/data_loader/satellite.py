@@ -1,7 +1,7 @@
 import numpy as np
 import xarray as xr
 
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import BatchKey, NumpyBatch
 from power_perceiver.data_loader.data_loader import DataLoader
 
 SAT_MEAN = {
@@ -36,14 +36,14 @@ SAT_STD = {
 
 
 class HRVSatelliteLoader(DataLoader):
-    def to_numpy(self, dataset: xr.Dataset) -> dict[BatchKey, np.ndarray]:
+    def to_numpy(self, dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
 
         This processes this modality's xr.Dataset, to convert the xr.Dataset
         into a dictionary mapping BatchKeys to numpy arrays, as documented
         in the BatchKey class.
         """
-        batch: dict[BatchKey, np.ndarray] = {}
+        batch: NumpyBatch = {}
 
         # Prepare the satellite imagery itself
         hrvsatellite = dataset["data"]
