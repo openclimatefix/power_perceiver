@@ -1,11 +1,12 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 import numpy as np
 import torch
 import torch.utils.data
+import xarray as xr
 
 from power_perceiver.consts import BatchKey, DataSourceName
 from power_perceiver.data_loader import DATA_SOURCE_NAME_TO_LOADER_CLASS, DataLoader
@@ -23,6 +24,10 @@ class NowcastingDataset(torch.utils.data.Dataset):
         max_n_batches_per_epoch: If the user sets this to an int then
             this int will be the max number of batches used per epoch. If left as None
             then will load as many batches as are available.
+        xr_batch_processor: A function which takes a dict[DataSourceName, xr.Dataset],
+            and does processing *across* modalities, and returns a dict[DataSourceName, xr.Dataset].
+            Note that and processing *within* a modality should be done in
+            DataLoader.to_numpy.
 
     Attributes:
         data_source_loaders: dict[DataSourceName, DataLoader]
@@ -32,6 +37,7 @@ class NowcastingDataset(torch.utils.data.Dataset):
     data_path: Path
     data_source_names: Iterable[DataSourceName]
     max_n_batches_per_epoch: Optional[int] = None
+    xr_batch_processor: Optional[Callable] = None
 
     def __post_init__(self):
         # Sanity checks
@@ -72,10 +78,23 @@ class NowcastingDataset(torch.utils.data.Dataset):
     def __len__(self) -> int:
         return self.n_batches
 
-    def __getitem__(self, batch_idx: int) -> dict[BatchKey, torch.Tensor]:
-        np_data: dict[BatchKey, np.ndarray] = {}
+    def __getitem__(self, batch_idx: int) -> dict[BatchKey, np.ndarray]:
+        # First, load the completely un-modified batches from disk and store them in a dict
+        xr_data: dict[DataSourceName, xr.Dataset] = {}
         for data_source_name, data_source_loader in self.data_source_loaders.items():
-            np_data_for_data_source = data_source_loader[batch_idx]
+            xr_data_for_data_source = data_source_loader[batch_idx]
+            xr_data[data_source_name] = xr_data_for_data_source
+
+        # If necessary, do any processing which needs to be done across modalities,
+        # on the xr.Datasets:
+        if self.xr_batch_processor:
+            xr_data = self.xr_batch_processor(xr_data)
+
+        # Now convert from xarray Datasets to numpy:
+        np_data: dict[BatchKey, np.ndarray] = {}
+        for data_source_name, xr_dataset in xr_data.items():
+            data_source_obj = self.data_source_loaders[data_source_name]
+            np_data_for_data_source = data_source_obj.to_numpy(xr_dataset)
             np_data.update(np_data_for_data_source)
-        # TODO: Convert to Tensors
+
         return np_data

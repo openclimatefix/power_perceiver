@@ -28,6 +28,10 @@ class BatchKey(Enum):
 
     satellite = "satellite"
     hrvsatellite = "hrvsatellite"
+    hrvsatellite_angle_in_degrees_from_pv_system = "hrvsatellite_angle_in_degrees_from_pv_system"
+    hrvsatellite_distance_in_meters_from_pv_system = (
+        "hrvsatellite_distance_in_meters_from_pv_system"
+    )
     pv = "pv"
     pv_system_id = "pv_system_id"
 
