@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 import numpy as np
@@ -5,6 +6,8 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import DataSourceName, XarrayBatch
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -28,7 +31,7 @@ class Select1PVSystem:
 
     encode_pixel_positions_relative_to_pv_system: bool = True
     image_data_source_name: DataSourceName = DataSourceName.hrvsatellite
-    geo_border_km: pd.Series = pd.Series(dict(left=10, right=10, bottom=57, top=16))
+    geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
 
     def __post_init__(self):
         self.rng = np.random.default_rng(seed=42)
@@ -69,7 +72,13 @@ class Select1PVSystem:
                 & (pv_locations.y_coords <= inner_rectangle["top"])
             )
             selected_pv_id_indexes = pv_locations.id_index[pv_system_selection_mask]
-            assert len(selected_pv_id_indexes) > 0, "No PV systems in selection mask!"
+
+            # Sanity check
+            if len(selected_pv_id_indexes) == 0:
+                msg = f"No PV systems in selection mask!\n{example_i=}\n{inner_rectangle=}"
+                msg += f"\nNumber of PV systems in original batch: {len(pv_locations)}"
+                _log.error(msg)
+                raise ValueError(msg)
 
             # Select 1 PV system:
             pv_id_index = self.rng.choice(selected_pv_id_indexes)
@@ -113,7 +122,7 @@ class Select1PVSystem:
             pd.Series with keys left, right, top, bottom. The values are the OSGB coordinates of the relevant axis.
               e.g. the left and right are the values for the x axis.
         """
-        bounds = pd.Series(index=["left", "right", "top", "bottom"])
+        bounds = pd.Series(index=["left", "right", "top", "bottom"], dtype=np.float32)
 
         # Handle X coordinates. Get the x_osgb coords for the top and bottom rows of pixels.
         x_osgb = image_dataset["x_osgb"].isel(y_geostationary_index=[0, -1])

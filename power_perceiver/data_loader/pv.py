@@ -1,3 +1,4 @@
+import numpy as np
 import xarray as xr
 
 from power_perceiver.consts import BatchKey, NumpyBatch
@@ -23,5 +24,7 @@ class PVLoader(DataLoader):
         batch[BatchKey.pv] = pv
         del pv
 
-        batch[BatchKey.pv_system_row_number] = dataset["pv_system_row_number"].values
+        batch[BatchKey.pv_system_row_number] = dataset["pv_system_row_number"].values.astype(
+            np.int32
+        )
         return batch
