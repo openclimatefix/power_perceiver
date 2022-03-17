@@ -17,8 +17,7 @@ class NowcastingDataset(torch.utils.data.Dataset):
     """
     Initialisation arguments:
         data_path: Base path to the pre-prepared dataset. e.g. /path/to/v15/train/
-        data_source_names: The names of the requested data sources. Must also be the name of
-            the subdirectory in which the data resides.
+        data_loaders: The requested data loader objects.
         max_n_batches_per_epoch: If the user sets this to an int then
             this int will be the max number of batches used per epoch. If left as None
             then will load as many batches as are available.
@@ -32,22 +31,22 @@ class NowcastingDataset(torch.utils.data.Dataset):
         n_batches: int. Set by _set_number_of_batches.
     """
 
-    data_path: Path
-    data_source_names: Iterable[DataSourceName]
+    data_loaders: Iterable[DataLoader]
+    data_path: Optional[Path] = None
     max_n_batches_per_epoch: Optional[int] = None
     xr_batch_processors: Optional[Iterable[Callable]] = None
 
     def __post_init__(self):
         # Sanity checks
         assert self.data_path.exists()
-        assert len(self.data_source_names) > 0
+        assert len(self.data_loaders) > 0
         # Prepare DataLoaders.
         self._instantiate_data_source_loaders()
         self._set_number_of_batches()
 
     def _instantiate_data_source_loaders(self) -> None:
         self.data_source_loaders: dict[DataSourceName, DataLoader] = {}
-        for data_source_name in self.data_source_names:
+        for data_source_name in self.data_loaders:
             data_source_loader_class = DATA_SOURCE_NAME_TO_LOADER_CLASS[data_source_name]
             data_source_loader = data_source_loader_class(
                 data_path=self.data_path, data_source_name=data_source_name
