@@ -11,8 +11,11 @@ _log = logging.getLogger(__name__)
 
 
 @dataclass
-class Select1PVSystem:
-    """Selects a single PV system near the top-middle of the HRV satellite imagery.
+class SelectPVSystemsNearCenterOfImage:
+    """Selects PV systems near the top-middle of the imagery.
+
+    The returned XarrayBatch will have the same number of spaces for PV systems as the input
+    XarrayBatch, but the PV systems which are unselected will be set to NaN.
 
     Initialisation args:
         image_data_source_name: The name of the data source which defines the geospatial
@@ -20,6 +23,7 @@ class Select1PVSystem:
         geo_border_km: When selecting a single PV system from the top-middle of the HRV satellite
             imagery, use geo_border_km to define how much to reduce the selection rectangle
             before selecting PV systems. In kilometers.
+        drop_examples: If True then drop examples (from all data sources) which have no PV systems.
 
     Attributes:
         rng: A numpy random number generator.
@@ -27,20 +31,14 @@ class Select1PVSystem:
 
     image_data_source_name: DataSourceName = DataSourceName.hrvsatellite
     geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
-
-    def __post_init__(self):
-        self.rng = np.random.default_rng(seed=42)
+    drop_examples: bool = True
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
-        return self._select_1_pv_system(xr_batch)
-
-    def _select_1_pv_system(self, xr_batch: XarrayBatch) -> XarrayBatch:
         image_dataset = xr_batch[self.image_data_source_name]
         pv_dataset = xr_batch[DataSourceName.pv]
         batch_size = image_dataset.dims["example"]
         pv_id_indexes_for_all_examples = []
-        # If this loop is too slow then it may be possible to vectorise this code, to work on
-        # all examples at once.
+        # If this loop is too slow then it may be possible to vectorise this code.
         for example_i in range(batch_size):
             # Get inner rectangle for image dataset:
             image_dataset_for_example = image_dataset.sel(example=example_i)
@@ -52,38 +50,34 @@ class Select1PVSystem:
             inner_rectangle["bottom"] += self.geo_border_km["bottom"]
             inner_rectangle["top"] -= self.geo_border_km["top"]
 
+            # Sanity check:
+            if any(inner_rectangle.isnull()):
+                msg = f"At least one inner_rectangle value is NaN!\n{inner_rectangle=}"
+                _log.error(msg)
+                raise ValueError(msg)
+
             # Find PV systems within the inner rectangle:
             pv_dataset_for_example = pv_dataset.sel(example=example_i)
             pv_locations = pv_dataset_for_example[["x_coords", "y_coords"]]
-            valid_pv_id_mask = np.isfinite(pv_dataset_for_example.id.values)
-            pv_locations = pv_locations.isel(id_index=valid_pv_id_mask)
             pv_system_selection_mask = (
                 (pv_locations.x_coords >= inner_rectangle["left"])
                 & (pv_locations.x_coords <= inner_rectangle["right"])
                 & (pv_locations.y_coords >= inner_rectangle["bottom"])
                 & (pv_locations.y_coords <= inner_rectangle["top"])
             )
-            selected_pv_id_indexes = pv_locations.id_index[pv_system_selection_mask]
+            pv_id_indexes_for_all_examples.append(pv_system_selection_mask)
 
-            # Sanity check
-            if len(selected_pv_id_indexes) == 0:
-                msg = f"No PV systems in selection mask!\n{example_i=}\n{inner_rectangle=}"
-                msg += f"\nNumber of PV systems in original batch: {len(pv_locations)}"
-                _log.error(msg)
-                raise ValueError(msg)
+        # Set PV systems outside of the inner_rectangle to NaN.
+        mask = xr.concat(pv_id_indexes_for_all_examples, dim="example")
+        xr_batch[DataSourceName.pv] = pv_dataset.where(mask)
 
-            # Select 1 PV system:
-            pv_id_index = self.rng.choice(selected_pv_id_indexes)
-            pv_id_indexes_for_all_examples.append([pv_id_index])
+        if self.drop_examples:
+            # Drop examples which don't have any PV systems.
+            n_pv_systems_per_example = mask.sum(dim="id_index")
+            examples_to_drop = np.where(n_pv_systems_per_example == 0)[0]
+            for data_source_name, data_source_dataset in xr_batch.items():
+                xr_batch[data_source_name] = data_source_dataset.drop_sel(example=examples_to_drop)
 
-        # select one PV ID index from each example:
-        id_indexes = xr.DataArray(
-            pv_id_indexes_for_all_examples,
-            dims=["example", "id_index"],
-            coords={"example": pv_dataset.example},
-        )
-        pv_dataset = pv_dataset.sel(id_index=id_indexes)
-        xr_batch[DataSourceName.pv] = pv_dataset
         return xr_batch
 
     def _get_maximal_regular_inner_rectangle(self, image_dataset: xr.Dataset) -> pd.Series:

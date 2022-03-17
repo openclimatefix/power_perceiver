@@ -10,7 +10,9 @@ from power_perceiver.testing import (
     download_batches_for_data_source_if_necessary,
     get_path_of_local_data_for_testing,
 )
-from power_perceiver.xr_batch_processor.select_1_pv_system import Select1PVSystem
+from power_perceiver.xr_batch_processor.select_pv_systems_near_center_of_image import (
+    SelectPVSystemsNearCenterOfImage,
+)
 
 _DATA_SOURCES_TO_DOWNLOAD = (
     DataSourceName.satellite,
@@ -62,13 +64,20 @@ def test_dataset_with_single_data_source(
         assert batch_key in np_batch, f"{batch_key} not in np_data!"
 
 
-def test_select_1_pv_system():
-    xr_batch_processors = [Select1PVSystem()]
+def test_select_pv_systems_near_center_of_image():
+    xr_batch_processors = [SelectPVSystemsNearCenterOfImage()]
+
+    BATCH_SIZE = 32
+    PV_SYSTEMS_PER_EXAMPLE = 128
 
     dataset = NowcastingDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_source_names=[DataSourceName.hrvsatellite, DataSourceName.pv],
         xr_batch_processors=xr_batch_processors,
     )
-    np_batch = dataset[0]  # TODO: Do something with this!
-    assert np_batch[BatchKey.pv_system_row_number].shape == (32, 1)
+    np_batch = dataset[0]
+    assert np_batch[BatchKey.pv_system_row_number].shape == (BATCH_SIZE, PV_SYSTEMS_PER_EXAMPLE)
+
+    # Batch 1 has 2 examples which fall outside of the region of interest.
+    np_batch = dataset[1]
+    assert np_batch[BatchKey.pv_system_row_number].shape == (BATCH_SIZE - 2, PV_SYSTEMS_PER_EXAMPLE)
