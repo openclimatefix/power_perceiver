@@ -15,10 +15,6 @@ class Select1PVSystem:
     """Selects a single PV system near the top-middle of the HRV satellite imagery.
 
     Initialisation args:
-        encode_pixel_positions_relative_to_pv_system: If True then append two new items
-            to the xr_batch dict, with keys:
-                angle_in_degrees_from_pv_system
-                distance_in_meters_from_pv_system
         image_data_source_name: The name of the data source which defines the geospatial
             boundaries we'll use to select PV systems.
         geo_border_km: When selecting a single PV system from the top-middle of the HRV satellite
@@ -29,7 +25,6 @@ class Select1PVSystem:
         rng: A numpy random number generator.
     """
 
-    encode_pixel_positions_relative_to_pv_system: bool = True
     image_data_source_name: DataSourceName = DataSourceName.hrvsatellite
     geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
 
@@ -37,10 +32,7 @@ class Select1PVSystem:
         self.rng = np.random.default_rng(seed=42)
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
-        xr_batch = self._select_1_pv_system(xr_batch)
-        if self.encode_pixel_positions_relative_to_pv_system:
-            xr_batch = _encode_pixel_positions_relative_to_pv_system(xr_batch)
-        return xr_batch
+        return self._select_1_pv_system(xr_batch)
 
     def _select_1_pv_system(self, xr_batch: XarrayBatch) -> XarrayBatch:
         image_dataset = xr_batch[self.image_data_source_name]
@@ -141,8 +133,3 @@ class Select1PVSystem:
         assert y_osgb_range > 0
 
         return bounds
-
-
-def _encode_pixel_positions_relative_to_pv_system(xr_batch: XarrayBatch) -> XarrayBatch:
-    # TODO
-    return xr_batch

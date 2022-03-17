@@ -62,16 +62,8 @@ def test_dataset_with_single_data_source(
         assert batch_key in np_batch, f"{batch_key} not in np_data!"
 
 
-@pytest.mark.parametrize(
-    argnames="encode_pixel_positions_relative_to_pv_system",
-    argvalues=(True, False),
-)
-def test_select_1_pv_system(encode_pixel_positions_relative_to_pv_system: bool):
-    xr_batch_processors = [
-        Select1PVSystem(
-            encode_pixel_positions_relative_to_pv_system=encode_pixel_positions_relative_to_pv_system
-        )
-    ]
+def test_select_1_pv_system():
+    xr_batch_processors = [Select1PVSystem()]
 
     dataset = NowcastingDataset(
         data_path=get_path_of_local_data_for_testing(),

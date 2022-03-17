@@ -58,15 +58,4 @@ class HRVSatelliteLoader(DataLoader):
             "x_geostationary_index",
         )
         batch[BatchKey.hrvsatellite] = hrvsatellite.values
-        del hrvsatellite
-
-        # If present, then get the angle in degrees and distance from PV system.
-        if "angle_in_degrees_from_pv_system" in dataset:
-            batch[BatchKey.hrvsatellite_angle_in_degrees_from_pv_system] = dataset[
-                "angle_in_degrees_from_pv_system"
-            ].values
-        if "distance_in_meters_from_pv_system" in dataset:
-            batch[BatchKey.hrvsatellite_distance_in_meters_from_pv_system] = dataset[
-                "distance_in_meters_from_pv_system"
-            ].values
         return batch
