@@ -1,6 +1,7 @@
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable, Iterable, Optional
 
 import fsspec
 import numpy as np
@@ -19,6 +20,8 @@ class DataLoader:
         data_path:
         data_source_name:
         filename_suffix (str): Without the period (.)
+        transforms: A list of transform functions. Each must accept an xr.Dataset, and must
+            return a transformed xr.Dataset.
 
     Attributes:
         full_data_path (Path): Set by __post_init__.
@@ -32,13 +35,18 @@ class DataLoader:
     data_path: Path
     data_source_name: DataSourceName
     filename_suffix: str = "nc"
+    transforms: Optional[Iterable[Callable]] = None
 
     def __post_init__(self) -> None:
         self.full_data_path = self.data_path / self.data_source_name.value
 
     def __getitem__(self, batch_idx: int) -> xr.Dataset:
         filename = self.get_filename(batch_idx=batch_idx)
-        return load_netcdf(filename)
+        dataset = load_netcdf(filename)
+        if self.transforms:
+            for transform in self.transforms:
+                dataset = transform(dataset)
+        return dataset
 
     def get_filename(self, batch_idx: int) -> Path:
         return self.full_data_path / f"{batch_idx:06d}.{self.filename_suffix}"
