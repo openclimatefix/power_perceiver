@@ -2,20 +2,7 @@
 
 from enum import Enum
 
-import numpy as np
-import xarray as xr
 from pathy import Pathy
-
-
-class DataSourceName(Enum):  # noqa: D101
-    gsp = "gsp"
-    nwp = "nwp"
-    opticalflow = "opticalflow"
-    pv = "pv"
-    satellite = "satellite"
-    hrvsatellite = "hrvsatellite"
-    sun = "sun"
-    topographic = "topographic"
 
 
 class BatchKey(Enum):
@@ -36,10 +23,6 @@ class BatchKey(Enum):
     # -------------- PV ---------------------------------------------
     pv = "pv"  # shape: (batch_size, time, n_pv_systems)
     pv_system_row_number = "pv_system_row_number"  # shape: (batch_size, n_pv_systems)
-
-
-XarrayBatch = dict[DataSourceName, xr.Dataset]
-NumpyBatch = dict[BatchKey, np.ndarray]
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(

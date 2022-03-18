@@ -3,7 +3,8 @@ from typing import Iterable
 import numpy as np
 import pytest
 
-from power_perceiver.consts import BatchKey, DataSourceName
+from power_perceiver.consts import BatchKey
+from power_perceiver.data_loader import PV, DataLoader, HRVSatellite
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.testing import (
     INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING,
@@ -14,12 +15,7 @@ from power_perceiver.xr_batch_processor.select_pv_systems_near_center_of_image i
     SelectPVSystemsNearCenterOfImage,
 )
 
-_DATA_SOURCES_TO_DOWNLOAD = (
-    DataSourceName.satellite,
-    DataSourceName.hrvsatellite,
-    DataSourceName.pv,
-    DataSourceName.nwp,
-)
+_DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name)
 
 
 def setup_module():
@@ -34,7 +30,7 @@ def setup_module():
 def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
     dataset = NowcastingDataset(
         data_path=get_path_of_local_data_for_testing(),
-        data_source_names=_DATA_SOURCES_TO_DOWNLOAD,
+        data_loaders=[PV()],
         max_n_batches_per_epoch=max_n_batches_per_epoch,
     )
     assert dataset.n_batches == expected_n_batches
@@ -42,18 +38,18 @@ def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
 
 
 @pytest.mark.parametrize(
-    argnames=["data_source_name", "expected_batch_keys"],
+    argnames=["data_loader", "expected_batch_keys"],
     argvalues=[
-        (DataSourceName.hrvsatellite, [BatchKey.hrvsatellite]),
-        (DataSourceName.pv, [BatchKey.pv, BatchKey.pv_system_row_number]),
+        (HRVSatellite(), [BatchKey.hrvsatellite]),
+        (PV(), [BatchKey.pv, BatchKey.pv_system_row_number]),
     ],
 )
 def test_dataset_with_single_data_source(
-    data_source_name: DataSourceName, expected_batch_keys: Iterable[BatchKey]
+    data_loader: DataLoader, expected_batch_keys: Iterable[BatchKey]
 ):
     dataset = NowcastingDataset(
         data_path=get_path_of_local_data_for_testing(),
-        data_source_names=[data_source_name],
+        data_loaders=[data_loader],
     )
     np_batch = dataset[0]
     assert len(np_batch) > 0
@@ -72,7 +68,7 @@ def test_select_pv_systems_near_center_of_image():
 
     dataset = NowcastingDataset(
         data_path=get_path_of_local_data_for_testing(),
-        data_source_names=[DataSourceName.hrvsatellite, DataSourceName.pv],
+        data_loaders=[HRVSatellite(), PV()],
         xr_batch_processors=xr_batch_processors,
     )
     np_batch = dataset[0]

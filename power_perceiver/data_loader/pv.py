@@ -1,12 +1,12 @@
 import numpy as np
 import xarray as xr
 
-from power_perceiver.consts import BatchKey, NumpyBatch
-from power_perceiver.data_loader.data_loader import DataLoader
+from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyBatch
 
 
-class PVLoader(DataLoader):
-    def to_numpy(self, dataset: xr.Dataset) -> NumpyBatch:
+class PV(DataLoader):
+    @staticmethod
+    def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
 
         This processes this modality's xr.Dataset, to convert the xr.Dataset

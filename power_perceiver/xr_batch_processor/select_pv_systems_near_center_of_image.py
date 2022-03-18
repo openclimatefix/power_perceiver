@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from power_perceiver.consts import DataSourceName, XarrayBatch
+from power_perceiver.data_loader import PV, DataLoader, HRVSatellite, XarrayBatch
 
 _log = logging.getLogger(__name__)
 
@@ -18,7 +18,7 @@ class SelectPVSystemsNearCenterOfImage:
     XarrayBatch, but the PV systems which are unselected will be set to NaN.
 
     Initialisation args:
-        image_data_source_name: The name of the data source which defines the geospatial
+        image_data_loader_class: The name of the data source which defines the geospatial
             boundaries we'll use to select PV systems.
         geo_border_km: When selecting a single PV system from the top-middle of the HRV satellite
             imagery, use geo_border_km to define how much to reduce the selection rectangle
@@ -29,13 +29,13 @@ class SelectPVSystemsNearCenterOfImage:
         rng: A numpy random number generator.
     """
 
-    image_data_source_name: DataSourceName = DataSourceName.hrvsatellite
+    image_data_loader_class: DataLoader = HRVSatellite
     geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
     drop_examples: bool = True
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
-        image_dataset = xr_batch[self.image_data_source_name]
-        pv_dataset = xr_batch[DataSourceName.pv]
+        image_dataset = xr_batch[self.image_data_loader_class]
+        pv_dataset = xr_batch[PV]
         batch_size = image_dataset.dims["example"]
         pv_id_indexes_for_all_examples = []
         # If this loop is too slow then it may be possible to vectorise this code.
@@ -69,14 +69,14 @@ class SelectPVSystemsNearCenterOfImage:
 
         # Set PV systems outside of the inner_rectangle to NaN.
         mask = xr.concat(pv_id_indexes_for_all_examples, dim="example")
-        xr_batch[DataSourceName.pv] = pv_dataset.where(mask)
+        xr_batch[PV] = pv_dataset.where(mask)
 
         if self.drop_examples:
             # Drop examples which don't have any PV systems.
             n_pv_systems_per_example = mask.sum(dim="id_index")
             examples_to_drop = np.where(n_pv_systems_per_example == 0)[0]
-            for data_source_name, data_source_dataset in xr_batch.items():
-                xr_batch[data_source_name] = data_source_dataset.drop_sel(example=examples_to_drop)
+            for data_loader_class, xr_dataset in xr_batch.items():
+                xr_batch[data_loader_class] = xr_dataset.drop_sel(example=examples_to_drop)
 
         return xr_batch
 

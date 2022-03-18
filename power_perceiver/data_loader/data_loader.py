@@ -7,9 +7,12 @@ import fsspec
 import numpy as np
 import xarray as xr
 
-from power_perceiver.consts import BatchKey, DataSourceName
+from power_perceiver.consts import BatchKey
 
 _log = logging.getLogger(__name__)
+
+
+NumpyBatch = dict[BatchKey, np.ndarray]
 
 
 @dataclass
@@ -17,28 +20,42 @@ class DataLoader:
     """Load each data source.
 
     Initialisation arguments:
-        data_path:
-        data_source_name:
         filename_suffix (str): Without the period (.)
         transforms: A list of transform functions. Each must accept an xr.Dataset, and must
             return a transformed xr.Dataset.
 
     Attributes:
-        full_data_path (Path): Set by __post_init__.
+        data_path (Path):
+        full_data_path (Path): Set by the `data_path` setter.
 
     How to add a new subclass:
-      1. Create new subclass :). Override DataLoader.to_numpy
-      2. Update DATA_SOURCE_NAME_TO_LOADER_CLASS in __init__.py
+      1. Create new subclass :)
+      2. Override / set:
+         - DataLoader.to_numpy
       3. If necessary, also update DataSourceName and/or BatchKey in consts.py
     """
 
-    data_path: Path
-    data_source_name: DataSourceName
     filename_suffix: str = "nc"
     transforms: Optional[Iterable[Callable]] = None
 
     def __post_init__(self) -> None:
-        self.full_data_path = self.data_path / self.data_source_name.value
+        self._data_path = None
+
+    @classmethod
+    @property
+    def name(cls) -> str:
+        return cls.__name__.lower()
+
+    @property
+    def data_path(self) -> Path:
+        if self._data_path is None:
+            raise ValueError("data_path is not set!")
+        return self._data_path
+
+    @data_path.setter
+    def data_path(self, data_path: Path) -> None:
+        self._data_path = data_path
+        self.full_data_path = data_path / self.name
 
     def __getitem__(self, batch_idx: int) -> xr.Dataset:
         filename = self.get_filename(batch_idx=batch_idx)
@@ -53,13 +70,14 @@ class DataLoader:
 
     def get_n_batches_available(self) -> int:
         n_batches = len(list(self.full_data_path.glob(f"*.{self.filename_suffix}")))
-        _log.info(f"{self.data_source_name} has {n_batches} batches.")
+        _log.info(f"{self.name} has {n_batches} batches.")
         return n_batches
 
-    def to_numpy(self, dataset: xr.Dataset) -> dict[BatchKey, np.ndarray]:
-        """This is called from Dataset.__getitem__.
+    @staticmethod
+    def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
+        """This is called from Dataset._xarray_to_numpy_batch.
 
-        This processes this modality's xr.Dataset, to convert the xr.Dataset
+        Process this modality's xr.Dataset, to convert the xr.Dataset
         into a dictionary mapping BatchKeys to numpy arrays, as documented
         in the BatchKey class.
         """
@@ -71,3 +89,6 @@ def load_netcdf(filename, engine="h5netcdf", *args, **kwargs) -> xr.Dataset:
     with fsspec.open(filename, mode="rb") as file:
         dataset = xr.load_dataset(file, engine=engine, *args, **kwargs)
     return dataset
+
+
+XarrayBatch = dict[DataLoader.__class__, xr.Dataset]
