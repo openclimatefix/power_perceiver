@@ -9,8 +9,9 @@ implement it as a callable object (just like PyTorch transforms) so you can conf
 batch processor.
 
 The `__call__` method must accept an `XarrayBatch` and return an `XarrayBatch`.
-`XarrayBatch` is defined in `consts.py` as simply `XarrayBatch = dict[DataSourceName, xr.Dataset]`.
+`XarrayBatch` is defined in `data_loader.py` as simply
+ `XarrayBatch = dict[DataLoader.__class__, xr.Dataset]`.
 That is, an `XarrayBatch` is a dictionary containing the unprocessed xarray datasets which hold
-data for every requested data source for a given batch index.
+data for every data loader for a given batch index.
 
 A list of xarray batch processors is passed into `NowcastingDataset`.

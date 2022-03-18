@@ -25,14 +25,15 @@ class DataLoader:
             return a transformed xr.Dataset.
 
     Attributes:
-        data_path (Path):
+        data_path (Path): Actually, under the hood this is stored in a _data_class attribute,
+            and set and got through setter and getter methods.
         full_data_path (Path): Set by the `data_path` setter.
 
     How to add a new subclass:
       1. Create new subclass :)
       2. Override / set:
          - DataLoader.to_numpy
-      3. If necessary, also update DataSourceName and/or BatchKey in consts.py
+      3. If necessary, also update BatchKey in consts.py
     """
 
     filename_suffix: str = "nc"

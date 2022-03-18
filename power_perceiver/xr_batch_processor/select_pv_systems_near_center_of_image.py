@@ -24,9 +24,6 @@ class SelectPVSystemsNearCenterOfImage:
             imagery, use geo_border_km to define how much to reduce the selection rectangle
             before selecting PV systems. In kilometers.
         drop_examples: If True then drop examples (from all data sources) which have no PV systems.
-
-    Attributes:
-        rng: A numpy random number generator.
     """
 
     image_data_loader_class: DataLoader = HRVSatellite

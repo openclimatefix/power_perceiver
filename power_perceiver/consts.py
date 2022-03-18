@@ -10,9 +10,9 @@ class BatchKey(Enum):
 
     This is also where we document the exact shape of each element.
 
-    This is basically a superset of DataSourceName, because each DataSource
+    This is basically a superset of all the DataLoaders, because each DataLoader
     may be split into several different BatchKey elements. For example, the
-    pv DataSource yields `pv` and `pv_system_row_number` BatchKeys.
+    PV DataLoader yields `pv` and `pv_system_row_number` BatchKeys.
     """
 
     # -------------- SATELLITE AND HRV ------------------------------

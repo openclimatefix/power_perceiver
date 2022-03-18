@@ -15,18 +15,17 @@ _log = logging.getLogger(__name__)
 class NowcastingDataset(torch.utils.data.Dataset):
     """
     Initialisation arguments:
+        data_loaders: A list of instantiated data loader objects.
         data_path: Base path to the pre-prepared dataset. e.g. /path/to/v15/train/
-        data_loaders: The requested data loader objects.
         max_n_batches_per_epoch: If the user sets this to an int then
             this int will be the max number of batches used per epoch. If left as None
             then will load as many batches as are available.
-        xr_batch_processors: Functions which takes a dict[DataSourceName, xr.Dataset],
-            and does processing *across* modalities, and returns a dict[DataSourceName, xr.Dataset].
+        xr_batch_processors: Functions which takes an XarrayBatch,
+            and does processing *across* modalities, and returns the processed XarrayBatch.
             Note that and processing *within* a modality should be done in
             DataLoader.to_numpy.
 
     Attributes:
-        data_source_loaders: dict[DataSourceName, DataLoader]
         n_batches: int. Set by _set_number_of_batches.
     """
 
