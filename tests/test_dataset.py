@@ -1,21 +1,26 @@
-from typing import Iterable
+from typing import Callable, Iterable
 
 import numpy as np
 import pytest
 
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
 from power_perceiver.data_loader import PV, DataLoader, HRVSatellite
+from power_perceiver.data_loader.data_loader import NumpyBatch
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.testing import (
     INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING,
     download_batches_for_data_source_if_necessary,
     get_path_of_local_data_for_testing,
 )
+from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.xr_batch_processor.select_pv_systems_near_center_of_image import (
     SelectPVSystemsNearCenterOfImage,
 )
 
 _DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name)
+BATCH_SIZE = 32
+N_PV_TIMESTEPS = 31
+N_PV_SYSTEMS_PER_EXAMPLE = 128
 
 
 def setup_module():
@@ -60,11 +65,37 @@ def test_dataset_with_single_data_source(
         assert batch_key in np_batch, f"{batch_key} not in np_data!"
 
 
+def _check_pv_batch(
+    np_batch: NumpyBatch,
+    expected_batch_size: int = BATCH_SIZE,
+    expected_n_pv_timesteps: int = N_PV_TIMESTEPS,
+    expected_n_pv_systems_per_example: int = N_PV_SYSTEMS_PER_EXAMPLE,
+) -> None:
+
+    pv_batch = np_batch[BatchKey.pv]
+    assert len(pv_batch.shape) == 3
+    assert pv_batch.shape[0] == expected_batch_size
+    assert pv_batch.shape[PV_TIME_AXIS] == expected_n_pv_timesteps
+    assert pv_batch.shape[PV_SYSTEM_AXIS] == expected_n_pv_systems_per_example
+
+    pv_system_row_number = np_batch[BatchKey.pv_system_row_number]
+    assert len(pv_system_row_number.shape) == 2
+    assert pv_system_row_number.shape[0] == expected_batch_size
+    assert pv_system_row_number.shape[1] == expected_n_pv_systems_per_example
+
+    pv_mask = np_batch[BatchKey.pv_mask]
+    assert len(pv_mask.shape) == 2
+    assert pv_mask.shape[0] == expected_batch_size
+    assert pv_mask.shape[1] == expected_n_pv_systems_per_example
+
+    # Select valid PV systems, and check the timeseries are not NaN.
+    assert pv_mask.any(), "No valid PV systems!"
+    pv_is_finite = np.isfinite(pv_batch).all(axis=PV_TIME_AXIS)
+    assert (pv_is_finite == pv_mask).all()
+
+
 def test_select_pv_systems_near_center_of_image():
     xr_batch_processors = [SelectPVSystemsNearCenterOfImage()]
-
-    BATCH_SIZE = 32
-    PV_SYSTEMS_PER_EXAMPLE = 128
 
     dataset = NowcastingDataset(
         data_path=get_path_of_local_data_for_testing(),
@@ -72,8 +103,21 @@ def test_select_pv_systems_near_center_of_image():
         xr_batch_processors=xr_batch_processors,
     )
     np_batch = dataset[0]
-    assert np_batch[BatchKey.pv_system_row_number].shape == (BATCH_SIZE, PV_SYSTEMS_PER_EXAMPLE)
+    _check_pv_batch(np_batch)
 
-    # Batch 1 has 2 examples which fall outside of the region of interest.
+    # Batch 1 has 2 examples with no PV systems within the region of interest.
     np_batch = dataset[1]
-    assert np_batch[BatchKey.pv_system_row_number].shape == (BATCH_SIZE - 2, PV_SYSTEMS_PER_EXAMPLE)
+    _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 2)
+
+
+@pytest.mark.parametrize(argnames="transforms", argvalues=[None, [PVPowerRollingWindow()]])
+def test_pv(transforms: Iterable[Callable]):
+    pv_data_loader = PV(transforms=transforms)
+    dataset = NowcastingDataset(
+        data_path=get_path_of_local_data_for_testing(),
+        data_loaders=[pv_data_loader],
+    )
+    assert len(dataset) == len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)
+    for batch_idx in range(len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)):
+        np_batch = dataset[batch_idx]
+        _check_pv_batch(np_batch)

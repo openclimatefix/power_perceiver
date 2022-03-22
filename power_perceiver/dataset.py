@@ -41,6 +41,7 @@ class NowcastingDataset(torch.utils.data.Dataset):
         # Prepare DataLoaders.
         self._set_data_path_in_data_loaders()
         self._set_number_of_batches()
+        super().__init__()
 
     def _set_data_path_in_data_loaders(self) -> None:
         for data_loader in self.data_loaders:
@@ -69,6 +70,8 @@ class NowcastingDataset(torch.utils.data.Dataset):
         return self.n_batches
 
     def __getitem__(self, batch_idx: int) -> NumpyBatch:
+        if batch_idx >= self.n_batches:
+            raise KeyError(f"{batch_idx=} is out of bounds! {self.n_batches=}")
         xr_batch = self._get_xarray_batch(batch_idx)
         xr_batch = self._process_xr_batch(xr_batch)
         np_batch = self._xarray_to_numpy_batch(xr_batch)

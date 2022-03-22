@@ -27,6 +27,8 @@ class PVPowerRollingWindow:
         min_periods: Minimum number of observations in window required to have a value;
             otherwise, result is `np.nan`.
 
+            To avoid NaNs at the start and end of the timeseries, this should be <= ceil(window/2).
+
             For a window that is specified by an offset, `min_periods` will default to 1.
 
             For a window that is specified by an integer, `min_periods` will default to the size of
@@ -34,17 +36,9 @@ class PVPowerRollingWindow:
 
         center: If False, set the window labels as the right edge of the window index.
             If True, set the window labels as the center of the window index.
-
-        win_type: If None, all points are evenly weighted.
-            If a string, it must be a valid scipy.signal window function:
-            https://docs.scipy.org/doc/scipy/reference/signal.windows.html#module-scipy.signal.windows
-
-            Certain Scipy window types require additional parameters to be passed in the
-            aggregation function. The additional parameters must match the keywords specified in
-            the Scipy window type method signature.
     """
 
-    window: Union[int, pd.offset, pd.BaseIndexer] = 3
+    window: Union[int, pd.tseries.offsets.DateOffset, pd.core.indexers.objects.BaseIndexer] = 3
     min_periods: Optional[int] = 2
     center: bool = True
     win_type: Optional[str] = None
@@ -56,7 +50,6 @@ class PVPowerRollingWindow:
                 dim={"time_index": self.window},
                 min_periods=self.min_periods,
                 center=self.center,
-                win_type=self.win_type,
             )
             .mean()
         )
