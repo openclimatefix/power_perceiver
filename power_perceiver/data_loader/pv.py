@@ -17,7 +17,7 @@ class PV(DataLoader):
 
         # PV power
         # Note that, in v15 of the dataset, the keys are incorrectly named
-        # power_mw and capacity_mwp, even though the power are capacity are both in watts.
+        # power_mw and capacity_mwp, even though the power and capacity are both in watts.
         # See https://github.com/openclimatefix/nowcasting_dataset/issues/530
         pv_normalised = dataset["power_mw"] / dataset["capacity_mwp"]
         batch[BatchKey.pv] = pv_normalised.values
