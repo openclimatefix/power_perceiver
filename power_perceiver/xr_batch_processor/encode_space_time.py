@@ -1,3 +1,4 @@
+import numpy as np
 import xarray as xr
 
 from power_perceiver.data_loader.data_loader import XarrayBatch
@@ -40,22 +41,22 @@ def _rescale_data_arrays_to_0_to_1(data_arrays: dict[str, xr.DataArray]) -> dict
     """Rescales multiple DataArrays using the same min and max across all DataArrays.
 
     Args:
-        data_arrays: A dictionary of data_arrays.
+        data_arrays: A dictionary of xr.DataArrays.
             Each dictionary key should be of the form <modality_name>_position_encoding_<dim_name>.
-            Each dictionary value should be a data_array of shape [batch_size, length].
-            All data_arrays must have the same batch_size.
+            Each dictionary value should be a DataArray of shape [batch_size, ...].
+            All DataArrays must have the same batch_size.
 
     Returns:
         rescaled_data_arrays: A dict with the same keys as the input `data_arrays` dict but where
-            each tensor has had its values rescaled to be in the range [0, 1].
+            each DataArray has had its values rescaled to be in the range [0, 1].
     """
 
     # Compute the maximum and the range, across all the data_arrays.
     list_of_data_arrays = [torch.flatten(t, start_dim=1) for t in data_arrays.values()]
     data_arrays_concatenated = torch.cat(list_of_data_arrays, dim=1)
     del list_of_data_arrays
-    minimum = tensor_nanmin(data_arrays_concatenated, dim=1)
-    maximum = tensor_nanmax(data_arrays_concatenated, dim=1)
+    minimum = np.nanmin(data_arrays_concatenated, axis=1)
+    maximum = np.nanmax(data_arrays_concatenated, axis=1)
     min_max_range = maximum - minimum
     del maximum
 

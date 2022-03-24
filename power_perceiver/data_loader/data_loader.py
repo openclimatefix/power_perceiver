@@ -1,5 +1,5 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
@@ -20,6 +20,7 @@ class DataLoader:
     """Load each data source.
 
     Initialisation arguments:
+        data_path (Path): Optional.
         filename_suffix (str): Without the period (.)
         transforms: A list of transform functions. Each must accept an xr.Dataset, and must
             return a transformed xr.Dataset.
@@ -33,14 +34,16 @@ class DataLoader:
       1. Create new subclass :)
       2. Override / set:
          - DataLoader.to_numpy
+         - DataLoader.dim_name
       3. If necessary, also update BatchKey in consts.py
     """
 
+    data_path: InitVar[Optional[Path]] = None
     filename_suffix: str = "nc"
     transforms: Optional[Iterable[Callable]] = None
 
-    def __post_init__(self) -> None:
-        self._data_path = None
+    def __post_init__(self, data_path) -> None:
+        self.data_path = data_path
 
     @classmethod
     @property
@@ -73,6 +76,32 @@ class DataLoader:
         n_batches = len(list(self.full_data_path.glob(f"*.{self.filename_suffix}")))
         _log.info(f"{self.name} has {n_batches} batches.")
         return n_batches
+
+    @staticmethod
+    def dim_name(input_dim_name: str) -> str:
+        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
+
+        Args:
+            input_dim_name: {x, y, time}
+
+        Returns:
+            The corresponding dim name.
+        """
+        return input_dim_name
+
+    @classmethod
+    def get_coords(cls, dataset: xr.DataSet, dim_name: str) -> str:
+        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
+
+        Args:
+            dataset: xr.DataSet loaded from disk
+            dim_name: {x, y, time}
+
+        Returns:
+            The corresponding dim name.
+        """
+        dim_name_for_dataset = cls.dim_name(dim_name)
+        return dataset[dim_name_for_dataset]
 
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:

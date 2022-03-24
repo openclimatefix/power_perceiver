@@ -36,6 +36,23 @@ SAT_STD = {
 
 class HRVSatellite(DataLoader):
     @staticmethod
+    def dim_name(input_dim_name: str) -> str:
+        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
+
+        Args:
+            input_dim_name: {x, y, time}
+
+        Returns:
+            The corresponding dim name.
+        """
+        DIM_NAME_MAPPING = {
+            "x": "x_osgb",
+            "y": "y_osgb",
+            "time": "time",
+        }
+        return DIM_NAME_MAPPING[input_dim_name]
+
+    @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
 

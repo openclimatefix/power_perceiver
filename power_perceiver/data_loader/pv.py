@@ -6,6 +6,37 @@ from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyB
 
 class PV(DataLoader):
     @staticmethod
+    def dim_name(input_dim_name: str) -> str:
+        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
+
+        Args:
+            input_dim_name: {x, y, time}
+
+        Returns:
+            The corresponding dim name.
+        """
+        DIM_NAME_MAPPING = {
+            "x": "x_coords",
+            "y": "y_coords",
+            "time": "time",
+        }
+        return DIM_NAME_MAPPING[input_dim_name]
+
+    @classmethod
+    def get_coords(cls, dataset: xr.DataSet, dim_name: str) -> str:
+        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
+
+        Args:
+            dataset: xr.DataSet loaded from disk
+            dim_name: {x, y, time}
+
+        Returns:
+            The corresponding dim name.
+        """
+        dim_name_for_dataset = cls.dim_name(dim_name)
+        return dataset[dim_name_for_dataset]
+
+    @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
 
