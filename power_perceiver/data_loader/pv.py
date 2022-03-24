@@ -31,8 +31,10 @@ class PV(DataLoader):
             np.int32
         )
 
-        # Compute mask of valid PV data
+        # Compute mask of valid PV data.
+        # The mask will be a bool DataArray of shape (batch_size, n_pv_systems).
         valid_pv_capacity = dataset["capacity_mwp"] > 0
+        # A NaN ID value is the "official" way to indicate a missing or deselected PV system.
         valid_pv_id = np.isfinite(dataset["id"])
         valid_pv_power = np.isfinite(pv_normalised).all(dim="time_index")
         pv_mask = valid_pv_capacity & valid_pv_id & valid_pv_power

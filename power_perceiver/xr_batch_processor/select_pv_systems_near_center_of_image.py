@@ -66,7 +66,7 @@ class SelectPVSystemsNearCenterOfImage:
 
         # Set PV systems outside of the inner_rectangle to NaN.
         mask = xr.concat(pv_id_indexes_for_all_examples, dim="example")
-        xr_batch[PV] = pv_dataset.where(mask)
+        xr_batch[PV]["id"] = pv_dataset["id"].where(mask)
 
         if self.drop_examples:
             # Drop examples which don't have any PV systems.
