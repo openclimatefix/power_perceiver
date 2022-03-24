@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from power_perceiver.data_loader import PV, DataLoader, HRVSatellite, XarrayBatch
+from power_perceiver.data_loader import PV, DataLoader, HRVSatellite, NumpyBatch
 
 _log = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ class SelectPVSystemsNearCenterOfImage:
     geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
     drop_examples: bool = True
 
-    def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
+    def __call__(self, xr_batch: NumpyBatch) -> NumpyBatch:
         image_dataset = xr_batch[self.image_data_loader_class]
         pv_dataset = xr_batch[PV]
         batch_size = image_dataset.dims["example"]

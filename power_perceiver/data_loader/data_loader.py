@@ -25,25 +25,16 @@ class DataLoader:
         transforms: A list of transform functions. Each must accept an xr.Dataset, and must
             return a transformed xr.Dataset.
 
-    Attributes:
-        data_path (Path): Actually, under the hood this is stored in a _data_class attribute,
-            and set and got through setter and getter methods.
-        full_data_path (Path): Set by the `data_path` setter.
-
     How to add a new subclass:
       1. Create new subclass :)
       2. Override / set:
          - DataLoader.to_numpy
-         - DataLoader.dim_name
       3. If necessary, also update BatchKey in consts.py
     """
 
-    data_path: InitVar[Optional[Path]] = None
+    data_path: Optional[Path] = None
     filename_suffix: str = "nc"
     transforms: Optional[Iterable[Callable]] = None
-
-    def __post_init__(self, data_path) -> None:
-        self.data_path = data_path
 
     @classmethod
     @property
@@ -51,15 +42,14 @@ class DataLoader:
         return cls.__name__.lower()
 
     @property
-    def data_path(self) -> Path:
-        if self._data_path is None:
-            raise ValueError("data_path is not set!")
-        return self._data_path
-
-    @data_path.setter
-    def data_path(self, data_path: Path) -> None:
-        self._data_path = data_path
-        self.full_data_path = data_path / self.name
+    def full_data_path(self) -> Path:
+        try:
+            return self.data_path / self.name
+        except:
+            if self.data_path is None:
+                raise ValueError("data_path must be set!")
+            else:
+                raise
 
     def __getitem__(self, batch_idx: int) -> xr.Dataset:
         filename = self.get_filename(batch_idx=batch_idx)
@@ -76,32 +66,6 @@ class DataLoader:
         n_batches = len(list(self.full_data_path.glob(f"*.{self.filename_suffix}")))
         _log.info(f"{self.name} has {n_batches} batches.")
         return n_batches
-
-    @staticmethod
-    def dim_name(input_dim_name: str) -> str:
-        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
-
-        Args:
-            input_dim_name: {x, y, time}
-
-        Returns:
-            The corresponding dim name.
-        """
-        return input_dim_name
-
-    @classmethod
-    def get_coords(cls, dataset: xr.DataSet, dim_name: str) -> str:
-        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
-
-        Args:
-            dataset: xr.DataSet loaded from disk
-            dim_name: {x, y, time}
-
-        Returns:
-            The corresponding dim name.
-        """
-        dim_name_for_dataset = cls.dim_name(dim_name)
-        return dataset[dim_name_for_dataset]
 
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
@@ -121,4 +85,4 @@ def load_netcdf(filename, engine="h5netcdf", *args, **kwargs) -> xr.Dataset:
     return dataset
 
 
-XarrayBatch = dict[DataLoader.__class__, xr.Dataset]
+NumpyBatch = dict[DataLoader.__class__, xr.Dataset]

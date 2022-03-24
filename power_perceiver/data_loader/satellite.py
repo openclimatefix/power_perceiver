@@ -2,6 +2,7 @@ import numpy as np
 import xarray as xr
 
 from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyBatch
+from power_perceiver.utils import datetime64_to_int
 
 SAT_MEAN = {
     "HRV": 236.13257536395903,
@@ -34,24 +35,16 @@ SAT_STD = {
 }
 
 
+SATELLITE_CHANNEL_ORDER = (
+    "example",
+    "time_index",
+    "channels_index",
+    "y_geostationary_index",
+    "x_geostationary_index",
+)
+
+
 class HRVSatellite(DataLoader):
-    @staticmethod
-    def dim_name(input_dim_name: str) -> str:
-        """Convert input_dim_name to the corresponding dim name for this xr.DataSet.
-
-        Args:
-            input_dim_name: {x, y, time}
-
-        Returns:
-            The corresponding dim name.
-        """
-        DIM_NAME_MAPPING = {
-            "x": "x_osgb",
-            "y": "y_osgb",
-            "time": "time",
-        }
-        return DIM_NAME_MAPPING[input_dim_name]
-
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
@@ -64,15 +57,21 @@ class HRVSatellite(DataLoader):
 
         # Prepare the satellite imagery itself
         hrvsatellite = dataset["data"]
+        # hrvsatellite is int16 on disk
         hrvsatellite = hrvsatellite.astype(np.float32)
         hrvsatellite -= SAT_MEAN["HRV"]
         hrvsatellite /= SAT_STD["HRV"]
-        hrvsatellite = hrvsatellite.transpose(
-            "example",
-            "time_index",
-            "channels_index",
-            "y_geostationary_index",
-            "x_geostationary_index",
-        )
+        hrvsatellite = hrvsatellite.transpose(*SATELLITE_CHANNEL_ORDER)
         batch[BatchKey.hrvsatellite] = hrvsatellite.values
+
+        # Coordinates
+        batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_int(dataset["time"].values)
+        for batch_key, dataset_key in (
+            (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
+            (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
+        ):
+            coords = dataset[dataset_key]
+            # HRVSatellite coords are already float32.
+            batch[batch_key] = coords.values
+
         return batch

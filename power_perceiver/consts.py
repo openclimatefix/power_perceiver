@@ -18,16 +18,31 @@ class BatchKey(Enum):
     PV DataLoader yields `pv` and `pv_system_row_number` BatchKeys.
     """
 
-    # -------------- SATELLITE AND HRV ------------------------------
+    # -------------- SATELLITE --------------------------------------
     # shape: (batch_size, time, channels, y, x)
     satellite = "satellite"
+
+    # -------------- HRVSATELLITE -----------------------------------
+    # shape: (batch_size, time, channels, y, x)
     hrvsatellite = "hrvsatellite"
+
+    # HRV satellite coordinates:
+    hrvsatellite_x_osgb = "hrvsatellite_x_osgb"  # shape: (batch_size, y, x)
+    hrvsatellite_y_osgb = "hrvsatellite_y_osgb"  # shape: (batch_size, y, x)
+    #: Time is seconds since UNIX epoch (1970-01-01). Shape: (batch_size, n_timesteps)
+    hrvsatellite_time_utc = "hrvsatellite_time_utc"
 
     # -------------- PV ---------------------------------------------
     pv = "pv"  # shape: (batch_size, time, n_pv_systems)
     pv_system_row_number = "pv_system_row_number"  # shape: (batch_size, n_pv_systems)
     #: pv_mask is True for good PV systems in each example.
     pv_mask = "pv_mask"  # shape: (batch_size, n_pv_systems)
+
+    # PV coordinates:
+    # Each has shape: (batch_size, n_pv_systems), will be NaN for missing PV systems.
+    pv_x_osgb = "pv_x_osgb"
+    pv_y_osgb = "pv_y_osgb"
+    pv_time_utc = "pv_time_utc"  # Seconds since UNIX epoch (1970-01-01).
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(

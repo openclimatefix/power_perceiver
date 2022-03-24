@@ -6,7 +6,7 @@ from typing import Callable, Iterable, Optional
 import torch
 import torch.utils.data
 
-from power_perceiver.data_loader import DataLoader, NumpyBatch, XarrayBatch
+from power_perceiver.data_loader import DataLoader, NumpyBatch
 
 _log = logging.getLogger(__name__)
 
@@ -24,6 +24,10 @@ class NowcastingDataset(torch.utils.data.Dataset):
             and does processing *across* modalities, and returns the processed XarrayBatch.
             Note that and processing *within* a modality should be done in
             DataLoader.to_numpy.
+        np_batch_processors: Functions which takes a NumpyBatch,
+            and does processing *across* modalities, and returns the processed NumpyBatch.
+            Note that and processing *within* a modality should be done in
+            DataLoader.to_numpy.
 
     Attributes:
         n_batches: int. Set by _set_number_of_batches.
@@ -33,6 +37,7 @@ class NowcastingDataset(torch.utils.data.Dataset):
     data_path: Optional[Path] = None
     max_n_batches_per_epoch: Optional[int] = None
     xr_batch_processors: Optional[Iterable[Callable]] = None
+    np_batch_processors: Optional[Iterable[Callable]] = None
 
     def __post_init__(self):
         # Sanity checks
@@ -75,17 +80,19 @@ class NowcastingDataset(torch.utils.data.Dataset):
         xr_batch = self._get_xarray_batch(batch_idx)
         xr_batch = self._process_xr_batch(xr_batch)
         np_batch = self._xarray_to_numpy_batch(xr_batch)
+        del xr_batch
+        np_batch = self._process_np_batch(np_batch)
         return np_batch
 
-    def _get_xarray_batch(self, batch_idx: int) -> XarrayBatch:
+    def _get_xarray_batch(self, batch_idx: int) -> NumpyBatch:
         """Load the completely un-modified batches from disk and store them in a dict."""
-        xr_batch: XarrayBatch = {}
+        xr_batch: NumpyBatch = {}
         for data_loader in self.data_loaders:
             xr_data_for_data_source = data_loader[batch_idx]
             xr_batch[data_loader.__class__] = xr_data_for_data_source
         return xr_batch
 
-    def _process_xr_batch(self, xr_batch: XarrayBatch) -> XarrayBatch:
+    def _process_xr_batch(self, xr_batch: NumpyBatch) -> NumpyBatch:
         """If necessary, do any processing which needs to be done across modalities,
         on the xr.Datasets."""
         if self.xr_batch_processors:
@@ -93,10 +100,18 @@ class NowcastingDataset(torch.utils.data.Dataset):
                 xr_batch = xr_batch_processor(xr_batch)
         return xr_batch
 
-    def _xarray_to_numpy_batch(self, xr_batch: XarrayBatch) -> NumpyBatch:
+    def _xarray_to_numpy_batch(self, xr_batch: NumpyBatch) -> NumpyBatch:
         """Convert from xarray Datasets to numpy."""
         np_batch: NumpyBatch = {}
         for data_loader_class, xr_dataset in xr_batch.items():
             np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
             np_batch.update(np_data_for_data_source)
+        return np_batch
+
+    def _process_np_batch(self, np_batch: NumpyBatch) -> NumpyBatch:
+        """If necessary, do any processing which needs to be done across modalities,
+        on the NumpyBatch."""
+        if self.np_batch_processors:
+            for np_batch_processor in self.np_batch_processors:
+                np_batch = np_batch_processor(np_batch)
         return np_batch
