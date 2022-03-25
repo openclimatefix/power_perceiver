@@ -31,6 +31,8 @@ class PV(DataLoader):
             np.int32
         )
 
+        # id is float64 in v15 of the dataset. This will be fixed upstream in:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/624
         batch[BatchKey.pv_id] = dataset["id"].values.astype(np.float32)
         batch[BatchKey.pv_capacity_wp] = dataset["capacity_mwp"].values
 
