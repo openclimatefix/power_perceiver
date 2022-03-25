@@ -35,6 +35,11 @@ class BatchKey(Enum):
     # -------------- PV ---------------------------------------------
     pv = "pv"  # shape: (batch_size, time, n_pv_systems)
     pv_system_row_number = "pv_system_row_number"  # shape: (batch_size, n_pv_systems)
+    pv_id = "pv_id"  # shape: (batch_size, n_pv_systems)
+    # PV AC system capacity in watts peak.
+    # Warning: In v15, pv_capacity_wp is sometimes 0. This will be fixed in
+    # https://github.com/openclimatefix/nowcasting_dataset/issues/622
+    pv_capacity_wp = "pv_capacity_wp"  # shape: (batch_size, n_pv_systems)
     #: pv_mask is True for good PV systems in each example.
     pv_mask = "pv_mask"  # shape: (batch_size, n_pv_systems)
 

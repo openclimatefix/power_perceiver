@@ -91,7 +91,7 @@ def _check_pv_batch(
     # Select valid PV systems, and check the timeseries are not NaN.
     assert pv_mask.any(), "No valid PV systems!"
     pv_is_finite = np.isfinite(pv_batch).all(axis=PV_TIME_AXIS)
-    assert (pv_is_finite == pv_mask).all()
+    assert ((~pv_is_finite | ~pv_mask) == ~pv_mask).all()
 
 
 def test_select_pv_systems_near_center_of_image():
