@@ -32,6 +32,12 @@ class BatchKey(Enum):
     #: Time is seconds since UNIX epoch (1970-01-01). Shape: (batch_size, n_timesteps)
     hrvsatellite_time_utc = "hrvsatellite_time_utc"
 
+    # HRV satellite Fourier coordinates:
+    hrvsatellite_x_osgb_fourier = "hrvsatellite_x_osgb_fourier"  # shape: (batch_size, y, x, n_fourier_features_per_dim)
+    hrvsatellite_y_osgb_fourier = "hrvsatellite_y_osgb_fourier"  # shape: (batch_size, y, x, n_fourier_features_per_dim)
+    #: Time is seconds since UNIX epoch (1970-01-01). Shape: (batch_size, n_timesteps, n_fourier_features_per_dim)
+    hrvsatellite_time_utc_fourier = "hrvsatellite_time_utc_fourier"
+
     # -------------- PV ---------------------------------------------
     pv = "pv"  # shape: (batch_size, time, n_pv_systems)
     pv_system_row_number = "pv_system_row_number"  # shape: (batch_size, n_pv_systems)
@@ -48,6 +54,13 @@ class BatchKey(Enum):
     pv_x_osgb = "pv_x_osgb"
     pv_y_osgb = "pv_y_osgb"
     pv_time_utc = "pv_time_utc"  # Seconds since UNIX epoch (1970-01-01).
+
+    # PV Fourier coordinates:
+    # Each has shape: (batch_size, n_pv_systems, n_fourier_features_per_dim),
+    # and will be NaN for missing PV systems.
+    pv_x_osgb_fourier = "pv_x_osgb_fourier"
+    pv_y_osgb_fourier = "pv_y_osgb_fourier"
+    pv_time_utc_fourier = "pv_time_utc_fourier"
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(
