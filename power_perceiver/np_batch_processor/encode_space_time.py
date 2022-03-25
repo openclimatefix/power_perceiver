@@ -27,7 +27,7 @@ class EncodeSpaceTime:
         for dim_name in ("x_osgb", "y_osgb", "time_utc"):
             #: dict keys will be of the form <modality_name>_<dim_name>
             coords_for_dim_from_all_modalities: dict[str, np.ndarray] = {
-                key: value for key, value in np_batch.items() if key.value.endswith(dim_name)
+                key: value for key, value in np_batch.items() if key.name.endswith(dim_name)
             }
             coords_for_dim_from_all_modalities = _rescale_data_arrays_to_0_to_1(
                 coords_for_dim_from_all_modalities

@@ -1,6 +1,6 @@
 """Constants and Enums."""
 
-from enum import Enum
+from enum import Enum, auto
 
 from pathy import Pathy
 
@@ -18,49 +18,49 @@ class BatchKey(Enum):
     PV DataLoader yields `pv` and `pv_system_row_number` BatchKeys.
     """
 
-    # -------------- SATELLITE --------------------------------------
-    # shape: (batch_size, time, channels, y, x)
-    satellite = "satellite"
-
     # -------------- HRVSATELLITE -----------------------------------
-    # shape: (batch_size, time, channels, y, x)
-    hrvsatellite = "hrvsatellite"
+    # shape: (batch_size, time, channels, y, x) or, if the imagery has been patched,
+    # shape: (batch_size, time, channels, y, x, n_pixels_per_patch) where n_pixels_per_patch
+    # is the *total* number of pixels,
+    # i.e. n_pixels_per_patch_along_height * n_pixels_per_patch_along_width.
+    hrvsatellite = auto()
 
     # HRV satellite coordinates:
-    hrvsatellite_x_osgb = "hrvsatellite_x_osgb"  # shape: (batch_size, y, x)
-    hrvsatellite_y_osgb = "hrvsatellite_y_osgb"  # shape: (batch_size, y, x)
+    hrvsatellite_x_osgb = auto()  # shape: (batch_size, y, x)
+    hrvsatellite_y_osgb = auto()  # shape: (batch_size, y, x)
     #: Time is seconds since UNIX epoch (1970-01-01). Shape: (batch_size, n_timesteps)
-    hrvsatellite_time_utc = "hrvsatellite_time_utc"
+    hrvsatellite_time_utc = auto()
 
     # HRV satellite Fourier coordinates:
-    hrvsatellite_x_osgb_fourier = "hrvsatellite_x_osgb_fourier"  # shape: (batch_size, y, x, n_fourier_features_per_dim)
-    hrvsatellite_y_osgb_fourier = "hrvsatellite_y_osgb_fourier"  # shape: (batch_size, y, x, n_fourier_features_per_dim)
-    #: Time is seconds since UNIX epoch (1970-01-01). Shape: (batch_size, n_timesteps, n_fourier_features_per_dim)
-    hrvsatellite_time_utc_fourier = "hrvsatellite_time_utc_fourier"
+    # Spatial coordinates. Shape: (batch_size, y, x, n_fourier_features_per_dim)
+    hrvsatellite_x_osgb_fourier = auto()
+    hrvsatellite_y_osgb_fourier = auto()
+    #: Time shape: (batch_size, n_timesteps, n_fourier_features_per_dim)
+    hrvsatellite_time_utc_fourier = auto()
 
     # -------------- PV ---------------------------------------------
-    pv = "pv"  # shape: (batch_size, time, n_pv_systems)
-    pv_system_row_number = "pv_system_row_number"  # shape: (batch_size, n_pv_systems)
-    pv_id = "pv_id"  # shape: (batch_size, n_pv_systems)
+    pv = auto()  # shape: (batch_size, time, n_pv_systems)
+    pv_system_row_number = auto()  # shape: (batch_size, n_pv_systems)
+    pv_id = auto()  # shape: (batch_size, n_pv_systems)
     # PV AC system capacity in watts peak.
     # Warning: In v15, pv_capacity_wp is sometimes 0. This will be fixed in
     # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-    pv_capacity_wp = "pv_capacity_wp"  # shape: (batch_size, n_pv_systems)
+    pv_capacity_wp = auto()  # shape: (batch_size, n_pv_systems)
     #: pv_mask is True for good PV systems in each example.
-    pv_mask = "pv_mask"  # shape: (batch_size, n_pv_systems)
+    pv_mask = auto()  # shape: (batch_size, n_pv_systems)
 
     # PV coordinates:
     # Each has shape: (batch_size, n_pv_systems), will be NaN for missing PV systems.
-    pv_x_osgb = "pv_x_osgb"
-    pv_y_osgb = "pv_y_osgb"
-    pv_time_utc = "pv_time_utc"  # Seconds since UNIX epoch (1970-01-01).
+    pv_x_osgb = auto()
+    pv_y_osgb = auto()
+    pv_time_utc = auto()  # Seconds since UNIX epoch (1970-01-01).
 
     # PV Fourier coordinates:
     # Each has shape: (batch_size, n_pv_systems, n_fourier_features_per_dim),
     # and will be NaN for missing PV systems.
-    pv_x_osgb_fourier = "pv_x_osgb_fourier"
-    pv_y_osgb_fourier = "pv_y_osgb_fourier"
-    pv_time_utc_fourier = "pv_time_utc_fourier"
+    pv_x_osgb_fourier = auto()
+    pv_y_osgb_fourier = auto()
+    pv_time_utc_fourier = auto()
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(
