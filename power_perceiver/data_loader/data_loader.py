@@ -45,7 +45,7 @@ class DataLoader:
     def full_data_path(self) -> Path:
         try:
             return self.data_path / self.name
-        except:  # noqa E772
+        except:  # noqa: E722
             if self.data_path is None:
                 raise ValueError("data_path must be set!")
             else:
