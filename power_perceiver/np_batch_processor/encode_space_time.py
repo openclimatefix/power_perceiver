@@ -1,9 +1,13 @@
-import numpy as np
-import xarray as xr
+from dataclasses import dataclass
+from numbers import Number
 
+import numpy as np
+
+from power_perceiver.consts import BatchKey
 from power_perceiver.data_loader.data_loader import NumpyBatch
 
 
+@dataclass
 class EncodeSpaceTime:
     """Encode space and time in a way that Perceiver understands :)
 
@@ -18,60 +22,187 @@ class EncodeSpaceTime:
 
     The end result is that the NumpyBatch will now include:
 
-    - <modality name>_position_encoding_x
-    - <modality name>_position_encoding_y
-    - <modality name>_position_encoding_time
+    - <modality name>_<coordinate_name>_fourier
+
+    init args:
+        lengths: The approximate lengths of each dimension across an example. For example,
+            if the dimension is x_osgb then the length will be the approximate distance in meters
+            from the left to the right side of an average example. If the dimension is time_utc
+            then the length is the approximate total duration in seconds of the example.
+            The keys must be x_osgb, y_osgb, or time_utc.
+            We need to use constant lengths across all examples so the spatial encoding
+            is always proportional to the "real world" length across all examples.
+            If we didn't do that, a spatial encoding of 1 would represent different "real world"
+            distances across examples. This would almost certainly be harmful, especially
+            because we're expecting the model to learn to do some basic geometry!
+        n_fourier_features_per_dim:
     """
+
+    lenghts: dict[str, Number] = dict(x_osgb=120_000, y_osgb=200_000, time_utc=60 * 5 * 31)
+    n_fourier_features_per_dim: int = 8
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
-        for dim_name in ("x_osgb", "y_osgb", "time_utc"):
-            #: dict keys will be of the form <modality_name>_<dim_name>
-            coords_for_dim_from_all_modalities: dict[str, np.ndarray] = {
-                key: value for key, value in np_batch.items() if key.name.endswith(dim_name)
-            }
-            coords_for_dim_from_all_modalities = _rescale_data_arrays_to_0_to_1(
-                coords_for_dim_from_all_modalities
-            )
-            for key, coords in coords_for_dim_from_all_modalities.items():
-                np_batch[key] = _fourier_position_encoding(coords)
-        return np_batch
+        get_spatial_and_temporal_fourier_features(
+            np_batch=np_batch,
+            lengths=self.lengths,
+            n_fourier_features_per_dim=self.n_fourier_features_per_dim,
+        )
 
 
-def _rescale_data_arrays_to_0_to_1(data_arrays: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-    """Rescales multiple DataArrays using the same min and max across all DataArrays.
+def get_spatial_and_temporal_fourier_features(
+    np_batch: NumpyBatch,
+    lengths: dict[str, Number],
+    n_fourier_features_per_dim: int = 8,
+) -> NumpyBatch:
+    """Add fourier features for x_osgb, y_osgb and time_utc."""
+
+    rescaled_coords: dict[str, np.ndarray] = _rescale_coords_for_all_dims_to_approx_0_to_1(
+        np_batch=np_batch, lengths=lengths
+    )
+
+    for key, coords in rescaled_coords.items():
+        new_key = key.replace("rescaled", "fourier")
+        new_key = BatchKey[new_key]
+        np_batch[new_key] = compute_fourier_features(
+            coords, n_fourier_features=n_fourier_features_per_dim
+        )
+
+    return np_batch
+
+
+def compute_fourier_features(
+    array: np.ndarray, n_fourier_features: int = 8, min_freq: float = 2, max_freq: float = 8
+) -> np.ndarray:
+    """Compute Fourier features for a single dimension, across all examples in a batch.
+
+    Adapted from https://pytorch.org/tutorials/beginner/transformer_tutorial.html
 
     Args:
-        data_arrays: A dictionary of xr.DataArrays.
-            Each dictionary key should be of the form <modality_name>_position_encoding_<dim_name>.
-            Each dictionary value should be a DataArray of shape [batch_size, ...].
-            All DataArrays must have the same batch_size.
+        array: np.ndarray with values roughly in the range [0, 1].
+            The values don't have to be *exactly* in the range [0, 1] because sine and cosine
+            handle values below 0 and above 2*pi.
+            For the time dimension, the shape will be (batch_size, n_timesteps).
+            For spatial dimensions, the shape might be (batch_size, length) or
+            (batch_size, height, width).
+            Although this function can cope with any shape `array`, with any number of dimensions.
+        n_fourier_features: Total number of requested Fourier features. Must be an even number
+            because half a sine and half are cosine.
+        min_freq: If min_freq=2 and array is in the range [0, 1] then the lowest freq "wave" will
+            go from -1 to +1 across the dimension.
+        max_freq:
 
     Returns:
-        rescaled_data_arrays: A dict with the same keys as the input `data_arrays` dict but where
-            each DataArray has had its values rescaled to be in the range [0, 1].
+        fourier_features: An np.ndarray of the same dtype as `array`,
+            with shape `array.shape + (n_fourier_features,)`. Fourier features with even indexes
+            are sine. Odd indexes are cosine.
     """
+    assert n_fourier_features % 2 == 0
+    assert min_freq > 0
+    assert max_freq > min_freq
 
-    # Compute the maximum and the range, across all the data_arrays.
-    list_of_data_arrays = [torch.flatten(t, start_dim=1) for t in data_arrays.values()]
-    data_arrays_concatenated = torch.cat(list_of_data_arrays, dim=1)
-    del list_of_data_arrays
-    minimum = np.nanmin(data_arrays_concatenated, axis=1)
-    maximum = np.nanmax(data_arrays_concatenated, axis=1)
-    min_max_range = maximum - minimum
-    del maximum
+    div_term = np.linspace(
+        start=min_freq,
+        stop=max_freq,
+        num=n_fourier_features // 2,
+        dtype=array.dtype,
+    )
+    fourier_features = np.full(
+        shape=array.shape + (n_fourier_features,),
+        fill_value=np.NaN,
+        dtype=array.dtype,
+    )
 
-    minimum = minimum.unsqueeze(-1)
-    min_max_range = min_max_range.unsqueeze(-1)
+    radians = array * np.pi / 2
+    radians = np.expand_dims(radians, axis=-1)
+    radians_x_div_term = radians * div_term
+    fourier_features[..., 1::2] = np.cos(radians_x_div_term)
+    fourier_features[..., 0::2] = np.sin(radians_x_div_term)
+    return fourier_features
 
-    # Rescale each tensor
-    rescaled_data_arrays = {}
-    for name, tensor in data_arrays.items():
-        if len(tensor.shape) == 3:
-            # 2D OSGB coords
-            rescaled_data_arrays[name] = (tensor - minimum.unsqueeze(-1)) / min_max_range.unsqueeze(
-                -1
-            )
+
+def _get_min_per_example(
+    coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray]
+) -> np.ndarray:
+    n_modalities = len(coords_for_dim_from_all_modalities)
+    assert n_modalities > 0
+    batch_size = list(coords_for_dim_from_all_modalities.values())[0].shape[0]
+
+    # Pre-allocate arrays to hold min values for each example of each modality's coordinates.
+    mins = np.full((batch_size, n_modalities), fill_value=np.NaN, dtype=np.float32)
+
+    for modality_i, coord_data_array in enumerate(coords_for_dim_from_all_modalities.values()):
+        coord_data_array = coord_data_array.reshape((batch_size, -1))
+        mins[:, modality_i] = np.nanmin(coord_data_array, axis=1)
+
+    min_per_example = mins.min(axis=1)
+    assert min_per_example.shape[0] == batch_size
+    return np.expand_dims(min_per_example, axis=-1)
+
+
+def _rescale_coords_for_single_dim_to_approx_0_to_1(
+    coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray],
+    length: Number,
+) -> dict[str, np.ndarray]:
+    """Rescale the coords for a single dimension, across all modalities.
+
+    Args:
+        length: The approximate length of the dimension across an example. For example,
+            if the dimension is x_osgb then the length will be the distance in meters
+            from the left to the right side of the example. Must be positive.
+
+    Returns:
+        Dictionary where the keys are "<BatchKey.name>_rescaled", and the values
+        are a numpy array of the rescaled coords. The minimum value is guaranteed to be
+        0 or larger. The maximum value will depend on the length.
+    """
+    length = np.float32(length)
+    assert length > 0
+    min_per_example = _get_min_per_example(coords_for_dim_from_all_modalities)
+    rescaled_arrays: dict[str, np.ndarray] = {}
+    for key, array in coords_for_dim_from_all_modalities.items():
+        if "satellite" in key.name and "time" not in key.name:
+            # Handle 2-dimensional OSGB coords on the satellite imagery
+            assert (
+                len(array.shape) == 3
+            ), f"Expected satellite coord to have 3 dims, not {len(array.shape)} {key.name=}"
+            _min_per_example = np.expand_dims(min_per_example, axis=-1)
         else:
-            rescaled_data_arrays[name] = (tensor - minimum) / min_max_range
+            _min_per_example = min_per_example
 
-    return rescaled_data_arrays
+        rescaled_array = (array - _min_per_example) / length
+        rescaled_arrays[f"{key.name}_rescaled"] = rescaled_array
+
+    return rescaled_arrays
+
+
+def _rescale_coords_for_all_dims_to_approx_0_to_1(
+    np_batch: NumpyBatch,
+    lengths: dict[str, Number],
+) -> dict[str, np.ndarray]:
+    """Rescale coords for all dimensions, across all modalities.
+
+    Args:
+        lengths: The approximate lengths of each dimension across an example. For example,
+            if the dimension is x_osgb then the length will be the approximate distance in meters
+            from the left to the right side of an average example. If the dimension is time_utc
+            then the length is the approximate total duration in seconds of the example.
+            The keys must be x_osgb, y_osgb, or time_utc.
+            We need to use constant lengths across all examples so the spatial encoding
+            is always proportional to the "real world" length across all examples.
+            If we didn't do that, a spatial encoding of 1 would represent different "real world"
+            distances across examples. This would almost certainly be harmful, especially
+            because we're expecting the model to learn to do some basic geometry!
+    """
+    rescaled_coords: dict[str, np.ndarray] = {}
+    for dim_name in ("x_osgb", "y_osgb", "time_utc"):
+        coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray] = {
+            key: value.astype(np.float32)
+            for key, value in np_batch.items()
+            if key.name.endswith(dim_name)
+        }
+        length = lengths[dim_name]
+        rescaled_coords_for_dim = _rescale_coords_for_single_dim_to_approx_0_to_1(
+            coords_for_dim_from_all_modalities=coords_for_dim_from_all_modalities, length=length
+        )
+        rescaled_coords.update(rescaled_coords_for_dim)
+    return rescaled_coords

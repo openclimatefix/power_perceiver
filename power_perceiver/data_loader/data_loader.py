@@ -1,5 +1,5 @@
 import logging
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional
 
@@ -45,7 +45,7 @@ class DataLoader:
     def full_data_path(self) -> Path:
         try:
             return self.data_path / self.name
-        except:
+        except:  # noqa E772
             if self.data_path is None:
                 raise ValueError("data_path must be set!")
             else:
