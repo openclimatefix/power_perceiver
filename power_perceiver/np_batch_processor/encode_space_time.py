@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from numbers import Number
 
 import numpy as np
@@ -38,7 +38,9 @@ class EncodeSpaceTime:
         n_fourier_features_per_dim:
     """
 
-    lenghts: dict[str, Number] = dict(x_osgb=120_000, y_osgb=200_000, time_utc=60 * 5 * 31)
+    lengths: dict[str, Number] = field(
+        default_factory=dict(x_osgb=120_000, y_osgb=200_000, time_utc=60 * 5 * 31)
+    )
     n_fourier_features_per_dim: int = 8
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
@@ -120,23 +122,37 @@ def compute_fourier_features(
     return fourier_features
 
 
-def _get_min_per_example(
-    coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray]
-) -> np.ndarray:
-    n_modalities = len(coords_for_dim_from_all_modalities)
-    assert n_modalities > 0
-    batch_size = list(coords_for_dim_from_all_modalities.values())[0].shape[0]
+def _rescale_coords_for_all_dims_to_approx_0_to_1(
+    np_batch: NumpyBatch,
+    lengths: dict[str, Number],
+) -> dict[str, np.ndarray]:
+    """Rescale coords for all dimensions, across all modalities.
 
-    # Pre-allocate arrays to hold min values for each example of each modality's coordinates.
-    mins = np.full((batch_size, n_modalities), fill_value=np.NaN, dtype=np.float32)
-
-    for modality_i, coord_data_array in enumerate(coords_for_dim_from_all_modalities.values()):
-        coord_data_array = coord_data_array.reshape((batch_size, -1))
-        mins[:, modality_i] = np.nanmin(coord_data_array, axis=1)
-
-    min_per_example = mins.min(axis=1)
-    assert min_per_example.shape[0] == batch_size
-    return np.expand_dims(min_per_example, axis=-1)
+    Args:
+        lengths: The approximate lengths of each dimension across an example. For example,
+            if the dimension is x_osgb then the length will be the approximate distance in meters
+            from the left to the right side of an average example. If the dimension is time_utc
+            then the length is the approximate total duration in seconds of the example.
+            The keys must be x_osgb, y_osgb, or time_utc.
+            We need to use constant lengths across all examples so the spatial encoding
+            is always proportional to the "real world" length across all examples.
+            If we didn't do that, a spatial encoding of 1 would represent different "real world"
+            distances across examples. This would almost certainly be harmful, especially
+            because we're expecting the model to learn to do some basic geometry!
+    """
+    rescaled_coords: dict[str, np.ndarray] = {}
+    for dim_name in ("x_osgb", "y_osgb", "time_utc"):
+        coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray] = {
+            key: value.astype(np.float32)
+            for key, value in np_batch.items()
+            if key.name.endswith(dim_name)
+        }
+        length = lengths[dim_name]
+        rescaled_coords_for_dim = _rescale_coords_for_single_dim_to_approx_0_to_1(
+            coords_for_dim_from_all_modalities=coords_for_dim_from_all_modalities, length=length
+        )
+        rescaled_coords.update(rescaled_coords_for_dim)
+    return rescaled_coords
 
 
 def _rescale_coords_for_single_dim_to_approx_0_to_1(
@@ -175,34 +191,20 @@ def _rescale_coords_for_single_dim_to_approx_0_to_1(
     return rescaled_arrays
 
 
-def _rescale_coords_for_all_dims_to_approx_0_to_1(
-    np_batch: NumpyBatch,
-    lengths: dict[str, Number],
-) -> dict[str, np.ndarray]:
-    """Rescale coords for all dimensions, across all modalities.
+def _get_min_per_example(
+    coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray]
+) -> np.ndarray:
+    n_modalities = len(coords_for_dim_from_all_modalities)
+    assert n_modalities > 0
+    batch_size = list(coords_for_dim_from_all_modalities.values())[0].shape[0]
 
-    Args:
-        lengths: The approximate lengths of each dimension across an example. For example,
-            if the dimension is x_osgb then the length will be the approximate distance in meters
-            from the left to the right side of an average example. If the dimension is time_utc
-            then the length is the approximate total duration in seconds of the example.
-            The keys must be x_osgb, y_osgb, or time_utc.
-            We need to use constant lengths across all examples so the spatial encoding
-            is always proportional to the "real world" length across all examples.
-            If we didn't do that, a spatial encoding of 1 would represent different "real world"
-            distances across examples. This would almost certainly be harmful, especially
-            because we're expecting the model to learn to do some basic geometry!
-    """
-    rescaled_coords: dict[str, np.ndarray] = {}
-    for dim_name in ("x_osgb", "y_osgb", "time_utc"):
-        coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray] = {
-            key: value.astype(np.float32)
-            for key, value in np_batch.items()
-            if key.name.endswith(dim_name)
-        }
-        length = lengths[dim_name]
-        rescaled_coords_for_dim = _rescale_coords_for_single_dim_to_approx_0_to_1(
-            coords_for_dim_from_all_modalities=coords_for_dim_from_all_modalities, length=length
-        )
-        rescaled_coords.update(rescaled_coords_for_dim)
-    return rescaled_coords
+    # Pre-allocate arrays to hold min values for each example of each modality's coordinates.
+    mins = np.full((batch_size, n_modalities), fill_value=np.NaN, dtype=np.float32)
+
+    for modality_i, coord_data_array in enumerate(coords_for_dim_from_all_modalities.values()):
+        coord_data_array = coord_data_array.reshape((batch_size, -1))
+        mins[:, modality_i] = np.nanmin(coord_data_array, axis=1)
+
+    min_per_example = mins.min(axis=1)
+    assert min_per_example.shape[0] == batch_size
+    return np.expand_dims(min_per_example, axis=-1)
