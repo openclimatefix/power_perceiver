@@ -39,12 +39,14 @@ class EncodeSpaceTime:
     """
 
     lengths: dict[str, Number] = field(
-        default_factory=dict(x_osgb=120_000, y_osgb=200_000, time_utc=60 * 5 * 31)
+        # Using lambda with default factory when using a mutable default value adapted from:
+        # https://stackoverflow.com/a/52064202/732596
+        default_factory=lambda: dict(x_osgb=120_000, y_osgb=200_000, time_utc=60 * 5 * 31)
     )
     n_fourier_features_per_dim: int = 8
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
-        get_spatial_and_temporal_fourier_features(
+        return get_spatial_and_temporal_fourier_features(
             np_batch=np_batch,
             lengths=self.lengths,
             n_fourier_features_per_dim=self.n_fourier_features_per_dim,
