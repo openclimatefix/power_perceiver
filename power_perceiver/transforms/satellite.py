@@ -29,6 +29,3 @@ class PatchSatellite:
         dataset = _set_sat_coords(dataset)
 
         return dataset
-
-
-# TODO: Plot. Then write unit test.
