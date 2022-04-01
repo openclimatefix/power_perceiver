@@ -44,10 +44,10 @@ class PVPowerRollingWindow:
     win_type: Optional[str] = None
 
     def __call__(self, dataset: xr.Dataset) -> xr.Dataset:
-        dataset["power_mw"] = (
-            dataset["power_mw"]
+        dataset["power_w"] = (
+            dataset["power_w"]
             .rolling(
-                dim={"time_index": self.window},
+                dim={"time": self.window},
                 min_periods=self.min_periods,
                 center=self.center,
             )

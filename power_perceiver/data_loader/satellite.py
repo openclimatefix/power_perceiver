@@ -35,16 +35,61 @@ SAT_STD = {
 }
 
 
-SATELLITE_CHANNEL_ORDER = (
-    "example",
-    "time_index",
-    "channels_index",
-    "y_geostationary_index",
-    "x_geostationary_index",
-)
+SATELLITE_CHANNEL_ORDER = ("example", "time", "channel", "y", "x")
+
+
+def _set_sat_coords(dataset: xr.Dataset) -> xr.Dataset:
+    """Set variables as coordinates"""
+    return dataset.set_coords(
+        ["time_utc", "channel_name", "y_osgb", "x_osgb", "y_geostationary", "x_geostationary"]
+    )
 
 
 class HRVSatellite(DataLoader):
+    def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
+        # None of this will be necessary once this is implemented:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/629
+
+        # Drop redundant coordinates (these are redundant because they
+        # just repeat the contents of each *dimension*):
+        dataset = dataset.drop_vars(
+            [
+                "example",
+                "y_geostationary_index",
+                "x_geostationary_index",
+                "time_index",
+                "channels_index",
+            ]
+        )
+
+        # Rename coords to be more explicit about exactly what some coordinates hold:
+        dataset = dataset.rename_vars(
+            {
+                "channels": "channel_name",
+                "time": "time_utc",
+            }
+        )
+
+        # Rename dimensions. Standardize on the singular (time, channel, etc.).
+        # Remove redundant "index" from the dim name. These are *dimensions* so,
+        # by definition, they are indicies!
+        dataset = dataset.rename_dims(
+            {
+                "y_geostationary_index": "y",
+                "x_geostationary_index": "x",
+                "time_index": "time",
+                "channels_index": "channel",
+            }
+        )
+
+        # Setting coords won't be necessary once this is fixed:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/627
+        dataset = _set_sat_coords(dataset)
+
+        dataset = dataset.transpose(*SATELLITE_CHANNEL_ORDER)
+
+        return dataset
+
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
@@ -61,11 +106,10 @@ class HRVSatellite(DataLoader):
         hrvsatellite = hrvsatellite.astype(np.float32)
         hrvsatellite -= SAT_MEAN["HRV"]
         hrvsatellite /= SAT_STD["HRV"]
-        hrvsatellite = hrvsatellite.transpose(*SATELLITE_CHANNEL_ORDER)
         batch[BatchKey.hrvsatellite] = hrvsatellite.values
 
         # Coordinates
-        batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_int(dataset["time"].values)
+        batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_int(dataset["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),

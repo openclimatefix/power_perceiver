@@ -54,6 +54,7 @@ class DataLoader:
     def __getitem__(self, batch_idx: int) -> xr.Dataset:
         filename = self.get_filename(batch_idx=batch_idx)
         dataset = load_netcdf(filename)
+        dataset = self.process_before_transforms(dataset)
         if self.transforms:
             for transform in self.transforms:
                 dataset = transform(dataset)
@@ -66,6 +67,10 @@ class DataLoader:
         n_batches = len(list(self.full_data_path.glob(f"*.{self.filename_suffix}")))
         _log.info(f"{self.name} has {n_batches} batches.")
         return n_batches
+
+    def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
+        """Can be overridden by subclass."""
+        return dataset
 
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:

@@ -6,6 +6,49 @@ from power_perceiver.utils import datetime64_to_int
 
 
 class PV(DataLoader):
+    def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
+        # None of this will be necessary once this is implemented:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/630
+
+        # Drop redundant coordinates (these are redundant because they
+        # just repeat the contents of each *dimension*):
+        dataset = dataset.drop_vars(["example", "id_index", "time_index"])
+
+        # Rename coords to be more explicit about exactly what some coordinates hold:
+        # Note that, in v15 of the dataset, the keys are incorrectly named
+        # power_mw and capacity_mwp, even though the power and capacity are both in watts.
+        # See https://github.com/openclimatefix/nowcasting_dataset/issues/530
+        dataset = dataset.rename_vars(
+            {
+                "time": "time_utc",
+                "power_mw": "power_w",
+                "capacity_mwp": "capacity_wp",
+                "id": "pv_system_id",
+                "y_coords": "y_osgb",
+                "x_coords": "x_osgb",
+            }
+        )
+
+        # Rename dimensions. Standardize on the singular (time, channel, etc.).
+        # Remove redundant "index" from the dim name. These are *dimensions* so,
+        # by definition, they are indicies!
+        dataset = dataset.rename_dims(
+            {
+                "time_index": "time",
+                "id_index": "pv_system",
+            }
+        )
+
+        # Setting coords won't be necessary once this is fixed:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/627
+        dataset = dataset.set_coords(
+            ["time_utc", "pv_system_id", "pv_system_row_number", "y_osgb", "x_osgb"]
+        )
+
+        dataset = dataset.transpose("example", "time", "pv_system")
+
+        return dataset
+
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
@@ -17,12 +60,9 @@ class PV(DataLoader):
         batch: NumpyBatch = {}
 
         # PV power
-        # Note that, in v15 of the dataset, the keys are incorrectly named
-        # power_mw and capacity_mwp, even though the power and capacity are both in watts.
-        # See https://github.com/openclimatefix/nowcasting_dataset/issues/530
-        # Also note that some capacities are 0. This will be fixed upstream in:
+        # Note that some capacities are 0. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-        pv_normalised = dataset["power_mw"] / dataset["capacity_mwp"]
+        pv_normalised = dataset["power_w"] / dataset["capacity_wp"]
         batch[BatchKey.pv] = pv_normalised.values
 
         # In v15 of the dataset, `pv_system_row_number` is int64. This will be fixed in:
@@ -33,26 +73,26 @@ class PV(DataLoader):
 
         # id is float64 in v15 of the dataset. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624
-        batch[BatchKey.pv_id] = dataset["id"].values.astype(np.float32)
-        batch[BatchKey.pv_capacity_wp] = dataset["capacity_mwp"].values
+        batch[BatchKey.pv_id] = dataset["pv_system_id"].values.astype(np.float32)
+        batch[BatchKey.pv_capacity_wp] = dataset["capacity_wp"].values
 
         # Compute mask of valid PV data.
         # The mask will be a bool DataArray of shape (batch_size, n_pv_systems).
         # In v15, some capacities are 0. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-        valid_pv_capacity = dataset["capacity_mwp"] > 0
+        valid_pv_capacity = dataset["capacity_wp"] > 0
         # A NaN ID value is the "official" way to indicate a missing or deselected PV system.
-        valid_pv_id = np.isfinite(dataset["id"])
-        valid_pv_power = np.isfinite(pv_normalised).all(dim="time_index")
+        valid_pv_id = np.isfinite(dataset["pv_system_id"])
+        valid_pv_power = np.isfinite(pv_normalised).all(dim="time")
         pv_mask = valid_pv_capacity & valid_pv_id & valid_pv_power
         assert pv_mask.any(), "No valid PV systems!"
         batch[BatchKey.pv_mask] = pv_mask.values
 
         # Coordinates
-        batch[BatchKey.pv_time_utc] = datetime64_to_int(dataset["time"].values)
+        batch[BatchKey.pv_time_utc] = datetime64_to_int(dataset["time_utc"].values)
         for batch_key, dataset_key in (
-            (BatchKey.pv_x_osgb, "x_coords"),
-            (BatchKey.pv_y_osgb, "y_coords"),
+            (BatchKey.pv_x_osgb, "x_osgb"),
+            (BatchKey.pv_y_osgb, "y_osgb"),
         ):
             coords = dataset[dataset_key]
 

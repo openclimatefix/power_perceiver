@@ -19,7 +19,9 @@ class BatchKey(Enum):
     """
 
     # -------------- HRVSATELLITE -----------------------------------
-    # shape: (batch_size, time, channels, y, x) or, if the imagery has been patched,
+    # shape: (batch_size, time, channels, y, x)
+    #
+    # Or, if the imagery has been patched,
     # shape: (batch_size, time, channels, y, x, n_pixels_per_patch) where n_pixels_per_patch
     # is the *total* number of pixels,
     # i.e. n_pixels_per_patch_along_height * n_pixels_per_patch_along_width.

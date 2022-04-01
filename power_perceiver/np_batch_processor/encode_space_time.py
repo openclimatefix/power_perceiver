@@ -9,11 +9,11 @@ from power_perceiver.data_loader.data_loader import NumpyBatch
 
 @dataclass
 class EncodeSpaceTime:
-    """Encode space and time in a way that Perceiver understands :)
+    """Encode space and time coords in a way that Perceiver understands :)
 
     The broad approach is:
 
-    For each dimension in (x_osgb, y_osgb, time_utc):
+    For each coordinate in (x_osgb, y_osgb, time_utc):
 
     1. Compute the min and max across all modalities.
     2. For each modality, rescale the coordinate to [0, 1] using the min and max across all

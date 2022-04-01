@@ -55,22 +55,22 @@ class SelectPVSystemsNearCenterOfImage:
 
             # Find PV systems within the inner rectangle:
             pv_dataset_for_example = pv_dataset.sel(example=example_i)
-            pv_locations = pv_dataset_for_example[["x_coords", "y_coords"]]
+            pv_locations = pv_dataset_for_example[["x_osgb", "y_osgb"]]
             pv_system_selection_mask = (
-                (pv_locations.x_coords >= inner_rectangle["left"])
-                & (pv_locations.x_coords <= inner_rectangle["right"])
-                & (pv_locations.y_coords >= inner_rectangle["bottom"])
-                & (pv_locations.y_coords <= inner_rectangle["top"])
+                (pv_locations.x_osgb >= inner_rectangle["left"])
+                & (pv_locations.x_osgb <= inner_rectangle["right"])
+                & (pv_locations.y_osgb >= inner_rectangle["bottom"])
+                & (pv_locations.y_osgb <= inner_rectangle["top"])
             )
             pv_id_indexes_for_all_examples.append(pv_system_selection_mask)
 
         # Set PV systems outside of the inner_rectangle to NaN.
         mask = xr.concat(pv_id_indexes_for_all_examples, dim="example")
-        xr_batch[PV]["id"] = pv_dataset["id"].where(mask)
+        xr_batch[PV]["pv_system_id"] = pv_dataset["pv_system_id"].where(mask)
 
         if self.drop_examples:
             # Drop examples which don't have any PV systems.
-            n_pv_systems_per_example = mask.sum(dim="id_index")
+            n_pv_systems_per_example = mask.sum(dim="pv_system")
             examples_to_drop = np.where(n_pv_systems_per_example == 0)[0]
             for data_loader_class, xr_dataset in xr_batch.items():
                 xr_batch[data_loader_class] = xr_dataset.drop_sel(example=examples_to_drop)
@@ -99,23 +99,23 @@ class SelectPVSystemsNearCenterOfImage:
 
         Args:
             image_dataset: xarray Dataset for a single example. Must have these coordinates:
-                y_geostationary_index, x_geostationary_index, y_osgb, x_osgb
+                y_osgb, x_osgb
 
         Returns:
-            pd.Series with keys left, right, top, bottom. The values are the OSGB coordinates of the relevant axis.
-              e.g. the left and right are the values for the x axis.
+            pd.Series with keys left, right, top, bottom. The values are the OSGB coordinates of
+              the relevant axis. e.g. the left and right are the values for the x axis.
         """
         bounds = pd.Series(index=["left", "right", "top", "bottom"], dtype=np.float32)
 
         # Handle X coordinates. Get the x_osgb coords for the top and bottom rows of pixels.
-        x_osgb = image_dataset["x_osgb"].isel(y_geostationary_index=[0, -1])
-        bounds["left"] = x_osgb.isel(x_geostationary_index=0).max().values
-        bounds["right"] = x_osgb.isel(x_geostationary_index=-1).min().values
+        x_osgb = image_dataset["x_osgb"].isel(y=[0, -1])
+        bounds["left"] = x_osgb.isel(x=0).max().values
+        bounds["right"] = x_osgb.isel(x=-1).min().values
 
         # Handle Y coordinates. Get the y_osgb coords for the left and right columns of pixels.
-        y_osgb = image_dataset["y_osgb"].isel(x_geostationary_index=[0, -1])
-        bounds["bottom"] = y_osgb.isel(y_geostationary_index=0).max().values
-        bounds["top"] = y_osgb.isel(y_geostationary_index=-1).min().values
+        y_osgb = image_dataset["y_osgb"].isel(x=[0, -1])
+        bounds["bottom"] = y_osgb.isel(y=0).max().values
+        bounds["top"] = y_osgb.isel(y=-1).min().values
 
         # Sanity check!
         x_osgb_range = bounds["right"] - bounds["left"]
