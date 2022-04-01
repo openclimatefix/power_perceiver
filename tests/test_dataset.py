@@ -7,15 +7,15 @@ from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
 from power_perceiver.data_loader import PV, DataLoader, HRVSatellite
 from power_perceiver.data_loader.data_loader import NumpyBatch
 from power_perceiver.dataset import NowcastingDataset
+from power_perceiver.np_batch_processor import EncodeSpaceTime
 from power_perceiver.testing import (
     INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING,
     download_batches_for_data_source_if_necessary,
     get_path_of_local_data_for_testing,
 )
 from power_perceiver.transforms.pv import PVPowerRollingWindow
-from power_perceiver.xr_batch_processor.select_pv_systems_near_center_of_image import (
-    SelectPVSystemsNearCenterOfImage,
-)
+from power_perceiver.transforms.satellite import PatchSatellite
+from power_perceiver.xr_batch_processor import SelectPVSystemsNearCenterOfImage
 
 _DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name)
 BATCH_SIZE = 32
@@ -121,3 +121,39 @@ def test_pv(transforms: Iterable[Callable]):
     for batch_idx in range(len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)):
         np_batch = dataset[batch_idx]
         _check_pv_batch(np_batch)
+
+
+def test_all_data_loaders_and_all_transforms():
+    dataset = NowcastingDataset(
+        data_path=get_path_of_local_data_for_testing(),
+        data_loaders=[
+            HRVSatellite(transforms=[PatchSatellite()]),
+            PV(transforms=[PVPowerRollingWindow()]),
+        ],
+        xr_batch_processors=[SelectPVSystemsNearCenterOfImage()],
+        np_batch_processors=[EncodeSpaceTime()],
+    )
+    for batch_idx in range(len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)):
+        np_batch = dataset[batch_idx]
+        if batch_idx == 1:
+            # Batch 1 has 2 examples with no PV systems within the region of interest.
+            expected_batch_size = BATCH_SIZE - 2
+        else:
+            expected_batch_size = BATCH_SIZE
+        _check_pv_batch(np_batch, expected_batch_size=expected_batch_size)
+        # shape is (example, time, channel, y, x, patch)
+        assert np_batch[BatchKey.hrvsatellite].shape == (expected_batch_size, 31, 1, 16, 16, 16)
+        assert np_batch[BatchKey.hrvsatellite_x_osgb].shape == (expected_batch_size, 16, 16)
+        assert np_batch[BatchKey.hrvsatellite_y_osgb].shape == (expected_batch_size, 16, 16)
+        assert np_batch[BatchKey.hrvsatellite_x_osgb_fourier].shape == (
+            expected_batch_size,
+            16,
+            16,
+            8,
+        )
+        assert np_batch[BatchKey.hrvsatellite_y_osgb_fourier].shape == (
+            expected_batch_size,
+            16,
+            16,
+            8,
+        )
