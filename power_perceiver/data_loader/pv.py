@@ -63,7 +63,7 @@ class PV(DataLoader):
         # Note that some capacities are 0. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/622
         pv_normalised = dataset["power_w"] / dataset["capacity_wp"]
-        batch[BatchKey.pv] = pv_normalised.values
+        batch[BatchKey.pv] = pv_normalised.values.astype(np.float32)
 
         # In v15 of the dataset, `pv_system_row_number` is int64. This will be fixed in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624
