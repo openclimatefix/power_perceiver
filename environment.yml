@@ -14,12 +14,13 @@ dependencies:
   - pathy
   - hydra-core
   - fsspec
-  - gcsfs  # required to download testing data
+  - gcsfs # required to download testing data
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
   - pytorch-lightning
   - einops
+  - wandb
 
   # Development tools
   - pytest
