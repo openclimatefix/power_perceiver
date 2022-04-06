@@ -64,6 +64,11 @@ class BatchKey(Enum):
     pv_y_osgb_fourier = auto()
     pv_time_utc_fourier = auto()
 
+    # -------------- SUN --------------------------------------------
+    # shape = (batch_size, n_timesteps)
+    solar_azimuth = auto()
+    solar_elevation = auto()
+
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(
     "gs://ocf-public/data_for_unit_tests/prepared_ML_training_data"
