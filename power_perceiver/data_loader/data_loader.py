@@ -90,4 +90,4 @@ def load_netcdf(filename, engine="h5netcdf", *args, **kwargs) -> xr.Dataset:
     return dataset
 
 
-NumpyBatch = dict[DataLoader.__class__, xr.Dataset]
+XarrayBatch = dict[DataLoader.__class__, xr.Dataset]

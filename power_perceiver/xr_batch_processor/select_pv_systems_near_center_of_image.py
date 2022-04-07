@@ -5,7 +5,8 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from power_perceiver.data_loader import PV, DataLoader, HRVSatellite, NumpyBatch
+from power_perceiver.data_loader import PV, DataLoader, HRVSatellite, XarrayBatch
+from power_perceiver.data_loader.pv import apply_pv_mask
 
 _log = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class SelectPVSystemsNearCenterOfImage:
     """Selects PV systems near the top-middle of the imagery.
 
     The returned XarrayBatch will have the same number of spaces for PV systems as the input
-    XarrayBatch, but the PV systems which are unselected will be set to NaN.
+    XarrayBatch, but the PV systems which are unselected will be set to false in the pv_mask.
 
     Initialisation args:
         image_data_loader_class: The name of the data source which defines the geospatial
@@ -30,7 +31,7 @@ class SelectPVSystemsNearCenterOfImage:
     geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
     drop_examples: bool = True
 
-    def __call__(self, xr_batch: NumpyBatch) -> NumpyBatch:
+    def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         image_dataset = xr_batch[self.image_data_loader_class]
         pv_dataset = xr_batch[PV]
         batch_size = image_dataset.dims["example"]
@@ -66,7 +67,8 @@ class SelectPVSystemsNearCenterOfImage:
 
         # Set PV systems outside of the inner_rectangle to NaN.
         mask = xr.concat(pv_id_indexes_for_all_examples, dim="example")
-        xr_batch[PV]["pv_system_id"] = pv_dataset["pv_system_id"].where(mask)
+        xr_batch[PV]["pv_mask"] = pv_dataset.pv_mask & mask
+        xr_batch[PV] = apply_pv_mask(xr_batch[PV])
 
         if self.drop_examples:
             # Drop examples which don't have any PV systems.

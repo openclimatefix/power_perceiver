@@ -47,6 +47,31 @@ class PV(DataLoader):
 
         dataset = dataset.transpose("example", "time", "pv_system")
 
+        # PV power
+        # Note that some capacities are 0. This will be fixed upstream in:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/622
+        dataset["power_normalised"] = dataset["power_w"] / dataset["capacity_wp"]
+        dataset["power_normalised"] = dataset["power_normalised"].astype(np.float32)
+
+        # Compute mask of valid PV data.
+        # The mask will be a bool DataArray of shape (batch_size, n_pv_systems).
+        # In v15, some capacities are 0. This will be fixed upstream in:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/622
+        valid_pv_capacity = dataset["capacity_wp"] > 0
+        # A NaN ID value is the "official" way to indicate a missing or deselected PV system.
+        valid_pv_id = np.isfinite(dataset["pv_system_id"])
+        valid_pv_power = np.isfinite(dataset["power_normalised"]).all(dim="time")
+        pv_mask = valid_pv_capacity & valid_pv_id & valid_pv_power
+        assert pv_mask.any(), "No valid PV systems!"
+        dataset["pv_mask"] = pv_mask
+
+        dataset = apply_pv_mask(dataset)
+
+        # PV spatial coords are float64 in v15. This will be fixed in:
+        # https://github.com/openclimatefix/nowcasting_dataset/issues/624
+        for dataset_key in ("x_osgb", "y_osgb"):
+            dataset[dataset_key] = dataset[dataset_key].astype(np.float32)
+
         return dataset
 
     @staticmethod
@@ -62,8 +87,7 @@ class PV(DataLoader):
         # PV power
         # Note that some capacities are 0. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-        pv_normalised = dataset["power_w"] / dataset["capacity_wp"]
-        batch[BatchKey.pv] = pv_normalised.values.astype(np.float32)
+        batch[BatchKey.pv] = dataset["power_normalised"].values
 
         # In v15 of the dataset, `pv_system_row_number` is int64. This will be fixed in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624
@@ -76,17 +100,7 @@ class PV(DataLoader):
         batch[BatchKey.pv_id] = dataset["pv_system_id"].values.astype(np.float32)
         batch[BatchKey.pv_capacity_wp] = dataset["capacity_wp"].values
 
-        # Compute mask of valid PV data.
-        # The mask will be a bool DataArray of shape (batch_size, n_pv_systems).
-        # In v15, some capacities are 0. This will be fixed upstream in:
-        # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-        valid_pv_capacity = dataset["capacity_wp"] > 0
-        # A NaN ID value is the "official" way to indicate a missing or deselected PV system.
-        valid_pv_id = np.isfinite(dataset["pv_system_id"])
-        valid_pv_power = np.isfinite(pv_normalised).all(dim="time")
-        pv_mask = valid_pv_capacity & valid_pv_id & valid_pv_power
-        assert pv_mask.any(), "No valid PV systems!"
-        batch[BatchKey.pv_mask] = pv_mask.values
+        batch[BatchKey.pv_mask] = dataset["pv_mask"].values
 
         # Coordinates
         batch[BatchKey.pv_time_utc] = datetime64_to_int(dataset["time_utc"].values)
@@ -94,18 +108,22 @@ class PV(DataLoader):
             (BatchKey.pv_x_osgb, "x_osgb"),
             (BatchKey.pv_y_osgb, "y_osgb"),
         ):
-            coords = dataset[dataset_key]
-
-            # PV spatial coords are float64 in v15. This will be fixed in:
-            # https://github.com/openclimatefix/nowcasting_dataset/issues/624
-            coords = coords.astype(np.float32)
-
-            # Coords for missing PV systems are set to 0 in v15. This is dangerous! So set to NaN.
-            # We need to set them to NaN so `np.nanmax()` does the right thing in `EncodeSpaceTime`
-            # This won't be necessary after this issue is closed:
-            # https://github.com/openclimatefix/nowcasting_dataset/issues/625
-            coords = coords.where(pv_mask)
-
-            batch[batch_key] = coords.values
+            batch[batch_key] = dataset[dataset_key].values
 
         return batch
+
+
+def apply_pv_mask(dataset: xr.Dataset) -> xr.Dataset:
+    """Apply mask to whole dataset (to set everything masked to NaN)"""
+    # Coords for missing PV systems are set to 0 in v15. This is dangerous! So set to NaN.
+    # We need to set them to NaN so `np.nanmax()` does the right thing in `EncodeSpaceTime`
+    # This won't be necessary after this issue is closed:
+    # https://github.com/openclimatefix/nowcasting_dataset/issues/625
+
+    # Dataset.where only operates on the data variables:
+    dataset = dataset.where(dataset.pv_mask)
+    dataset["pv_mask"] = dataset.pv_mask.fillna(0).astype(bool)
+    # Also operate on the coords:
+    for coord_name in ["pv_system_id", "x_osgb", "y_osgb"]:
+        dataset[coord_name] = dataset[coord_name].where(dataset.pv_mask)
+    return dataset
