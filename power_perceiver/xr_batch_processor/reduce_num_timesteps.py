@@ -23,9 +23,12 @@ class ReduceNumTimesteps:
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         if isinstance(self.requested_timesteps, int):
-            requested_timesteps = self.rng.integers(
-                low=0, high=self.num_timesteps_available, size=self.requested_timesteps
+            requested_timesteps = self.rng.choice(
+                np.arange(self.num_timesteps_available),
+                size=self.requested_timesteps,
+                replace=False,
             )
+            requested_timesteps = np.sort(requested_timesteps)
             print(requested_timesteps)
         else:
             requested_timesteps = self.requested_timesteps
