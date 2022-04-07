@@ -28,7 +28,7 @@ class SelectPVSystemsNearCenterOfImage:
     """
 
     image_data_loader_class: DataLoader = HRVSatellite
-    geo_border_m: pd.Series = pd.Series(dict(left=8_000, right=8_000, bottom=32_000, top=16_000))
+    geo_border_m: pd.Series = pd.Series(dict(left=8_000, right=8_000, bottom=100_000, top=16_000))
     drop_examples: bool = True
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
