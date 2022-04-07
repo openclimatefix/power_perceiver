@@ -16,8 +16,8 @@ dependencies:
   - hydra-core
   - fsspec
   - gcsfs # required to download testing data
-  - plotly # required for wandb to convert Matplotlib figures
   - pvlib # required to predict PV power using clearsky irradiance
+  - cartopy
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.

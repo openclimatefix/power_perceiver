@@ -21,14 +21,14 @@ class SelectPVSystemsNearCenterOfImage:
     Initialisation args:
         image_data_loader_class: The name of the data source which defines the geospatial
             boundaries we'll use to select PV systems.
-        geo_border_km: When selecting a single PV system from the top-middle of the HRV satellite
-            imagery, use geo_border_km to define how much to reduce the selection rectangle
-            before selecting PV systems. In kilometers.
+        geo_border_m: When selecting a single PV system from the top-middle of the HRV satellite
+            imagery, use geo_border_m to define how much to reduce the selection rectangle
+            before selecting PV systems. In meters.
         drop_examples: If True then drop examples (from all data sources) which have no PV systems.
     """
 
     image_data_loader_class: DataLoader = HRVSatellite
-    geo_border_km: pd.Series = pd.Series(dict(left=8, right=8, bottom=32, top=16))
+    geo_border_m: pd.Series = pd.Series(dict(left=8_000, right=8_000, bottom=32_000, top=16_000))
     drop_examples: bool = True
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
@@ -43,10 +43,10 @@ class SelectPVSystemsNearCenterOfImage:
             inner_rectangle = self._get_maximal_regular_inner_rectangle(image_dataset_for_example)
 
             # Reduce inner rectangle:
-            inner_rectangle["left"] += self.geo_border_km["left"]
-            inner_rectangle["right"] -= self.geo_border_km["right"]
-            inner_rectangle["bottom"] += self.geo_border_km["bottom"]
-            inner_rectangle["top"] -= self.geo_border_km["top"]
+            inner_rectangle["left"] += self.geo_border_m["left"]
+            inner_rectangle["right"] -= self.geo_border_m["right"]
+            inner_rectangle["bottom"] += self.geo_border_m["bottom"]
+            inner_rectangle["top"] -= self.geo_border_m["top"]
 
             # Sanity check:
             if any(inner_rectangle.isnull()):
