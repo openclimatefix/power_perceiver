@@ -29,7 +29,6 @@ class ReduceNumTimesteps:
                 replace=False,
             )
             requested_timesteps = np.sort(requested_timesteps)
-            print(requested_timesteps)
         else:
             requested_timesteps = self.requested_timesteps
 
