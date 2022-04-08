@@ -103,11 +103,12 @@ def test_select_pv_systems_near_center_of_image():
         xr_batch_processors=xr_batch_processors,
     )
     np_batch = dataset[0]
-    _check_pv_batch(np_batch)
+    # Batch 0 has 1 example with no PV systems within the region of interest.
+    _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 1)
 
-    # Batch 1 has 2 examples with no PV systems within the region of interest.
+    # Batch 1 has 4 examples with no PV systems within the region of interest.
     np_batch = dataset[1]
-    _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 2)
+    _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 4)
 
 
 @pytest.mark.parametrize(argnames="transforms", argvalues=[None, [PVPowerRollingWindow()]])
@@ -136,10 +137,10 @@ def test_all_data_loaders_and_all_transforms():
     for batch_idx in range(len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)):
         np_batch = dataset[batch_idx]
         if batch_idx == 1:
-            # Batch 1 has 2 examples with no PV systems within the region of interest.
-            expected_batch_size = BATCH_SIZE - 2
+            # Batch 1 has 4 examples with no PV systems within the region of interest.
+            expected_batch_size = BATCH_SIZE - 4
         else:
-            expected_batch_size = BATCH_SIZE
+            expected_batch_size = BATCH_SIZE - 1
         _check_pv_batch(np_batch, expected_batch_size=expected_batch_size)
         # shape is (example, time, channel, y, x, patch)
         assert np_batch[BatchKey.hrvsatellite].shape == (expected_batch_size, 31, 1, 16, 16, 16)

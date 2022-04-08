@@ -111,11 +111,12 @@ class HRVSatellite(DataLoader):
         # Coordinates
         batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_int(dataset["time_utc"].values)
         for batch_key, dataset_key in (
-            (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
+            (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
+            (BatchKey.hrvsatellite_y_geostationary, "y_geostationary"),
+            (BatchKey.hrvsatellite_x_geostationary, "x_geostationary"),
         ):
-            coords = dataset[dataset_key]
             # HRVSatellite coords are already float32.
-            batch[batch_key] = coords.values
+            batch[batch_key] = dataset[dataset_key].values
 
         return batch

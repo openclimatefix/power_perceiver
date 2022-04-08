@@ -28,15 +28,19 @@ class BatchKey(Enum):
     hrvsatellite = auto()
 
     # HRV satellite coordinates:
-    hrvsatellite_x_osgb = auto()  # shape: (batch_size, y, x)
     hrvsatellite_y_osgb = auto()  # shape: (batch_size, y, x)
+    hrvsatellite_x_osgb = auto()  # shape: (batch_size, y, x)
+    hrvsatellite_y_geostationary = auto()  # shape: (batch_size, y)
+    hrvsatellite_x_geostationary = auto()  # shape: (batch_size, x)
     #: Time is seconds since UNIX epoch (1970-01-01). Shape: (batch_size, n_timesteps)
     hrvsatellite_time_utc = auto()
+    # Added by np_batch_processor.Topography:
+    hrvsatellite_surface_height = auto()  # The surface height at each pixel. (batch_size, y, x)
 
     # HRV satellite Fourier coordinates:
     # Spatial coordinates. Shape: (batch_size, y, x, n_fourier_features_per_dim)
-    hrvsatellite_x_osgb_fourier = auto()
     hrvsatellite_y_osgb_fourier = auto()
+    hrvsatellite_x_osgb_fourier = auto()
     #: Time shape: (batch_size, n_timesteps, n_fourier_features_per_dim)
     hrvsatellite_time_utc_fourier = auto()
 
@@ -53,15 +57,17 @@ class BatchKey(Enum):
 
     # PV coordinates:
     # Each has shape: (batch_size, n_pv_systems), will be NaN for missing PV systems.
-    pv_x_osgb = auto()
     pv_y_osgb = auto()
+    pv_x_osgb = auto()
     pv_time_utc = auto()  # Seconds since UNIX epoch (1970-01-01).
+    # Added by np_batch_processor.Topography:
+    pv_surface_height = auto()  # The surface height at the location of the PV system.
 
     # PV Fourier coordinates:
     # Each has shape: (batch_size, n_pv_systems, n_fourier_features_per_dim),
     # and will be NaN for missing PV systems.
-    pv_x_osgb_fourier = auto()
     pv_y_osgb_fourier = auto()
+    pv_x_osgb_fourier = auto()
     pv_time_utc_fourier = auto()
 
     # -------------- SUN --------------------------------------------

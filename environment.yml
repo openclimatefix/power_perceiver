@@ -17,7 +17,11 @@ dependencies:
   - fsspec
   - gcsfs # required to download testing data
   - pvlib # required to predict PV power using clearsky irradiance
-  - cartopy
+  - cartopy # for plotting geospatial imagery
+  - pyresample # for reprojecting the topographical data
+  - bottleneck # for xarray.ffill
+  - rioxarray # for loading topographical data
+  - pyproj # for topographical data
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
