@@ -1,4 +1,3 @@
-import functools
 from typing import Any, Optional
 
 import pytorch_lightning as pl
@@ -26,5 +25,40 @@ class SimpleCallback(pl.Callback):
         """
         raise NotImplementedError  # MUST BE IMPLEMENTED BY SUBCLASSES!
 
-    on_train_batch_end = functools.partialmethod(_on_batch_end, tag="train")
-    on_validation_batch_end = functools.partialmethod(_on_batch_end, tag="validation")
+    def on_train_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: Optional[dict[str, object]],
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        self._on_batch_end(
+            trainer=trainer,
+            pl_module=pl_module,
+            outputs=outputs,
+            batch=batch,
+            batch_idx=batch_idx,
+            dataloader_idx=dataloader_idx,
+            tag="train",
+        )
+
+    def on_validation_batch_end(
+        self,
+        trainer: pl.Trainer,
+        pl_module: pl.LightningModule,
+        outputs: Optional[dict[str, object]],
+        batch: Any,
+        batch_idx: int,
+        dataloader_idx: int,
+    ) -> None:
+        self._on_batch_end(
+            trainer=trainer,
+            pl_module=pl_module,
+            outputs=outputs,
+            batch=batch,
+            batch_idx=batch_idx,
+            dataloader_idx=dataloader_idx,
+            tag="validation",
+        )
