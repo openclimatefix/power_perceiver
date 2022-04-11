@@ -1,0 +1,26 @@
+from typing import Iterable
+
+import einops
+import torch
+
+from power_perceiver.consts import BatchKey
+
+
+def masked_mean(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    # Adapted from https://discuss.pytorch.org/t/how-to-write-a-loss-function-with-mask/53461/4
+    zeros = torch.tensor(0, dtype=tensor.dtype, device=tensor.device)
+    masked_tensor = torch.where(mask, tensor, zeros)
+    total = masked_tensor.sum()
+    num_selected_elements = mask.sum()
+    return total / num_selected_elements
+
+
+def repeat_over_time(
+    x: dict[BatchKey, torch.Tensor], batch_keys: Iterable[BatchKey], n_timesteps: int
+) -> list[torch.Tensor]:
+    repeated_tensors = []
+    for batch_key in batch_keys:
+        tensor = x[batch_key]
+        tensor = einops.repeat(tensor, "batch_size ... -> batch_size time ...", time=n_timesteps)
+        repeated_tensors.append(tensor)
+    return repeated_tensors
