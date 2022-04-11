@@ -16,6 +16,7 @@ from power_perceiver.consts import BatchKey
 def plot_tsne_of_pv_system_id_embedding(
     batch: dict[BatchKey, torch.Tensor],
     pv_system_id_embedding: nn.Embedding,
+    device,
 ) -> plt.Figure:
     """Plot the t-SNE of the embedding for all PV systems in the batch."""
     pv_system_row_numbers_for_all_examples = []
@@ -30,7 +31,7 @@ def plot_tsne_of_pv_system_id_embedding(
     pv_system_row_numbers_for_all_examples = np.unique(pv_system_row_numbers_for_all_examples)
     pv_system_row_numbers_for_all_examples = torch.from_numpy(
         pv_system_row_numbers_for_all_examples
-    ).to(device=pv_system_id_embedding.device)
+    ).to(device=device)
     pv_id_embedding = pv_system_id_embedding(pv_system_row_numbers_for_all_examples)
     pv_id_embedding = pv_id_embedding.detach().cpu()
 
@@ -69,7 +70,11 @@ class LogTSNEPlot(SimpleCallback):
         """
         if batch_idx == 0:
             query_generator = getattr(pl_module, self.query_generator_name)
-            fig = plot_tsne_of_pv_system_id_embedding(batch, query_generator.pv_system_id_embedding)
+            fig = plot_tsne_of_pv_system_id_embedding(
+                batch=batch,
+                pv_system_id_embedding=query_generator.pv_system_id_embedding,
+                device=pl_module.device,
+            )
             wandb.log(
                 {
                     # Need to convert to image to avoid bug in matplotlib to plotly conversion
