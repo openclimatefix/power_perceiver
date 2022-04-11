@@ -3,7 +3,7 @@ from typing import Any, Optional
 
 import numpy as np
 import pytorch_lightning as pl
-import sklearn
+import sklearn.manifold
 import torch
 import wandb
 from matplotlib import pyplot as plt
