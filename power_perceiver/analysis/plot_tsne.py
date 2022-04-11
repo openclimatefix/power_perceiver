@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any, Optional
 
 import numpy as np
@@ -40,7 +41,13 @@ def plot_tsne_of_pv_system_id_embedding(
     return fig
 
 
+@dataclass
 class LogTSNEPlot(SimpleCallback):
+    query_generator_name: str = "decoder_query_generator"
+
+    def __post_init__(self):
+        super().__init__()
+
     def _on_batch_end(
         self,
         trainer: pl.Trainer,
@@ -58,9 +65,8 @@ class LogTSNEPlot(SimpleCallback):
             tag: train or validation
         """
         if batch_idx == 0:
-            fig = plot_tsne_of_pv_system_id_embedding(
-                batch, pl_module.query_generator.pv_system_id_embedding
-            )
+            query_generator = getattr(pl_module, self.query_generator_name)
+            fig = plot_tsne_of_pv_system_id_embedding(batch, query_generator.pv_system_id_embedding)
             wandb.log(
                 {
                     # Need to convert to image to avoid bug in matplotlib to plotly conversion
