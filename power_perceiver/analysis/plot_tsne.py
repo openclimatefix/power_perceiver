@@ -30,7 +30,7 @@ def plot_tsne_of_pv_system_id_embedding(
     pv_system_row_numbers_for_all_examples = np.unique(pv_system_row_numbers_for_all_examples)
     pv_system_row_numbers_for_all_examples = torch.from_numpy(
         pv_system_row_numbers_for_all_examples
-    )
+    ).to(device=pv_system_id_embedding.device)
     pv_id_embedding = pv_system_id_embedding(pv_system_row_numbers_for_all_examples)
     pv_id_embedding = pv_id_embedding.detach().cpu()
 
