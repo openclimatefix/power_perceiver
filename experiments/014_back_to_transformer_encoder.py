@@ -221,7 +221,7 @@ trainer = pl.Trainer(
     logger=wandb_logger,
     callbacks=[
         LogTimeseriesPlots(),
-        LogTSNEPlot(),
+        LogTSNEPlot(query_generator_name="query_generator"),
     ],
 )
 
