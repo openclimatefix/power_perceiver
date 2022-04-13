@@ -93,7 +93,7 @@ def maybe_pad_with_zeros(tensor: torch.Tensor, requested_dim: int) -> torch.Tens
 )  # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 class Model(pl.LightningModule):
     encoder_query_dim: int = 64
-    num_encoder_query_elements_per_decoder_query_element: int = 8
+    num_encoder_query_elements_per_decoder_query_element: int = 16
     decoder_query_dim: int = (
         36  # decoder_query will be automatically padded with zeros to get to this size.
     )
