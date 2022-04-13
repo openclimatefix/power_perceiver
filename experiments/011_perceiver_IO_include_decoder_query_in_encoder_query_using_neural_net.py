@@ -2,22 +2,21 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-import einops
-import pytorch_lightning as pl
-
 # ML imports
+import einops
+import matplotlib.pyplot as plt
+import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
 
+# power_perceiver imports
 from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
 from power_perceiver.data_loader import PV, HRVSatellite, Sun
-
-# power_perceiver imports
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime, Topography
 from power_perceiver.pytorch_modules.query_generator import QueryGenerator
@@ -30,6 +29,9 @@ from power_perceiver.xr_batch_processor import (
     ReduceNumTimesteps,
     SelectPVSystemsNearCenterOfImage,
 )
+
+plt.rcParams["figure.figsize"] = (18, 10)
+plt.rcParams["figure.facecolor"] = "white"
 
 DATA_PATH = Path(
     "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
