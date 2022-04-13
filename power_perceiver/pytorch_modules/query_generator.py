@@ -17,7 +17,7 @@ class QueryGenerator(nn.Module):
     num_fourier_features: int  # TOTAL (for both x and y)
     num_elements_query_padding: int
     pv_system_id_embedding_dim: int
-    num_pv_systems: int = 2000  # TODO: Set this to the correct number!
+    num_pv_systems: int = 1400  # TODO: Set this to the correct number!
 
     def __post_init__(self):
         super().__init__()
