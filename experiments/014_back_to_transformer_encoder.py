@@ -57,7 +57,7 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
         data_loaders=[
             HRVSatellite(
                 transforms=[
-                    PatchSatellite(y_patch_size_pixels=4, x_patch_size_pixels=2),
+                    PatchSatellite(),
                 ]
             ),
             PV(transforms=[PVPowerRollingWindow()]),
@@ -204,7 +204,7 @@ class Model(pl.LightningModule):
         return self._training_or_validation_step(batch=batch, batch_idx=batch_idx, tag="validation")
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
         return optimizer
 
 
