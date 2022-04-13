@@ -125,12 +125,8 @@ class Model(pl.LightningModule):
         )
 
         self.encoder_query_generator = nn.Sequential(
-            nn.Linear(in_features=self.decoder_query_generator.query_dim, out_features=32),
-            nn.ReLU(),
-            nn.Linear(in_features=32, out_features=32),
-            nn.ReLU(),
             nn.Linear(
-                in_features=32,
+                in_features=self.decoder_query_generator.query_dim,
                 out_features=(
                     self.encoder_query_dim
                     * self.num_encoder_query_elements_per_decoder_query_element

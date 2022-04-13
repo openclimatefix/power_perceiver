@@ -23,6 +23,7 @@ class QueryGenerator(nn.Module):
         super().__init__()
         # Plus two for solar azimuth and elevation
         self.query_dim = self.num_fourier_features + self.pv_system_id_embedding_dim + 2
+
         self.query_padding = nn.Parameter(
             torch.randn(self.num_elements_query_padding, self.query_dim) / 5
         )

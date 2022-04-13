@@ -72,6 +72,18 @@ class PV(DataLoader):
         for dataset_key in ("x_osgb", "y_osgb"):
             dataset[dataset_key] = dataset[dataset_key].astype(np.float32)
 
+        # DELETE THIS BLOCK AFTER WE GET THE ANSWER!
+        max_for_this_batch = np.nanmax(dataset["pv_system_row_number"])
+        self.max_pv_system_row_number = max(
+            getattr(self, "max_pv_system_row_number", 0), max_for_this_batch
+        )
+
+        self.num_batches = getattr(self, "num_batches", 0)
+        self.num_batches += 1
+        if self.num_batches >= 8399:
+            print(f"{self.max_pv_system_row_number}")
+            self.num_batches = 0
+
         return dataset
 
     @staticmethod
