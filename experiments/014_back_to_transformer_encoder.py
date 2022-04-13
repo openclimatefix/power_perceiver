@@ -55,7 +55,11 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
     dataset = NowcastingDataset(
         data_path=data_path,
         data_loaders=[
-            HRVSatellite(transforms=[PatchSatellite()]),
+            HRVSatellite(
+                transforms=[
+                    PatchSatellite(y_patch_size_pixels=2, x_patch_size_pixels=2),
+                ]
+            ),
             PV(transforms=[PVPowerRollingWindow()]),
             Sun(),
         ],
@@ -216,8 +220,8 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
-    max_epochs=-1,
+    gpus=[3],
+    max_epochs=30,
     logger=wandb_logger,
     callbacks=[
         LogTimeseriesPlots(),
