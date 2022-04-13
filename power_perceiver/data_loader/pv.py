@@ -81,7 +81,7 @@ class PV(DataLoader):
         self.num_batches = getattr(self, "num_batches", 0)
         self.num_batches += 1
         if self.num_batches >= 8399:
-            print(f"{self.max_pv_system_row_number}")
+            print(f"\n\n********{self.max_pv_system_row_number=}************\n\n", flush=True)
             self.num_batches = 0
 
         return dataset

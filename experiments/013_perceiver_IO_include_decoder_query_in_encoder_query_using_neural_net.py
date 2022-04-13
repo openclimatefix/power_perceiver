@@ -125,8 +125,14 @@ class Model(pl.LightningModule):
         )
 
         self.encoder_query_generator = nn.Sequential(
+            nn.Linear(in_features=self.decoder_query_generator.query_dim, out_features=128),
+            nn.ReLU(),
+            nn.Linear(in_features=128, out_features=256),
+            nn.ReLU(),
+            nn.Linear(in_features=256, out_features=256),
+            nn.ReLU(),
             nn.Linear(
-                in_features=self.decoder_query_generator.query_dim,
+                in_features=256,
                 out_features=(
                     self.encoder_query_dim
                     * self.num_encoder_query_elements_per_decoder_query_element
@@ -247,7 +253,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[5],
     max_epochs=-1,
     logger=wandb_logger,
     callbacks=[
