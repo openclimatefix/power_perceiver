@@ -82,6 +82,7 @@ class Perceiver(nn.Module):
 
     def __post_init__(self):
         super().__init__()
+        assert self.num_latent_transformer_encoders >= 1
 
         self.cross_attention = nn.MultiheadAttention(
             embed_dim=self.query_dim,
@@ -154,6 +155,7 @@ class PerceiverIO(nn.Module):
 
     def __post_init__(self):
         super().__init__()
+        assert self.num_cross_attends >= 1
 
         self.perceiver_encoders = nn.ModuleList()
         for _ in range(self.num_cross_attends):
