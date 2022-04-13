@@ -150,20 +150,25 @@ class PerceiverIO(nn.Module):
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = True
     num_latent_transformer_encoders: int = 4
+    num_cross_attends: int = 1
 
     def __post_init__(self):
         super().__init__()
 
-        self.perceiver_encoder = Perceiver(
-            query_dim=self.encoder_query_dim,
-            byte_array_dim=self.byte_array_dim,
-            num_heads=self.num_encoder_heads,
-            dropout=self.dropout,
-            share_weights_across_latent_transformer_layers=(
-                self.share_weights_across_latent_transformer_layers
-            ),
-            num_latent_transformer_encoders=self.num_latent_transformer_encoders,
-        )
+        self.perceiver_encoders = nn.ModuleList()
+        for _ in range(self.num_cross_attends):
+            self.perceiver_encoders.append(
+                Perceiver(
+                    query_dim=self.encoder_query_dim,
+                    byte_array_dim=self.byte_array_dim,
+                    num_heads=self.num_encoder_heads,
+                    dropout=self.dropout,
+                    share_weights_across_latent_transformer_layers=(
+                        self.share_weights_across_latent_transformer_layers
+                    ),
+                    num_latent_transformer_encoders=self.num_latent_transformer_encoders,
+                )
+            )
 
         self.decoder = nn.MultiheadAttention(
             embed_dim=self.decoder_query_dim,
@@ -181,11 +186,16 @@ class PerceiverIO(nn.Module):
         decoder_query: torch.Tensor,
         byte_array_padding_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        encoder_output = self.perceiver_encoder(
-            query=encoder_query,
-            byte_array=byte_array,
-            byte_array_padding_mask=byte_array_padding_mask,
-        )
+        # Encoder
+        encoder_output = encoder_query
+        for perceiver_encoder in self.perceiver_encoders:
+            encoder_output = perceiver_encoder(
+                query=encoder_output,
+                byte_array=byte_array,
+                byte_array_padding_mask=byte_array_padding_mask,
+            )
+
+        # Decoder
         decoder_output, decoder_weights = self.decoder(
             query=decoder_query,
             key=encoder_output,
