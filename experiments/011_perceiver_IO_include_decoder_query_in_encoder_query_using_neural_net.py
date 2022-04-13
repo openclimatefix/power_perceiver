@@ -102,7 +102,7 @@ class Model(pl.LightningModule):
     byte_array_dim: int = 35
     num_encoder_heads: int = 8
     num_decoder_heads: int = 6
-    dropout: float = 0.1
+    dropout: float = 0.2
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
 
@@ -247,7 +247,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=-1,
     logger=wandb_logger,
     callbacks=[
