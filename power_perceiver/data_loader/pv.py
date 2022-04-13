@@ -1,8 +1,12 @@
+import logging
+
 import numpy as np
 import xarray as xr
 
 from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyBatch
 from power_perceiver.utils import datetime64_to_int
+
+_log = logging.getLogger(__name__)
 
 
 class PV(DataLoader):
@@ -81,7 +85,7 @@ class PV(DataLoader):
         self.num_batches = getattr(self, "num_batches", 0)
         self.num_batches += 1
         if self.num_batches >= 8390:
-            print(f"\n\n********{self.max_pv_system_row_number=}************\n\n", flush=True)
+            _log.info(f"\n\n********{self.max_pv_system_row_number=}************\n\n")
             self.num_batches = 0
 
         return dataset
