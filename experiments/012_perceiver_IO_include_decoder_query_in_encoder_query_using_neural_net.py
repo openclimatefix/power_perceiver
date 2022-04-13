@@ -105,7 +105,7 @@ class Model(pl.LightningModule):
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
-    num_cross_attends: int = 2
+    num_cross_attends: int = 4
 
     # Other params:
     # Probably keep this at zero while using MultiLayerTransformerEncoder or Perceiver IO:
@@ -248,7 +248,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[4],
     max_epochs=-1,
     logger=wandb_logger,
     callbacks=[
