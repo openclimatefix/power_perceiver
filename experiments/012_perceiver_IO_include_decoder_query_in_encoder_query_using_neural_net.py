@@ -108,9 +108,8 @@ class Model(pl.LightningModule):
     num_cross_attends: int = 2
 
     # Other params:
-    num_elements_query_padding: int = (
-        0  # Probably keep this at zero while using MultiLayerTransformerEncoder or Perceiver IO
-    )
+    # Probably keep this at zero while using MultiLayerTransformerEncoder or Perceiver IO:
+    num_elements_query_padding: int = 0
 
     def __post_init__(self):
         super().__init__()
@@ -249,7 +248,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=-1,
     logger=wandb_logger,
     callbacks=[
