@@ -129,8 +129,6 @@ class Model(pl.LightningModule):
             nn.ReLU(),
             nn.Linear(in_features=128, out_features=256),
             nn.ReLU(),
-            nn.Linear(in_features=256, out_features=256),
-            nn.ReLU(),
             nn.Linear(
                 in_features=256,
                 out_features=(
