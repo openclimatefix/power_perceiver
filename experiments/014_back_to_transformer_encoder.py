@@ -57,7 +57,7 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
         data_loaders=[
             HRVSatellite(
                 transforms=[
-                    PatchSatellite(y_patch_size_pixels=2, x_patch_size_pixels=2),
+                    PatchSatellite(y_patch_size_pixels=4, x_patch_size_pixels=2),
                 ]
             ),
             PV(transforms=[PVPowerRollingWindow()]),
