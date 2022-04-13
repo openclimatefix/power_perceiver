@@ -174,6 +174,8 @@ class Model(pl.LightningModule):
             encoder_query,
             "example element (elements_per_query query_dim) -> "
             "example (element elements_per_query) query_dim",
+            query_dim=self.encoder_query_dim,
+            elements_per_query=self.num_encoder_query_elements_per_decoder_query_element,
         )
 
         # Run through the Perceiver IO:
