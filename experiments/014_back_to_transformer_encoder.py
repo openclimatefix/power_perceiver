@@ -204,7 +204,7 @@ class Model(pl.LightningModule):
         return self._training_or_validation_step(batch=batch, batch_idx=batch_idx, tag="validation")
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
         return optimizer
 
 
@@ -220,8 +220,8 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
-    max_epochs=30,
+    gpus=[2],
+    max_epochs=60,
     logger=wandb_logger,
     callbacks=[
         LogTimeseriesPlots(),
