@@ -41,7 +41,11 @@ class MultiLayerTransformerEncoder(nn.Module):
         # TransformerEncoderLayer is made up of self-attn and feedforward network.
         # This standard encoder layer is based on the paper “Attention Is All You Need”
         transformer_encoder_layer = TransformerEncoderLayerForVisualisingWeights(
-            d_model=self.d_model, nhead=self.num_heads, dropout=self.dropout, batch_first=True
+            d_model=self.d_model,
+            nhead=self.num_heads,
+            dropout=self.dropout,
+            batch_first=True,
+            activation="gelu",
         )
 
         if self.share_weights_across_latent_transformer_layers:

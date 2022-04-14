@@ -135,7 +135,7 @@ class Model(pl.LightningModule):
 
         self.output_module = nn.Sequential(
             nn.Linear(in_features=self.query_dim, out_features=self.query_dim),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(in_features=self.query_dim, out_features=1),
         )
 
@@ -220,7 +220,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[3],
     max_epochs=60,
     logger=wandb_logger,
     callbacks=[
