@@ -126,9 +126,9 @@ class Model(pl.LightningModule):
 
         self.encoder_query_generator = nn.Sequential(
             nn.Linear(in_features=self.decoder_query_generator.query_dim, out_features=128),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(in_features=128, out_features=256),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(
                 in_features=256,
                 out_features=(
@@ -154,7 +154,7 @@ class Model(pl.LightningModule):
 
         self.output_module = nn.Sequential(
             nn.Linear(in_features=self.decoder_query_dim, out_features=self.decoder_query_dim),
-            nn.ReLU(),
+            nn.GELU(),
             nn.Linear(in_features=self.decoder_query_dim, out_features=1),
         )
 
@@ -235,7 +235,7 @@ class Model(pl.LightningModule):
         return self._training_or_validation_step(batch=batch, batch_idx=batch_idx, tag="validation")
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
         return optimizer
 
 
