@@ -76,7 +76,7 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
         worker_info = torch.utils.data.get_worker_info()
         for xr_batch_processor in worker_info.dataset.xr_batch_processors:
             if getattr(xr_batch_processor, "rng", None):
-                xr_batch_processor.rng = np.default_rng(seed=42 + worker_id)
+                xr_batch_processor.rng = np.random.default_rng(seed=42 + worker_id)
 
     dataloader = data.DataLoader(
         dataset,
