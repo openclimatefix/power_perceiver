@@ -19,7 +19,7 @@ class ReduceNumTimesteps:
     num_timesteps_available: int = 31
 
     def __post_init__(self):
-        self.rng = np.random.default_rng()
+        self.rng = np.random.default_rng(seed=42)
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         if isinstance(self.requested_timesteps, int):
