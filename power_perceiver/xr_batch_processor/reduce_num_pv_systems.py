@@ -21,7 +21,7 @@ class ReduceNumPVSystems:
     requested_num_pv_systems: int
 
     def __post_init__(self):
-        self.rng = np.random.default_rng(seed=42)
+        self.rng = np.random.default_rng()  # Seeded by seed_rngs worker_init_function
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         pv_batch = xr_batch[PV]

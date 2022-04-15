@@ -5,6 +5,7 @@ from pathlib import Path
 # ML imports
 import einops
 import matplotlib.pyplot as plt
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -70,11 +71,18 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
         ],
     )
 
+    def seed_rngs(worker_id: int):
+        worker_info = torch.utils.data.get_worker_info()
+        for xr_batch_processor in worker_info.dataset.xr_batch_processors:
+            if getattr(xr_batch_processor, "rng"):
+                xr_batch_processor.rng = np.default_rng(seed=42 + worker_id)
+
     dataloader = data.DataLoader(
         dataset,
         batch_size=None,
         num_workers=16,
         pin_memory=True,
+        worker_init_fn=seed_rngs,
     )
 
     return dataloader
