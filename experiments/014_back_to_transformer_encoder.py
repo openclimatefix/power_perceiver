@@ -229,7 +229,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[3],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
