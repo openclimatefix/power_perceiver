@@ -116,7 +116,7 @@ class Model(pl.LightningModule):
     num_heads: int = 6
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 4
+    num_latent_transformer_encoders: int = 6
 
     # Other params:
     # Probably keep this at zero while using MultiLayerTransformerEncoder
