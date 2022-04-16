@@ -116,7 +116,7 @@ class Model(pl.LightningModule):
     num_heads: int = 6
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 8
+    num_latent_transformer_encoders: int = 12
 
     # Other params:
     # Probably keep this at zero while using MultiLayerTransformerEncoder
@@ -229,7 +229,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[3],
+    gpus=[4],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
