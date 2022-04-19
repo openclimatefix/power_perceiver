@@ -13,7 +13,6 @@ from torch import nn
 from torch.utils import data
 
 # power_perceiver imports
-from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
 from power_perceiver.data_loader import PV, HRVSatellite, Sun
@@ -214,7 +213,6 @@ trainer = pl.Trainer(
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
-        LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="query_generator"),
     ],
 )
