@@ -104,10 +104,10 @@ class Model(pl.LightningModule):
     # Set d_model to be divisible by `num_heads`.
     d_model: int = 96
     pv_system_id_embedding_dim: int = 16
-    num_heads: int = 12
-    dropout: float = 0.0
+    num_heads: int = 24
+    dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 4
+    num_latent_transformer_encoders: int = 12
 
     def __post_init__(self):
         super().__init__()
@@ -241,7 +241,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="016.04",
+    name="016.05",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
