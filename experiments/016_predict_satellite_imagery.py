@@ -212,7 +212,7 @@ class Model(pl.LightningModule):
         )
         predicted_imagery = out["imagery_out"]
         imagery_mse_loss = F.mse_loss(predicted_imagery, actual_imagery)
-        self.log(f"{tag}/imagery_mse", pv_mse_loss)
+        self.log(f"{tag}/imagery_mse", imagery_mse_loss)
 
         total_mse_loss = pv_mse_loss + imagery_mse_loss
         self.log(f"{tag}/total_mse", total_mse_loss)
