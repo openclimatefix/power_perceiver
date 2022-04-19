@@ -103,7 +103,6 @@ class Model(pl.LightningModule):
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
     d_model: int = 96
-    num_fourier_features: int = 24  # TOTAL for y, x, and time_utc
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
     dropout: float = 0.0
@@ -116,7 +115,6 @@ class Model(pl.LightningModule):
         self.hrvsatellite_processor = HRVSatelliteProcessor()
 
         self.query_generator = QueryGenerator(
-            num_fourier_features=self.num_fourier_features,  # TOTAL (for y, x, and time_utc)
             pv_system_id_embedding_dim=self.pv_system_id_embedding_dim,
         )
 
@@ -208,7 +206,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="015_multiple_timesteps_v02",
+    name="015_multiple_timesteps_v03",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -218,7 +216,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

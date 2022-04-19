@@ -13,14 +13,11 @@ from power_perceiver.consts import BatchKey
 class QueryGenerator(nn.Module):
     """Create a query using a learnt array and the locations of the PV systems."""
 
-    num_fourier_features: int  # TOTAL (for y, x, and time_utc)
     pv_system_id_embedding_dim: int
     num_pv_systems: int = 1400  # TODO: Set this to the correct number!
 
     def __post_init__(self):
         super().__init__()
-        # Plus two for solar azimuth and elevation
-        self.query_dim = self.num_fourier_features + self.pv_system_id_embedding_dim + 2
 
         self.pv_system_id_embedding = nn.Embedding(
             num_embeddings=self.num_pv_systems,
@@ -28,6 +25,8 @@ class QueryGenerator(nn.Module):
         )
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+        """The returned tensor is of shape (example, n_pv_systems, query_dim)"""
+
         y_fourier = x[BatchKey.pv_y_osgb_fourier]  # (example, n_pv_systems, fourier_features)
         x_fourier = x[BatchKey.pv_x_osgb_fourier]
 
@@ -58,8 +57,16 @@ class QueryGenerator(nn.Module):
         solar_azimuth = _repeat_solar_feature_over_x_and_y(x[BatchKey.solar_azimuth])
         solar_elevation = _repeat_solar_feature_over_x_and_y(x[BatchKey.solar_elevation])
 
+        pv_power = x[BatchKey.pv][:, :12]  # example, time, n_pv_systems
+        pv_power = einops.rearrange(
+            pv_power,
+            "example time n_pv_systems -> example n_pv_systems time",
+            n_pv_systems=n_pv_systems,  # Just as a sanity check
+        )
+
         pv_system_query = torch.concat(
             (
+                pv_power,
                 y_fourier,
                 x_fourier,
                 time_fourier,
