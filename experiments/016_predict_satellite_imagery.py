@@ -141,7 +141,7 @@ class Model(pl.LightningModule):
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=16),
+            nn.Linear(in_features=self.d_model, out_features=64),
         )
 
         # Do this at the end of __post_init__ to capture model topology:
