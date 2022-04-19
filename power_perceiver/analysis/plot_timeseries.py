@@ -16,7 +16,7 @@ def plot_pv_power(
     example_idx: int,
     datetimes: torch.Tensor,
 ) -> plt.Figure:
-    fig, (ax_actual, ax_predicted) = plt.subplots(nrows=2, sharex=True)
+    fig, (ax_actual, ax_predicted) = plt.subplots(nrows=2, sharex=True, sharey=True)
 
     datetimes = pd.to_datetime(datetimes[example_idx], unit="s")
 

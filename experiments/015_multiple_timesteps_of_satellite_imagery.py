@@ -133,7 +133,7 @@ class Model(pl.LightningModule):
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=self.num_pv_timesteps_to_predict),
+            nn.Linear(in_features=self.d_model, out_features=1),
         )
 
         # Do this at the end of __post_init__ to capture model topology:
@@ -166,7 +166,7 @@ class Model(pl.LightningModule):
             tag: Either "train" or "validation"
             batch_idx: The index of the batch.
         """
-        actual_pv_power = batch[BatchKey.pv]
+        actual_pv_power = batch[BatchKey.pv]  # example, time, n_pv_systems
         # Select just a single timestep:
         actual_pv_power = actual_pv_power[:, 12:24]
         actual_pv_power = torch.where(
@@ -177,7 +177,7 @@ class Model(pl.LightningModule):
 
         predicted_pv_power = self(batch)
         predicted_pv_power = einops.rearrange(
-            predicted_pv_power, "example n_pv_systems time -> example time n_pv_systems"
+            predicted_pv_power, "example (time n_pv_systems) -> example time n_pv_systems"
         )
         mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
 
@@ -206,7 +206,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="015_multiple_timesteps_v03",
+    name="015_multiple_timesteps_v04",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -216,7 +216,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
