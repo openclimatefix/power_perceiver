@@ -108,7 +108,6 @@ class Model(pl.LightningModule):
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
-    num_pv_timesteps_to_predict: int = 12
 
     def __post_init__(self):
         super().__init__()
@@ -240,7 +239,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="016.01",
+    name="016.02",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

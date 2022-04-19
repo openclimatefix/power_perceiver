@@ -97,13 +97,13 @@ class HRVSatelliteProcessor(nn.Module):
         # Concatenate spatial features and solar features onto satellite imagery:
         byte_array = torch.concat(
             (
-                hrvsatellite,
                 y_fourier,
                 x_fourier,
                 time_fourier,
                 solar_azimuth,
                 solar_elevation,
                 surface_height,
+                hrvsatellite,
             ),
             dim=-1,
         )
