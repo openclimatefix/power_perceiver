@@ -73,8 +73,8 @@ class QueryGenerator(nn.Module):
                     time_fourier,
                     solar_azimuth,
                     solar_elevation,
-                    pv_power,
                     pv_system_embedding,
+                    pv_power,
                 ),
                 dim=2,
             )

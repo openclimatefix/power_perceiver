@@ -160,11 +160,13 @@ class Model(pl.LightningModule):
 
         # Prepare the attention input and run through the transformer_encoder:
         attn_input = torch.concat((byte_array, query), dim=1)
-        attn_output = self.transformer_encoder(attn_input)
+        attn_output = attn_input + self.transformer_encoder(attn_input)
 
         # Select the elements of the output which correspond to the query:
-        pv_out = self.pv_output_module(attn_output[:, byte_array.shape[1] :])
-        imagery_out = self.imagery_output_module(attn_output[:, : byte_array.shape[1]])
+        pv_out = query[..., -12:] + self.pv_output_module(attn_output[:, byte_array.shape[1] :])
+        imagery_out = byte_array[..., -64:] + self.imagery_output_module(
+            attn_output[:, : byte_array.shape[1]]
+        )
 
         return {
             "pv_out": pv_out,
@@ -239,7 +241,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="016.02",
+    name="016.03",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -249,7 +251,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
