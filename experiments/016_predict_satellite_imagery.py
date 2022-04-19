@@ -234,14 +234,14 @@ class Model(pl.LightningModule):
         return self._training_or_validation_step(batch=batch, batch_idx=batch_idx, tag="validation")
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
         return optimizer
 
 
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="016.03",
+    name="016.04",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -251,7 +251,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
