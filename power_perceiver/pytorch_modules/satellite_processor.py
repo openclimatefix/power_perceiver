@@ -20,6 +20,7 @@ class HRVSatelliteProcessor(nn.Module):
         start_idx: int = 0,
         num_timesteps: int = 4,
         interval: int = 3,
+        satellite_only: bool = False,
     ) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
 
@@ -35,6 +36,7 @@ class HRVSatelliteProcessor(nn.Module):
             num_timesteps: The number of timesteps to include.
             interval: The interval (in number of timesteps) between each timestep.
                 For example, an interval of 3 would be 15 minutes.
+            satellite_only: If True, don't bother computing fourier features etc.
 
         Returns:
             tensor of shape (example, (y * x), (time * feature)).
@@ -52,6 +54,13 @@ class HRVSatelliteProcessor(nn.Module):
             "example time y x feature -> example y x (time feature)",
             time=num_timesteps,
         )
+
+        if satellite_only:
+            # Reshape so each location is seen as a separate element.
+            return einops.rearrange(
+                hrvsatellite,
+                "example y x feature -> example (y x) feature",
+            )
 
         # Get position encodings:
         y_fourier = x[BatchKey.hrvsatellite_y_osgb_fourier]
