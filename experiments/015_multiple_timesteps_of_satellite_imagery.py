@@ -172,6 +172,9 @@ class Model(pl.LightningModule):
         """
         actual_pv_power = batch[BatchKey.pv]  # example, time, n_pv_systems
         out = self(batch)
+        # Select just a single timestep:
+        start_idx = out["start_idx"]
+        actual_pv_power = actual_pv_power[:, 12 + start_idx : 24 + start_idx]
         predicted_pv_power = out["model_output"]
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
@@ -180,9 +183,6 @@ class Model(pl.LightningModule):
             n_pv_systems=actual_pv_power.shape[2],
         )
 
-        # Select just a single timestep:
-        start_idx = out["start_idx"]
-        actual_pv_power = actual_pv_power[:, 12 + start_idx : 24 + start_idx]
         actual_pv_power = torch.where(
             batch[BatchKey.pv_mask].unsqueeze(1),
             actual_pv_power,
