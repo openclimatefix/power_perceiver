@@ -24,7 +24,7 @@ class QueryGenerator(nn.Module):
             embedding_dim=self.pv_system_id_embedding_dim,
         )
 
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+    def forward(self, x: dict[BatchKey, torch.Tensor], start_idx: int = 0) -> torch.Tensor:
         """The returned tensor is of shape (example, (n_pv_systems time), query_dim)"""
 
         y_fourier = x[BatchKey.pv_y_osgb_fourier]  # (example, n_pv_systems, fourier_features)
@@ -34,7 +34,7 @@ class QueryGenerator(nn.Module):
         pv_system_embedding = self.pv_system_id_embedding(pv_system_row_number)
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
-        pv_power = x[BatchKey.pv][:, :12]  # example, time, n_pv_systems
+        pv_power = x[BatchKey.pv][:, start_idx : 12 + start_idx]  # example, time, n_pv_systems
         pv_power = einops.rearrange(
             pv_power,
             "example time n_pv_systems -> example n_pv_systems time",
@@ -42,7 +42,7 @@ class QueryGenerator(nn.Module):
         )
 
         queries = []
-        for time_idx in range(12, 24):
+        for time_idx in range(12 + start_idx, 24 + start_idx):
             # Select the timestep:
             time_fourier = x[BatchKey.pv_time_utc_fourier]  # (example, time, n_fourier_features)
             time_fourier = time_fourier[:, time_idx]

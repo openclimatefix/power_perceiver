@@ -140,8 +140,11 @@ class Model(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        byte_array = self.hrvsatellite_processor(x)
-        query = self.query_generator(x)
+        start_idx = torch.randint(
+            low=0, high=12, size=1, dtype=np.int32, device=x[BatchKey.pv].device
+        )
+        byte_array = self.hrvsatellite_processor(x, start_idx=start_idx)
+        query = self.query_generator(x, start_idx=start_idx)
 
         # Pad with zeros if necessary to get up to self.d_model:
         byte_array = maybe_pad_with_zeros(byte_array, requested_dim=self.d_model)
@@ -155,7 +158,10 @@ class Model(pl.LightningModule):
         out = attn_output[:, byte_array.shape[1] :]
 
         out = self.output_module(out)
-        return out
+        return {
+            "model_output": out,
+            "start_idx": start_idx,
+        }
 
     def _training_or_validation_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int, tag: str
@@ -167,21 +173,24 @@ class Model(pl.LightningModule):
             batch_idx: The index of the batch.
         """
         actual_pv_power = batch[BatchKey.pv]  # example, time, n_pv_systems
-        # Select just a single timestep:
-        actual_pv_power = actual_pv_power[:, 12:24]
-        actual_pv_power = torch.where(
-            batch[BatchKey.pv_mask].unsqueeze(1),
-            actual_pv_power,
-            torch.tensor(0.0, dtype=actual_pv_power.dtype, device=actual_pv_power.device),
-        )
-
-        predicted_pv_power = self(batch)
+        out = self(batch)
+        predicted_pv_power = out["model_output"]
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
             "example (time n_pv_systems) 1 -> example time n_pv_systems",
             time=actual_pv_power.shape[1],
             n_pv_systems=actual_pv_power.shape[2],
         )
+
+        # Select just a single timestep:
+        start_idx = out["start_idx"]
+        actual_pv_power = actual_pv_power[:, 12 + start_idx : 24 + start_idx]
+        actual_pv_power = torch.where(
+            batch[BatchKey.pv_mask].unsqueeze(1),
+            actual_pv_power,
+            torch.tensor(0.0, dtype=actual_pv_power.dtype, device=actual_pv_power.device),
+        )
+
         mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
 
         self.log(f"{tag}/mse", mse_loss)
@@ -209,7 +218,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="015_multiple_timesteps_v05",
+    name="015_multiple_timesteps_v06_jitter",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -219,7 +228,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
