@@ -163,7 +163,7 @@ class Model(pl.LightningModule):
         attn_output = attn_input + self.transformer_encoder(attn_input)
 
         # Select the elements of the output which correspond to the query:
-        pv_out = query[..., -1] + self.pv_output_module(attn_output[:, byte_array.shape[1] :])
+        pv_out = query[..., -1:] + self.pv_output_module(attn_output[:, byte_array.shape[1] :])
         imagery_out = byte_array[..., -64:] + self.imagery_output_module(
             attn_output[:, : byte_array.shape[1]]
         )
