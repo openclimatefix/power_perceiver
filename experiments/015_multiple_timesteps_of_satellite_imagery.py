@@ -167,16 +167,15 @@ class Model(pl.LightningModule):
             batch_idx: The index of the batch.
         """
         actual_pv_power = batch[BatchKey.pv]
+        # Select just a single timestep:
+        actual_pv_power = actual_pv_power[:, 12:24]
         actual_pv_power = torch.where(
             batch[BatchKey.pv_mask].unsqueeze(1),
             actual_pv_power,
             torch.tensor(0.0, dtype=actual_pv_power.dtype, device=actual_pv_power.device),
         )
 
-        # Select just a single timestep:
-        actual_pv_power = actual_pv_power[:, 12:24]
-
-        predicted_pv_power = self(batch)
+        predicted_pv_power = self(batch).T
         mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
 
         self.log(f"{tag}/mse", mse_loss)
