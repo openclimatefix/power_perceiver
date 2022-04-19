@@ -50,8 +50,8 @@ class LogTimeseriesPlots(SimpleCallback):
         """
         EXAMPLE_IDX = 0
         predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
-        actual_pv_power = batch[BatchKey.pv].cpu()
-        datetimes = batch[BatchKey.pv_time_utc].cpu()
+        actual_pv_power = batch[BatchKey.pv].cpu()[:, 12:24]
+        datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 12:24]
         if batch_idx < 4:
             fig = plot_pv_power(
                 actual_pv_power=actual_pv_power,

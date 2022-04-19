@@ -12,6 +12,8 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
 
+from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
+
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
@@ -101,10 +103,11 @@ class Model(pl.LightningModule):
     d_model: int = 96
     num_fourier_features: int = 24  # TOTAL for y, x, and time_utc
     pv_system_id_embedding_dim: int = 16
-    num_heads: int = 6
+    num_heads: int = 12
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
+    num_pv_timesteps_to_predict: int = 12
 
     def __post_init__(self):
         super().__init__()
@@ -128,7 +131,9 @@ class Model(pl.LightningModule):
         self.output_module = nn.Sequential(
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=1),
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=self.num_pv_timesteps_to_predict),
         )
 
         # Do this at the end of __post_init__ to capture model topology:
@@ -169,9 +174,9 @@ class Model(pl.LightningModule):
         )
 
         # Select just a single timestep:
-        actual_pv_power = actual_pv_power[:, 12]
+        actual_pv_power = actual_pv_power[:, 12:24]
 
-        predicted_pv_power = self(batch).squeeze()
+        predicted_pv_power = self(batch)
         mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
 
         self.log(f"{tag}/mse", mse_loss)
@@ -199,7 +204,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="015_multiple_timesteps_v01",
+    name="015_multiple_timesteps_v02",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -209,10 +214,11 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
+        LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="query_generator"),
     ],
 )
