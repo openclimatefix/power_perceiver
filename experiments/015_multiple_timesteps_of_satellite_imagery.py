@@ -107,10 +107,6 @@ class Model(pl.LightningModule):
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
 
-    # Other params:
-    # Probably keep this at zero while using MultiLayerTransformerEncoder
-    num_elements_query_padding: int = 0
-
     def __post_init__(self):
         super().__init__()
         self.hrvsatellite_processor = HRVSatelliteProcessor()
@@ -118,7 +114,6 @@ class Model(pl.LightningModule):
         self.query_generator = QueryGenerator(
             num_fourier_features=self.num_fourier_features,  # TOTAL (for y, x, and time_utc)
             pv_system_id_embedding_dim=self.pv_system_id_embedding_dim,
-            num_elements_query_padding=self.num_elements_query_padding,
         )
 
         self.transformer_encoder = MultiLayerTransformerEncoder(
