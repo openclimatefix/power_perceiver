@@ -2,6 +2,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import einops
+
 # ML imports
 import matplotlib.pyplot as plt
 import numpy as np
@@ -175,7 +177,10 @@ class Model(pl.LightningModule):
             torch.tensor(0.0, dtype=actual_pv_power.dtype, device=actual_pv_power.device),
         )
 
-        predicted_pv_power = self(batch).T
+        predicted_pv_power = self(batch)
+        predicted_pv_power = einops.rearrange(
+            predicted_pv_power, "example n_pv_systems time -> example time n_pv_systems"
+        )
         mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
 
         self.log(f"{tag}/mse", mse_loss)
