@@ -216,7 +216,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="015_multiple_timesteps_v06_jitter",
+    name="015_multiple_timesteps_v07_jitter_with_hist_pv",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -226,7 +226,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
