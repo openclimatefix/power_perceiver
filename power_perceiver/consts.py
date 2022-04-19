@@ -68,7 +68,7 @@ class BatchKey(Enum):
     # and will be NaN for missing PV systems.
     pv_y_osgb_fourier = auto()
     pv_x_osgb_fourier = auto()
-    pv_time_utc_fourier = auto()
+    pv_time_utc_fourier = auto()  # (batch_size, time, n_fourier_features)
 
     # -------------- SUN --------------------------------------------
     # shape = (batch_size, n_timesteps)

@@ -10,16 +10,20 @@ from power_perceiver.data_loader.data_loader import XarrayBatch
 class ReduceNumTimesteps:
     """Reduce the number of timesteps per example to `requested_timesteps`.
 
-    If `requested_timesteps` is an int then randomly pick different timesteps for each batch.
+    If `requested_timesteps` is an int then randomly pick `requested_timesteps` different
+    timesteps for each batch.
 
-    If `requested_timesteps` is an array of ints then use that.
+    If `requested_timesteps` is an array of ints then use that array as the index into
+    each xr_dataset.
     """
 
     requested_timesteps: Union[int, Iterable[int]]
     num_timesteps_available: int = 31
 
     def __post_init__(self):
-        self.rng = np.random.default_rng()  # Seeded by seed_rngs worker_init_function.
+        # Any xr_batch_processor with an `rng` attribute will have the
+        # rng seeded by the `seed_rngs` `worker_init_function`.
+        self.rng = np.random.default_rng()
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         if isinstance(self.requested_timesteps, int):

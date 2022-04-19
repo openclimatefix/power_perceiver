@@ -5,7 +5,6 @@ import torch
 from torch import nn
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.pytorch_modules.utils import repeat_over_time
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -15,7 +14,13 @@ class HRVSatelliteProcessor(nn.Module):
     def __post_init__(self):
         super().__init__()
 
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+    def forward(
+        self,
+        x: dict[BatchKey, torch.Tensor],
+        start_idx: int = 0,
+        num_timesteps: int = 4,
+        interval: int = 3,
+    ) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
 
         Args:
@@ -26,37 +31,55 @@ class HRVSatelliteProcessor(nn.Module):
                 hrvsatellite_surface_height
                 solar_azimuth
                 solar_elevation
+            start_idx: The index of the `t0` timestep.
+            num_timesteps: The number of timesteps to include.
+            interval: The interval (in number of timesteps) between each timestep.
+                For example, an interval of 3 would be 15 minutes.
 
         Returns:
-            tensor of shape ((example * time), (y * x), feature).
+            tensor of shape (example, (y * x), (time * feature)).
         """
         # Ignore the "channels" dimension because HRV is just a single channel:
         hrvsatellite = x[BatchKey.hrvsatellite][:, :, 0]
 
-        # Repeat the fourier features for each timestep of each example:
-        n_timesteps = hrvsatellite.shape[1]
-        y_fourier, x_fourier, surface_height = repeat_over_time(
-            x=x,
-            batch_keys=(
-                BatchKey.hrvsatellite_y_osgb_fourier,
-                BatchKey.hrvsatellite_x_osgb_fourier,
-                BatchKey.hrvsatellite_surface_height,
-            ),
-            n_timesteps=n_timesteps,
+        # Select four timesteps at 15-minute intervals, starting at start_idx.
+        end_idx = start_idx + (num_timesteps * interval)
+        hrvsatellite = hrvsatellite[:, start_idx:end_idx:interval]
+
+        # Reshape so each timestep is concatenated into the `patch` dimension:
+        hrvsatellite = einops.rearrange(
+            hrvsatellite,
+            "example time y x feature -> example y x (time feature)",
+            time=num_timesteps,
         )
-        # y_fourier and x_fourier are now of shape (example, time, y, x, n_fourier_features).
-        # surface_height is now of shape (example, time, y, x).
 
-        surface_height = surface_height.unsqueeze(-1)
-        # Now surface_height is of shape (example, time, y, x, 1).
+        # Get position encodings:
+        y_fourier = x[BatchKey.hrvsatellite_y_osgb_fourier]
+        x_fourier = x[BatchKey.hrvsatellite_x_osgb_fourier]
+        # y_fourier and x_fourier are now of shape (example, y, x, n_fourier_features).
 
-        # Reshape solar features to shape: (example, time, y, x, 1):
-        def _repeat_solar_feature_over_x_and_y(solar_feature: torch.Tensor) -> torch.Tensor:
+        time_fourier = x[BatchKey.hrvsatellite_time_utc_fourier]  # (example, time, n_features)
+        # Select the time encoding of the last timestep:
+        time_fourier = time_fourier[:, end_idx]  # (example, n_fourier_features)
+        time_fourier = einops.repeat(
+            time_fourier,
+            "example features -> example y x features",
+            y=hrvsatellite.shape[1],
+            x=hrvsatellite.shape[2],
+        )
+
+        surface_height = x[BatchKey.hrvsatellite_surface_height]  # (example, y, x)
+        surface_height = surface_height.unsqueeze(-1)  # (example, y, x, 1)
+
+        # Reshape solar features to shape: (example, y, x, 1):
+        def _repeat_solar_feature_over_x_and_y(feature: torch.Tensor) -> torch.Tensor:
+            # Select the last timestep:
+            feature = feature[:, end_idx]
             return einops.repeat(
-                solar_feature,
-                "example time -> example time y x 1",
-                y=hrvsatellite.shape[2],
-                x=hrvsatellite.shape[3],
+                feature,
+                "example -> example y x 1",
+                y=hrvsatellite.shape[1],
+                x=hrvsatellite.shape[2],
             )
 
         solar_azimuth = _repeat_solar_feature_over_x_and_y(x[BatchKey.solar_azimuth])
@@ -64,15 +87,22 @@ class HRVSatelliteProcessor(nn.Module):
 
         # Concatenate spatial features and solar features onto satellite imagery:
         byte_array = torch.concat(
-            (hrvsatellite, y_fourier, x_fourier, solar_azimuth, solar_elevation, surface_height),
+            (
+                hrvsatellite,
+                y_fourier,
+                x_fourier,
+                time_fourier,
+                solar_azimuth,
+                solar_elevation,
+                surface_height,
+            ),
             dim=-1,
         )
 
-        # Reshape so each timestep is seen as a separate example, and the 2D image
-        # is flattened into a 1D array.
+        # Reshape so each location is seen as a separate element.
         byte_array = einops.rearrange(
             byte_array,
-            "example time y x feature -> (example time) (y x) feature",
+            "example y x feature -> example (y x) feature",
         )
 
         return byte_array
