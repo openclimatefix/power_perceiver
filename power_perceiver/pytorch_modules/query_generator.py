@@ -68,7 +68,7 @@ class QueryGenerator(nn.Module):
 
             pv_system_query = torch.concat(
                 (
-                    pv_power,
+                    # pv_power,
                     y_fourier,
                     x_fourier,
                     time_fourier,

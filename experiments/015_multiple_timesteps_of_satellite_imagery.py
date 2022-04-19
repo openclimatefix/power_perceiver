@@ -178,7 +178,7 @@ class Model(pl.LightningModule):
         predicted_pv_power = self(batch)
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
-            "example (n_pv_systems time) 1 -> example time n_pv_systems",
+            "example (time n_pv_systems) 1 -> example time n_pv_systems",
             time=actual_pv_power.shape[1],
             n_pv_systems=actual_pv_power.shape[2],
         )
@@ -209,7 +209,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="015_multiple_timesteps_v04b",
+    name="015_multiple_timesteps_v05",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
