@@ -177,7 +177,10 @@ class Model(pl.LightningModule):
 
         predicted_pv_power = self(batch)
         predicted_pv_power = einops.rearrange(
-            predicted_pv_power, "example (time n_pv_systems) -> example time n_pv_systems"
+            predicted_pv_power,
+            "example (time n_pv_systems) -> example time n_pv_systems",
+            time=actual_pv_power.shape[1],
+            n_pv_systems=actual_pv_power.shape[2],
         )
         mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
 
