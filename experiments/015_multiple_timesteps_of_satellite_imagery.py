@@ -140,9 +140,7 @@ class Model(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        start_idx = torch.randint(
-            low=0, high=12, size=(1,), dtype=torch.int32, device=x[BatchKey.pv].device
-        )
+        start_idx = torch.randint(low=0, high=12, size=(1,), device=x[BatchKey.pv].device)
         byte_array = self.hrvsatellite_processor(x, start_idx=start_idx)
         query = self.query_generator(x, start_idx=start_idx)
 
