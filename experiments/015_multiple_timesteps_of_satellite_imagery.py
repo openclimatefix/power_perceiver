@@ -99,7 +99,7 @@ class Model(pl.LightningModule):
     # Params for Perceiver
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
-    d_model: int = 48
+    d_model: int = 96
     num_fourier_features: int = 24  # TOTAL for y, x, and time_utc
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 6
