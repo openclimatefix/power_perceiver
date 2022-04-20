@@ -48,6 +48,8 @@ class LogTimeseriesPlots(SimpleCallback):
             outputs: The output from Model.training_step
             tag: train or validation
         """
+        if tag == "train":
+            return
         EXAMPLE_IDX = 0
         predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
         actual_pv_power = batch[BatchKey.pv].cpu()[:, 12:30]
