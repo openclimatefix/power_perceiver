@@ -48,6 +48,9 @@ class HRVSatelliteProcessor(nn.Module):
         # Select four timesteps at 15-minute intervals, starting at start_idx.
         sat_start_idx = start_idx + start_idx_offset
         sat_end_idx = sat_start_idx + ((num_timesteps - 1) * interval)
+        assert (
+            sat_end_idx < hrvsatellite.shape[1]
+        ), f"{sat_end_idx=} should be smaller than {hrvsatellite.shape[1]=}"
         # +1 because indexing a range doesn't include the end point.
         hrvsatellite = hrvsatellite[:, sat_start_idx : sat_end_idx + 1 : interval]
         assert hrvsatellite.shape[1] == num_timesteps, (

@@ -147,7 +147,7 @@ class Model(pl.LightningModule):
         if start_idx is None:
             if self.training:
                 # Jitter the start_idx during training.
-                start_idx = torch.randint(low=0, high=23, size=(1,), device=x[BatchKey.pv].device)[
+                start_idx = torch.randint(low=0, high=22, size=(1,), device=x[BatchKey.pv].device)[
                     0
                 ]
             else:  # Don't jitter during eval
@@ -182,7 +182,7 @@ class Model(pl.LightningModule):
         """
         if tag == "validation":
             predicted_pv_powers = []
-            for start_idx in range(0, 23):
+            for start_idx in range(0, 22):
                 out = self.forward(batch, start_idx=start_idx)
                 predicted_pv_powers.append(out["pv_out"])
             predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
