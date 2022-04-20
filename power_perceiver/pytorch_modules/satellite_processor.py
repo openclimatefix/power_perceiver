@@ -47,8 +47,8 @@ class HRVSatelliteProcessor(nn.Module):
 
         # Select four timesteps at 15-minute intervals, starting at start_idx.
         sat_start_idx = start_idx + start_idx_offset
-        # + 1 because we want to *include* the last timestep:
-        sat_end_idx = sat_start_idx + (num_timesteps * interval) + 1
+        # Deliberately overshoot because indexing in torch doesn't include the end index.
+        sat_end_idx = sat_start_idx + (num_timesteps * interval)
         hrvsatellite = hrvsatellite[:, sat_start_idx:sat_end_idx:interval]
         assert (
             hrvsatellite.shape[1] == num_timesteps

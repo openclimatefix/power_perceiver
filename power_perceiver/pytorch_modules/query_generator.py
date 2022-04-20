@@ -35,7 +35,7 @@ class QueryGenerator(nn.Module):
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
         queries = []
-        pv_start_idx = 12 + start_idx
+        pv_start_idx = 9 + start_idx
         pv_end_idx = pv_start_idx + 1  # Just use a single timestep for now
         for time_idx in range(pv_start_idx, pv_end_idx):
             # Select the timestep:
