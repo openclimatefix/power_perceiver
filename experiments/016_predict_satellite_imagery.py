@@ -103,11 +103,13 @@ class Model(pl.LightningModule):
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
     d_model: int = 96
+    byte_array_dim: int = 93
+    query_dim: int = 16
     pv_system_id_embedding_dim: int = 16
-    num_heads: int = 24
-    dropout: float = 0.1
+    num_heads: int = 12
+    dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 12
+    num_latent_transformer_encoders: int = 4
 
     def __post_init__(self):
         super().__init__()
@@ -115,6 +117,18 @@ class Model(pl.LightningModule):
 
         self.query_generator = QueryGenerator(
             pv_system_id_embedding_dim=self.pv_system_id_embedding_dim,
+        )
+
+        self.query_processor = nn.Sequential(
+            nn.Linear(in_features=self.query_dim, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+        )
+
+        self.byte_array_processor = nn.Sequential(
+            nn.Linear(in_features=self.byte_array_dim, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
         )
 
         self.transformer_encoder = MultiLayerTransformerEncoder(
@@ -155,8 +169,11 @@ class Model(pl.LightningModule):
         query = self.query_generator(x, start_idx=start_idx)
 
         # Pad with zeros if necessary to get up to self.d_model:
-        byte_array = maybe_pad_with_zeros(byte_array, requested_dim=self.d_model)
-        query = maybe_pad_with_zeros(query, requested_dim=self.d_model)
+        # byte_array = maybe_pad_with_zeros(byte_array, requested_dim=self.d_model)
+        # query = maybe_pad_with_zeros(query, requested_dim=self.d_model)
+
+        byte_array = self.byte_array_processor(byte_array)
+        query = self.query_processor(query)
 
         # Prepare the attention input and run through the transformer_encoder:
         attn_input = torch.concat((byte_array, query), dim=1)
@@ -241,7 +258,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="016.05",
+    name="016.06",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -251,7 +268,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
