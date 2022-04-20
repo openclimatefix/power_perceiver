@@ -11,7 +11,7 @@ from power_perceiver.consts import BatchKey
 # for why we set `eq=False`
 @dataclass(eq=False)
 class QueryGenerator(nn.Module):
-    """Create a query using a learnt array and the locations of the PV systems."""
+    """Create a query from the locations of the PV systems."""
 
     pv_system_id_embedding_dim: int
     num_pv_systems: int = 1400  # TODO: Set this to the correct number!
@@ -42,7 +42,9 @@ class QueryGenerator(nn.Module):
         )
 
         queries = []
-        for time_idx in range(12 + start_idx, 24 + start_idx):
+        pv_start_idx = 12 + start_idx
+        pv_end_idx = pv_start_idx + 1  # Just use a single timestep for now
+        for time_idx in range(pv_start_idx, pv_end_idx):
             # Select the timestep:
             time_fourier = x[BatchKey.pv_time_utc_fourier]  # (example, time, n_fourier_features)
             time_fourier = time_fourier[:, time_idx]
