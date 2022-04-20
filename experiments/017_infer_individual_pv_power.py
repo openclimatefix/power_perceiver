@@ -1,6 +1,7 @@
 # General imports
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 import einops
 
@@ -13,8 +14,6 @@ import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
-
-from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
@@ -138,12 +137,19 @@ class Model(pl.LightningModule):
         # Do this at the end of __post_init__ to capture model topology:
         self.save_hyperparameters()
 
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        if self.training:
-            # Jitter the start_idx during training.
-            start_idx = torch.randint(low=0, high=18, size=(1,), device=x[BatchKey.pv].device)[0]
-        else:  # Don't jitter during eval
-            start_idx = 0
+    def forward(
+        self,
+        x: dict[BatchKey, torch.Tensor],
+        start_idx: Optional[int] = None,
+    ) -> torch.Tensor:
+        if start_idx is None:
+            if self.training:
+                # Jitter the start_idx during training.
+                start_idx = torch.randint(low=0, high=18, size=(1,), device=x[BatchKey.pv].device)[
+                    0
+                ]
+            else:  # Don't jitter during eval
+                start_idx = 0
         byte_array = self.hrvsatellite_processor(x, start_idx=start_idx)
         query = self.query_generator(x, start_idx=start_idx)
 
@@ -174,7 +180,7 @@ class Model(pl.LightningModule):
         """
         # PV prediction
         actual_pv_power = batch[BatchKey.pv]  # example, time, n_pv_systems
-        out = self(batch)
+        out = self.forward(batch)
         # Select just a single timestep:
         start_idx = out["start_idx"]
         actual_pv_power = actual_pv_power[:, 12 + start_idx : 13 + start_idx]
@@ -232,7 +238,7 @@ trainer = pl.Trainer(
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
-        LogTimeseriesPlots(),
+        # LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="query_generator"),
     ],
 )
