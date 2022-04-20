@@ -103,9 +103,9 @@ class Model(pl.LightningModule):
     # Params for Perceiver
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
-    d_model: int = 96
+    d_model: int = 48
     pv_system_id_embedding_dim: int = 16
-    num_heads: int = 12
+    num_heads: int = 6
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
@@ -239,7 +239,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="017.04",
+    name="017.05",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -249,7 +249,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

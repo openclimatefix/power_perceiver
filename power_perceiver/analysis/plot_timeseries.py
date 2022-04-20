@@ -51,20 +51,22 @@ class LogTimeseriesPlots(SimpleCallback):
         if tag == "train":
             return
         EXAMPLE_IDX = 0
-        predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
-        actual_pv_power = batch[BatchKey.pv].cpu()[:, 12:30]
-        datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 12:30]
-        if batch_idx < 4:
-            fig = plot_pv_power(
-                actual_pv_power=actual_pv_power,
-                predicted_pv_power=predicted_pv_power,
-                example_idx=EXAMPLE_IDX,
-                datetimes=datetimes,
-            )
-            wandb.log(
-                {
-                    f"{tag}/pv_power/{batch_idx=}": wandb.Image(fig),
-                    "global_step": trainer.global_step,
-                },
-            )
-            plt.close(fig)
+
+        if tag == "validation" and batch_idx < 4:
+            predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
+            actual_pv_power = batch[BatchKey.pv].cpu()[:, 12:30]
+            datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 12:30]
+            for example_idx in range(4):
+                fig = plot_pv_power(
+                    actual_pv_power=actual_pv_power,
+                    predicted_pv_power=predicted_pv_power,
+                    example_idx=EXAMPLE_IDX,
+                    datetimes=datetimes,
+                )
+                wandb.log(
+                    {
+                        f"{tag}/pv_power/{batch_idx=};{example_idx=}": wandb.Image(fig),
+                        "global_step": trainer.global_step,
+                    },
+                )
+                plt.close(fig)
