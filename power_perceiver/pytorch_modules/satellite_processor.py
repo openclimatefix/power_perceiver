@@ -18,9 +18,9 @@ class HRVSatelliteProcessor(nn.Module):
         self,
         x: dict[BatchKey, torch.Tensor],
         start_idx: int = 0,
-        start_idx_offset: int = 12,
-        num_timesteps: int = 1,
-        interval: int = 1,
+        start_idx_offset: int = 0,
+        num_timesteps: int = 4,
+        interval: int = 3,
         satellite_only: bool = False,
     ) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
@@ -47,8 +47,10 @@ class HRVSatelliteProcessor(nn.Module):
 
         # Select four timesteps at 15-minute intervals, starting at start_idx.
         sat_start_idx = start_idx + start_idx_offset
-        sat_end_idx = sat_start_idx + (num_timesteps * interval)
+        # + 1 because we want to *include* the last timestep:
+        sat_end_idx = sat_start_idx + (num_timesteps * interval) + 1
         hrvsatellite = hrvsatellite[:, sat_start_idx:sat_end_idx:interval]
+        assert hrvsatellite.shape[1] == num_timesteps
 
         # Reshape so each timestep is concatenated into the `patch` dimension:
         hrvsatellite = einops.rearrange(
