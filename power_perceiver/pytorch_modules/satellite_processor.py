@@ -18,8 +18,9 @@ class HRVSatelliteProcessor(nn.Module):
         self,
         x: dict[BatchKey, torch.Tensor],
         start_idx: int = 0,
-        num_timesteps: int = 4,
-        interval: int = 3,
+        start_idx_offset: int = 12,
+        num_timesteps: int = 1,
+        interval: int = 1,
         satellite_only: bool = False,
     ) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
@@ -45,8 +46,9 @@ class HRVSatelliteProcessor(nn.Module):
         hrvsatellite = x[BatchKey.hrvsatellite][:, :, 0]
 
         # Select four timesteps at 15-minute intervals, starting at start_idx.
-        end_idx = start_idx + (num_timesteps * interval)
-        hrvsatellite = hrvsatellite[:, start_idx:end_idx:interval]
+        sat_start_idx = start_idx + start_idx_offset
+        sat_end_idx = sat_start_idx + (num_timesteps * interval)
+        hrvsatellite = hrvsatellite[:, sat_start_idx:sat_end_idx:interval]
 
         # Reshape so each timestep is concatenated into the `patch` dimension:
         hrvsatellite = einops.rearrange(
@@ -69,7 +71,7 @@ class HRVSatelliteProcessor(nn.Module):
 
         time_fourier = x[BatchKey.hrvsatellite_time_utc_fourier]  # (example, time, n_features)
         # Select the time encoding of the last timestep:
-        time_fourier = time_fourier[:, end_idx]  # (example, n_fourier_features)
+        time_fourier = time_fourier[:, sat_end_idx]  # (example, n_fourier_features)
         time_fourier = einops.repeat(
             time_fourier,
             "example features -> example y x features",
@@ -83,7 +85,7 @@ class HRVSatelliteProcessor(nn.Module):
         # Reshape solar features to shape: (example, y, x, 1):
         def _repeat_solar_feature_over_x_and_y(feature: torch.Tensor) -> torch.Tensor:
             # Select the last timestep:
-            feature = feature[:, end_idx]
+            feature = feature[:, sat_end_idx]
             return einops.repeat(
                 feature,
                 "example -> example y x 1",
