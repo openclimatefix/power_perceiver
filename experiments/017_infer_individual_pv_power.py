@@ -192,13 +192,13 @@ class Model(pl.LightningModule):
                 "example n_pv_systems time -> example time n_pv_systems",
                 n_pv_systems=8,  # sanity check!
             )
-            actual_pv_power = batch[BatchKey.pv][:, 9:]  # example, time, n_pv_systems
+            actual_pv_power = batch[BatchKey.pv][:, 6:-3]  # example, time, n_pv_systems
         else:
             # Training
             out = self.forward(batch)
             # Select just a single timestep:
             start_idx = out["start_idx"]
-            actual_pv_power = batch[BatchKey.pv][:, 9 + start_idx : 10 + start_idx]
+            actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx : 7 + start_idx]
             predicted_pv_power = out["pv_out"]
             predicted_pv_power = einops.rearrange(
                 predicted_pv_power,
