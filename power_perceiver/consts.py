@@ -60,8 +60,6 @@ class BatchKey(Enum):
     pv_y_osgb = auto()
     pv_x_osgb = auto()
     pv_time_utc = auto()  # Seconds since UNIX epoch (1970-01-01).
-    # Added by np_batch_processor.Topography:
-    pv_surface_height = auto()  # The surface height at the location of the PV system.
 
     # PV Fourier coordinates:
     # Each has shape: (batch_size, n_pv_systems, n_fourier_features_per_dim),

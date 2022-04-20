@@ -101,10 +101,10 @@ class HRVSatelliteProcessor(nn.Module):
             (
                 y_fourier,
                 x_fourier,
-                surface_height,
                 time_fourier,
                 solar_azimuth,
                 solar_elevation,
+                surface_height,
                 hrvsatellite,
             ),
             dim=-1,
