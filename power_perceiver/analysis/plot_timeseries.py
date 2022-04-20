@@ -21,7 +21,7 @@ def plot_pv_power(
     datetimes = pd.to_datetime(datetimes[example_idx], unit="s")
 
     def _plot(ax, data, title):
-        ax.plot(datetimes, data[example_idx].T.squeeze())
+        ax.plot(datetimes, data[example_idx].squeeze())
         ax.set_title(title)
         ax.set_ylabel("PV power")
         ax.set_xlabel("Timestep")
