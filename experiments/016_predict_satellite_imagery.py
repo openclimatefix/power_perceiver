@@ -103,8 +103,8 @@ class Model(pl.LightningModule):
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
     d_model: int = 96
-    byte_array_dim: int = 93
-    query_dim: int = 16
+    byte_array_dim: int = 91
+    query_dim: int = 54
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
     dropout: float = 0.0
