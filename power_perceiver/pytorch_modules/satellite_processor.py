@@ -50,7 +50,9 @@ class HRVSatelliteProcessor(nn.Module):
         # + 1 because we want to *include* the last timestep:
         sat_end_idx = sat_start_idx + (num_timesteps * interval) + 1
         hrvsatellite = hrvsatellite[:, sat_start_idx:sat_end_idx:interval]
-        assert hrvsatellite.shape[1] == num_timesteps
+        assert (
+            hrvsatellite.shape[1] == num_timesteps
+        ), f"{hrvsatellite.shape[1]=} != {num_timesteps=}"
 
         # Reshape so each timestep is concatenated into the `patch` dimension:
         hrvsatellite = einops.rearrange(
