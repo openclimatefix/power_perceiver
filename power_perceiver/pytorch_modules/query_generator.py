@@ -34,13 +34,6 @@ class QueryGenerator(nn.Module):
         pv_system_embedding = self.pv_system_id_embedding(pv_system_row_number)
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
-        pv_power = x[BatchKey.pv][:, start_idx : 12 + start_idx]  # example, time, n_pv_systems
-        pv_power = einops.rearrange(
-            pv_power,
-            "example time n_pv_systems -> example n_pv_systems time",
-            n_pv_systems=n_pv_systems,  # Just as a sanity check
-        )
-
         queries = []
         pv_start_idx = 12 + start_idx
         pv_end_idx = pv_start_idx + 1  # Just use a single timestep for now
@@ -76,7 +69,6 @@ class QueryGenerator(nn.Module):
                     solar_azimuth,
                     solar_elevation,
                     pv_system_embedding,
-                    pv_power,
                 ),
                 dim=2,
             )

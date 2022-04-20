@@ -224,7 +224,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="017.01",
+    name="017.02",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
