@@ -50,7 +50,6 @@ class LogTimeseriesPlots(SimpleCallback):
         """
         if tag == "train":
             return
-        EXAMPLE_IDX = 0
 
         if tag == "validation" and batch_idx < 4:
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
@@ -60,7 +59,7 @@ class LogTimeseriesPlots(SimpleCallback):
                 fig = plot_pv_power(
                     actual_pv_power=actual_pv_power,
                     predicted_pv_power=predicted_pv_power,
-                    example_idx=EXAMPLE_IDX,
+                    example_idx=example_idx,
                     datetimes=datetimes,
                 )
                 wandb.log(

@@ -34,6 +34,9 @@ class QueryGenerator(nn.Module):
         pv_system_embedding = self.pv_system_id_embedding(pv_system_row_number)
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
+        surface_height = x[BatchKey.pv_surface_height]  # (example, n_pv_systems)
+        surface_height = surface_height.unsqueeze(-1)  # (example, n_pv_systems, 1)
+
         queries = []
         pv_start_idx = 12 + start_idx
         pv_end_idx = pv_start_idx + 1  # Just use a single timestep for now
@@ -65,6 +68,7 @@ class QueryGenerator(nn.Module):
                 (
                     y_fourier,
                     x_fourier,
+                    surface_height,
                     time_fourier,
                     solar_azimuth,
                     solar_elevation,
