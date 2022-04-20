@@ -15,6 +15,8 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
 
+from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
+
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
@@ -178,19 +180,32 @@ class Model(pl.LightningModule):
             tag: Either "train" or "validation"
             batch_idx: The index of the batch.
         """
-        # PV prediction
-        actual_pv_power = batch[BatchKey.pv]  # example, time, n_pv_systems
-        out = self.forward(batch)
-        # Select just a single timestep:
-        start_idx = out["start_idx"]
-        actual_pv_power = actual_pv_power[:, 12 + start_idx : 13 + start_idx]
-        predicted_pv_power = out["pv_out"]
-        predicted_pv_power = einops.rearrange(
-            predicted_pv_power,
-            "example (time n_pv_systems) 1 -> example time n_pv_systems",
-            time=actual_pv_power.shape[1],
-            n_pv_systems=actual_pv_power.shape[2],
-        )
+        if tag == "validation":
+            predicted_pv_powers = []
+            for start_idx in range(0, 18):
+                out = self.forward(batch, start_idx=start_idx)
+                predicted_pv_powers.append(out["pv_out"])
+            predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
+            del predicted_pv_powers
+            predicted_pv_power = einops.rearrange(
+                predicted_pv_power,
+                "example n_pv_systems time -> example time n_pv_systems",
+                n_pv_systems=8,  # sanity check!
+            )
+            actual_pv_power = batch[BatchKey.pv][:, 12:30]  # example, time, n_pv_systems
+        else:
+            # Training
+            out = self.forward(batch)
+            # Select just a single timestep:
+            start_idx = out["start_idx"]
+            actual_pv_power = batch[BatchKey.pv][:, 12 + start_idx : 13 + start_idx]
+            predicted_pv_power = out["pv_out"]
+            predicted_pv_power = einops.rearrange(
+                predicted_pv_power,
+                "example (time n_pv_systems) 1 -> example time n_pv_systems",
+                time=actual_pv_power.shape[1],
+                n_pv_systems=actual_pv_power.shape[2],
+            )
 
         actual_pv_power = torch.where(
             batch[BatchKey.pv_mask].unsqueeze(1),
@@ -224,7 +239,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="017.02",
+    name="017.03",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -238,7 +253,7 @@ trainer = pl.Trainer(
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
-        # LogTimeseriesPlots(),
+        LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="query_generator"),
     ],
 )
