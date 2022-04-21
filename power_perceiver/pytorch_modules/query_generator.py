@@ -13,16 +13,11 @@ from power_perceiver.consts import BatchKey
 class PVQueryGenerator(nn.Module):
     """Create a query from the locations of the PV systems."""
 
-    pv_system_id_embedding_dim: int
-    num_pv_systems: int = 1400  # TODO: Set this to the correct number!
+    pv_system_id_embedding: nn.Embedding
+    num_gsps: int = 360  # Used to make sure PV IDs don't clash with GSP IDs!
 
     def __post_init__(self):
         super().__init__()
-
-        self.pv_system_id_embedding = nn.Embedding(
-            num_embeddings=self.num_pv_systems,
-            embedding_dim=self.pv_system_id_embedding_dim,
-        )
 
     def forward(self, x: dict[BatchKey, torch.Tensor], start_idx_5_min: int = 0) -> torch.Tensor:
         """The returned tensor is of shape (example, n_pv_systems, query_dim)"""
@@ -31,9 +26,11 @@ class PVQueryGenerator(nn.Module):
         x_fourier = x[BatchKey.pv_x_osgb_fourier]
 
         pv_system_row_number = x[BatchKey.pv_system_row_number]  # (example, n_pv_systems)
+        pv_system_row_number = pv_system_row_number + self.num_gsps
         pv_system_embedding = self.pv_system_id_embedding(pv_system_row_number)
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
+        # Query for the PV system that is 30 minutes into the 45 min sequence of images:
         time_idx_5_min = 6 + start_idx_5_min
         assert time_idx_5_min < x[BatchKey.pv].shape[1]
 
@@ -65,8 +62,8 @@ class PVQueryGenerator(nn.Module):
                 y_fourier,
                 x_fourier,
                 time_fourier,
-                # solar_azimuth,
-                # solar_elevation,
+                solar_azimuth,
+                solar_elevation,
                 pv_system_embedding,
             ),
             dim=2,
@@ -86,16 +83,10 @@ class PVQueryGenerator(nn.Module):
 class GSPQueryGenerator(nn.Module):
     """Create a GSP query."""
 
-    gsp_id_embedding_dim: int
-    num_gsp_systems: int = 350
+    gsp_id_embedding: nn.Embedding
 
     def __post_init__(self):
         super().__init__()
-
-        self.gsp_id_embedding = nn.Embedding(
-            num_embeddings=self.num_gsp_systems,
-            embedding_dim=self.gsp_id_embedding_dim,
-        )
 
     def forward(self, x: dict[BatchKey, torch.Tensor], time_idx_30_min: int = 0) -> torch.Tensor:
         """The returned tensor is of shape (example, 1, query_dim)"""

@@ -115,13 +115,16 @@ class Model(pl.LightningModule):
         super().__init__()
         self.hrvsatellite_processor = HRVSatelliteProcessor()
 
-        self.pv_query_generator = PVQueryGenerator(
-            pv_system_id_embedding_dim=self.pv_system_id_embedding_dim,
+        NUM_PV_SYSTEMS = 1400
+        NUM_GSPS = 360
+        id_embedding = nn.Embedding(
+            num_embeddings=NUM_PV_SYSTEMS + NUM_GSPS,
+            embedding_dim=self.pv_system_id_embedding_dim,
         )
 
-        self.gsp_query_generator = GSPQueryGenerator(
-            gsp_id_embedding_dim=self.pv_system_id_embedding_dim,
-        )
+        self.pv_query_generator = PVQueryGenerator(pv_system_id_embedding=id_embedding)
+
+        self.gsp_query_generator = GSPQueryGenerator(gsp_id_embedding=id_embedding)
 
         self.transformer_encoder = MultiLayerTransformerEncoder(
             d_model=self.d_model,
@@ -134,14 +137,6 @@ class Model(pl.LightningModule):
         )
 
         self.pv_output_module = nn.Sequential(
-            nn.Linear(in_features=self.d_model, out_features=self.d_model),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=self.d_model),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=1),
-        )
-
-        self.gsp_output_module = nn.Sequential(
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
@@ -184,7 +179,7 @@ class Model(pl.LightningModule):
         gsp_start_idx = pv_query.shape[1]
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
         pv_out = self.pv_output_module(attn_output[:, :gsp_start_idx])
-        gsp_out = self.gsp_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
+        gsp_out = self.pv_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
 
         return {
             "pv_out": pv_out,  # shape: (example, n_pv_systems=8, 1)
@@ -302,7 +297,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.07",
+    name="018.08",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -312,7 +307,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[5],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
