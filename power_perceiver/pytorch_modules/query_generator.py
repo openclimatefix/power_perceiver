@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import InitVar, dataclass
 
 import einops
 import torch
@@ -13,11 +13,12 @@ from power_perceiver.consts import BatchKey
 class PVQueryGenerator(nn.Module):
     """Create a query from the locations of the PV systems."""
 
-    pv_system_id_embedding: nn.Embedding
+    pv_system_id_embedding: InitVar[nn.Embedding]
     num_gsps: int = 360  # Used to make sure PV IDs don't clash with GSP IDs!
 
-    def __post_init__(self):
+    def __post_init__(self, pv_system_id_embedding):
         super().__init__()
+        self.pv_system_id_embedding = pv_system_id_embedding
 
     def forward(self, x: dict[BatchKey, torch.Tensor], start_idx_5_min: int = 0) -> torch.Tensor:
         """The returned tensor is of shape (example, n_pv_systems, query_dim)"""
@@ -83,10 +84,11 @@ class PVQueryGenerator(nn.Module):
 class GSPQueryGenerator(nn.Module):
     """Create a GSP query."""
 
-    gsp_id_embedding: nn.Embedding
+    gsp_id_embedding: InitVar[nn.Embedding]
 
-    def __post_init__(self):
+    def __post_init__(self, gsp_id_embedding):
         super().__init__()
+        self.gsp_id_embedding = gsp_id_embedding
 
     def forward(self, x: dict[BatchKey, torch.Tensor], time_idx_30_min: int = 0) -> torch.Tensor:
         """The returned tensor is of shape (example, 1, query_dim)"""
