@@ -75,6 +75,9 @@ class LogTimeseriesPlots(SimpleCallback):
                 fig = plot_pv_power(
                     actual_pv_power=actual_pv_power,
                     predicted_pv_power=predicted_pv_power,
+                    actual_gsp_power=outputs["actual_gsp_power"].cpu().detach(),
+                    predicted_gsp_power=outputs["predicted_gsp_power"].cpu().detach(),
+                    gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
                     example_idx=example_idx,
                     pv_datetimes=pv_datetimes,
                 )
