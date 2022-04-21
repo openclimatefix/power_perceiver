@@ -29,9 +29,19 @@ def plot_tsne_of_pv_system_id_embedding(
         pv_system_row_numbers_for_all_examples.extend(row_numbers_for_example)
 
     pv_system_row_numbers_for_all_examples = np.unique(pv_system_row_numbers_for_all_examples)
+    NUM_GSPS = 360
+    NUM_PV_SYSTEMS = 1400
+    pv_system_row_numbers_for_all_examples += NUM_GSPS
     pv_system_row_numbers_for_all_examples = torch.from_numpy(
         pv_system_row_numbers_for_all_examples
     ).to(device=device)
+
+    pv_system_row_numbers_for_all_examples = torch.arange(
+        start=1,
+        end=NUM_GSPS + NUM_PV_SYSTEMS,
+        device=device,
+    )
+
     pv_id_embedding = pv_system_id_embedding(pv_system_row_numbers_for_all_examples)
     pv_id_embedding = pv_id_embedding.detach().cpu()
 

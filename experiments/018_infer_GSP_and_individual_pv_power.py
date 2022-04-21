@@ -258,14 +258,18 @@ class Model(pl.LightningModule):
 
         # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
+        pv_nmae_loss = F.l1_loss(predicted_pv_power, actual_pv_power)
         self.log(f"{tag}/pv_mse", pv_mse_loss)
+        self.log(f"{tag}/pv_nmae", pv_nmae_loss)
         self.log(f"{tag}/mse", pv_mse_loss)  # To allow for each comparison to older models.
 
         # GSP power loss:
         gsp_mse_loss = F.mse_loss(predicted_gsp_power, actual_gsp_power)
+        gsp_nmae_loss = F.l1_loss(predicted_gsp_power, actual_gsp_power)
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
+        self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
 
-        # Total loss:
+        # Total MSE loss:
         total_mse_loss = pv_mse_loss + gsp_mse_loss
         self.log(f"{tag}/total_mse", total_mse_loss)
 
@@ -273,6 +277,8 @@ class Model(pl.LightningModule):
             "loss": total_mse_loss,
             "pv_mse_loss": pv_mse_loss,
             "gsp_mse_loss": gsp_mse_loss,
+            "pv_nmae_loss": pv_nmae_loss,
+            "gsp_nmae_loss": gsp_nmae_loss,
             "predicted_gsp_power": predicted_gsp_power,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": gsp_time_utc,
@@ -297,7 +303,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.08",
+    name="018.09",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -307,7 +313,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

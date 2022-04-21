@@ -13,6 +13,8 @@ from power_perceiver.consts import BatchKey
 class PVQueryGenerator(nn.Module):
     """Create a query from the locations of the PV systems."""
 
+    # This must be an InitVar because PyTorch does not allow modules to be
+    # assigned before super().__init__()
     pv_system_id_embedding: InitVar[nn.Embedding]
     num_gsps: int = 360  # Used to make sure PV IDs don't clash with GSP IDs!
 
@@ -84,6 +86,8 @@ class PVQueryGenerator(nn.Module):
 class GSPQueryGenerator(nn.Module):
     """Create a GSP query."""
 
+    # This must be an InitVar because PyTorch does not allow modules to be
+    # assigned before super().__init__()
     gsp_id_embedding: InitVar[nn.Embedding]
 
     def __post_init__(self, gsp_id_embedding):
