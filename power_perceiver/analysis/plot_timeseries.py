@@ -17,7 +17,7 @@ def plot_pv_power(
     predicted_gsp_power: torch.Tensor,
     example_idx: int,
     pv_datetimes: torch.Tensor,
-    gsp_datetimes: torch.Tesnor,
+    gsp_datetimes: torch.Tensor,
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=4, sharex=True, sharey=True)
     ax_pv_actual, ax_pv_predicted, ax_gsp_actual, ax_gsp_predicted = axes
