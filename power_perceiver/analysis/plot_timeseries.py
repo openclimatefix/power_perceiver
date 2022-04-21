@@ -43,10 +43,10 @@ def plot_pv_power(
         },
         index=gsp_datetimes,
     )
-    gsp_index_deduplicated = gsp_df.index.drop_duplicates()
+    gsp_index_dupes = gsp_df.index.duplicated()
     ax_gsp.plot(
-        gsp_index_deduplicated,
-        gsp_df["actual_gsp_power"].loc[gsp_index_deduplicated],
+        gsp_df.index[~gsp_index_dupes],
+        gsp_df["actual_gsp_power"].loc[~gsp_index_dupes],
         label="Actual",
     )
     ax_gsp.scatter(gsp_df.index, gsp_df["predicted_gsp_power"], alpha=0.8, label="Predicted")
