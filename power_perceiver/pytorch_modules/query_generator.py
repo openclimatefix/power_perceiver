@@ -101,8 +101,9 @@ class GSPQueryGenerator(nn.Module):
         """The returned tensor is of shape (example, 1, query_dim)"""
         assert time_idx_30_min < x[BatchKey.gsp].shape[1]
 
-        y_fourier = x[BatchKey.gsp_y_osgb_fourier]  # (example, fourier_features)
-        x_fourier = x[BatchKey.gsp_x_osgb_fourier]
+        # gsp_{y,x}_osgb_fourier starts as shape (example, 1, fourier_features).
+        y_fourier = x[BatchKey.gsp_y_osgb_fourier][:, 0]  # (example, fourier_features)
+        x_fourier = x[BatchKey.gsp_x_osgb_fourier][:, 0]
 
         gsp_id = x[BatchKey.gsp_id]  # Shape: (example,)
         gsp_id_embedding = self.gsp_id_embedding(gsp_id)
@@ -110,11 +111,6 @@ class GSPQueryGenerator(nn.Module):
         # Select the timestep:
         time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
         time_fourier = time_fourier[:, time_idx_30_min]  # (example, n_fourier_features)
-
-        print(
-            f"{y_fourier.shape=} {x_fourier.shape=}"
-            f" {time_fourier.shape=} {gsp_id_embedding.shape=}"
-        )
 
         gsp_query = torch.concat(
             (
