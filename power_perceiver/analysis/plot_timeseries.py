@@ -13,21 +13,35 @@ from power_perceiver.consts import BatchKey
 def plot_pv_power(
     actual_pv_power: torch.Tensor,
     predicted_pv_power: torch.Tensor,
+    actual_gsp_power: torch.Tensor,
+    predicted_gsp_power: torch.Tensor,
     example_idx: int,
-    datetimes: torch.Tensor,
+    pv_datetimes: torch.Tensor,
+    gsp_datetimes: torch.Tesnor,
 ) -> plt.Figure:
-    fig, (ax_actual, ax_predicted) = plt.subplots(nrows=2, sharex=True, sharey=True)
+    fig, axes = plt.subplots(nrows=4, sharex=True, sharey=True)
+    ax_pv_actual, ax_pv_predicted, ax_gsp_actual, ax_gsp_predicted = axes
 
-    datetimes = pd.to_datetime(datetimes[example_idx], unit="s")
+    pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
+    gsp_datetimes = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
 
-    def _plot(ax, data, title):
-        ax.plot(datetimes, data[example_idx].squeeze())
+    def _plot_pv(ax, data, title):
+        ax.plot(pv_datetimes, data[example_idx].squeeze())
         ax.set_title(title)
         ax.set_ylabel("PV power")
         ax.set_xlabel("Timestep")
 
-    _plot(ax_actual, actual_pv_power, "Actual PV power")
-    _plot(ax_predicted, predicted_pv_power, "Predicted PV power")
+    _plot_pv(ax_pv_actual, actual_pv_power, "Actual PV power")
+    _plot_pv(ax_pv_predicted, predicted_pv_power, "Predicted PV power")
+
+    def _plot_gsp(ax, data, title):
+        ax.scatter(gsp_datetimes, data[example_idx].squeeze())
+        ax.set_title(title)
+        ax.set_ylabel("GSP power")
+        ax.set_xlabel("Timestep")
+
+    _plot_gsp(ax_gsp_actual, actual_gsp_power, "Actual PV power")
+    _plot_gsp(ax_gsp_predicted, predicted_gsp_power, "Predicted PV power")
     return fig
 
 
@@ -49,18 +63,20 @@ class LogTimeseriesPlots(SimpleCallback):
             tag: train or validation
         """
         if tag == "train":
+            # We currently only train on a single timestep at a time, so not much point
+            # plotting a timeseries!
             return
 
         if tag == "validation" and batch_idx < 4:
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
             actual_pv_power = batch[BatchKey.pv].cpu()[:, 6:-3]
-            datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 6:-3]
+            pv_datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 6:-3]
             for example_idx in range(4):
                 fig = plot_pv_power(
                     actual_pv_power=actual_pv_power,
                     predicted_pv_power=predicted_pv_power,
                     example_idx=example_idx,
-                    datetimes=datetimes,
+                    pv_datetimes=pv_datetimes,
                 )
                 wandb.log(
                     {

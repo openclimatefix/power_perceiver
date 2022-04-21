@@ -195,9 +195,11 @@ class Model(pl.LightningModule):
             batch_idx: The index of the batch.
         """
         if tag == "validation":
+            assert not self.training
             predicted_pv_powers = []
             predicted_gsp_powers = []
             actual_gsp_powers = []
+            gsp_times_utc = []
             for start_idx_5_min in range(0, 22):
                 out = self.forward(batch, start_idx_5_min=start_idx_5_min)
                 predicted_pv_powers.append(out["pv_out"])
@@ -206,12 +208,16 @@ class Model(pl.LightningModule):
                 actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
                 actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
                 actual_gsp_powers.append(actual_gsp_power)
+                gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
+                gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
+                gsp_times_utc.append(gsp_time_utc)
 
             predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
             predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
             actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
+            gsp_time_utc = torch.concat(gsp_times_utc, dim=1)
 
-            del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers
+            del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers, gsp_times_utc
             predicted_pv_power = einops.rearrange(
                 predicted_pv_power,
                 "example n_pv_systems time -> example time n_pv_systems",
@@ -220,6 +226,7 @@ class Model(pl.LightningModule):
             actual_pv_power = batch[BatchKey.pv][:, 6:-3]  # example, time, n_pv_systems
         else:
             # Training
+            assert self.training
             out = self.forward(batch)
             # Select a single timestep of PV data:
             start_idx_5_min = out["start_idx_5_min"]
@@ -235,7 +242,9 @@ class Model(pl.LightningModule):
             gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
             actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
             actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
-            predicted_gsp_power = out["gsp_out"]  # Shape: (example, 1, 1)
+            predicted_gsp_power = out["gsp_out"][:, :, 0]  # Shape: (example, time=1)
+            gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
+            gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
 
         # Mask actual PV power:
         actual_pv_power = torch.where(
@@ -262,6 +271,8 @@ class Model(pl.LightningModule):
             "pv_mse_loss": pv_mse_loss,
             "gsp_mse_loss": gsp_mse_loss,
             "predicted_gsp_power": predicted_gsp_power,
+            "actual_gsp_power": actual_gsp_power,
+            "gsp_time_utc": gsp_time_utc,
             "predicted_pv_power": predicted_pv_power,
         }
 
