@@ -271,7 +271,7 @@ class Model(pl.LightningModule):
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
 
         # Total loss:
-        total_mse_loss = pv_mse_loss + (gsp_mse_loss * 3)
+        total_mse_loss = pv_mse_loss + gsp_mse_loss
         self.log(f"{tag}/total_mse", total_mse_loss)
 
         return {
@@ -302,7 +302,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.05",
+    name="018.06",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -312,7 +312,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[4],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
