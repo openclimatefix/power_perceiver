@@ -1,5 +1,6 @@
 from typing import Any, Optional
 
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import pandas as pd
 import pytorch_lightning as pl
@@ -19,29 +20,43 @@ def plot_pv_power(
     pv_datetimes: torch.Tensor,
     gsp_datetimes: torch.Tensor,
 ) -> plt.Figure:
-    fig, axes = plt.subplots(nrows=4, sharex=True, sharey=True)
-    ax_pv_actual, ax_pv_predicted, ax_gsp_actual, ax_gsp_predicted = axes
+    fig, axes = plt.subplots(nrows=3, sharex=True, sharey=True)
+    ax_pv_actual, ax_pv_predicted, ax_gsp = axes
 
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
     gsp_datetimes = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
 
+    # PV
     def _plot_pv(ax, data, title):
         ax.plot(pv_datetimes, data[example_idx].squeeze())
         ax.set_title(title)
         ax.set_ylabel("PV power")
-        ax.set_xlabel("Timestep")
 
     _plot_pv(ax_pv_actual, actual_pv_power, "Actual PV power")
     _plot_pv(ax_pv_predicted, predicted_pv_power, "Predicted PV power")
 
-    def _plot_gsp(ax, data, title):
-        ax.scatter(gsp_datetimes, data[example_idx].squeeze())
-        ax.set_title(title)
-        ax.set_ylabel("GSP power")
-        ax.set_xlabel("Timestep")
+    # GSP
+    gsp_df = pd.DataFrame(
+        {
+            "actual_gsp_power": actual_gsp_power[example_idx].squeeze(),
+            "predicted_gsp_power": predicted_gsp_power[example_idx].squeeze(),
+        },
+        index=gsp_datetimes,
+    )
+    gsp_index_deduplicated = gsp_df.index.drop_duplicates()
+    ax_gsp.plot(
+        gsp_index_deduplicated,
+        gsp_df["actual_gsp_power"].loc[gsp_index_deduplicated],
+        label="Actual",
+    )
+    ax_gsp.scatter(gsp_df.index, gsp_df["predicted_gsp_power"], alpha=0.8, label="Predicted")
+    ax_gsp.set_title("GSP PV power")
+    ax_gsp.set_ylabel("GSP PV power")
+    ax_gsp.set_xlabel("Timestep. Date=" + pv_datetimes[0].date.strftime("%Y-%m-%d"))
+    ax_gsp.legend()
 
-    _plot_gsp(ax_gsp_actual, actual_gsp_power, "Actual PV power")
-    _plot_gsp(ax_gsp_predicted, predicted_gsp_power, "Predicted PV power")
+    ax_gsp.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+
     return fig
 
 
