@@ -263,7 +263,7 @@ class Model(pl.LightningModule):
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
 
         # Total loss:
-        total_mse_loss = pv_mse_loss + gsp_mse_loss
+        total_mse_loss = pv_mse_loss + (gsp_mse_loss * 3)
         self.log(f"{tag}/total_mse", total_mse_loss)
 
         return {
