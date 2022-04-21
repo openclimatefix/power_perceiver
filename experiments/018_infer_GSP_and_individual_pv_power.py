@@ -179,8 +179,8 @@ class Model(pl.LightningModule):
         gsp_out = self.pv_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
 
         return {
-            "pv_out": pv_out,
-            "gsp_out": gsp_out,
+            "pv_out": pv_out,  # shape: (example, n_pv_systems=8, 1)
+            "gsp_out": gsp_out,  # shape: (example, 1, 1)
             "start_idx_5_min": start_idx_5_min,
             "gsp_time_idx_30_min": gsp_time_idx_30_min,
         }
@@ -201,7 +201,7 @@ class Model(pl.LightningModule):
             for start_idx_5_min in range(0, 22):
                 out = self.forward(batch, start_idx_5_min=start_idx_5_min)
                 predicted_pv_powers.append(out["pv_out"])
-                predicted_gsp_powers.append(out["gsp_out"])
+                predicted_gsp_powers.append(out["gsp_out"][:, :, 0])
                 gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
                 actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
                 actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
@@ -210,9 +210,6 @@ class Model(pl.LightningModule):
             predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
             predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
             actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
-            import ipdb
-
-            ipdb.set_trace()
 
             del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers
             predicted_pv_power = einops.rearrange(
@@ -238,7 +235,7 @@ class Model(pl.LightningModule):
             gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
             actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
             actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
-            predicted_gsp_power = out["gsp_out"]
+            predicted_gsp_power = out["gsp_out"]  # Shape: (example, 1, 1)
 
         # Mask actual PV power:
         actual_pv_power = torch.where(
