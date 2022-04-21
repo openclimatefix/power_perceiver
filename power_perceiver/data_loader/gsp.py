@@ -91,7 +91,9 @@ class GSP(DataLoader):
             (BatchKey.gsp_y_osgb, "y_osgb"),
             (BatchKey.gsp_x_osgb, "x_osgb"),
         ):
-            batch[batch_key] = dataset[dataset_key].values
+            values = dataset[dataset_key].values
+            # Expand dims so EncodeSpaceTime works!
+            batch[batch_key] = np.expand_dims(values, axis=1)
 
         # Sanity check!
         for key in (
