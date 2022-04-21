@@ -156,7 +156,7 @@ class Model(pl.LightningModule):
                 low=0, high=22, size=(1,), device=x[BatchKey.pv].device
             )[0]
 
-        time_idx_30_min = torch.ceil(start_idx_5_min / 6).int() + 1
+        time_idx_30_min = torch.ceil(torch.tensor(start_idx_5_min) / 6).int() + 1
 
         byte_array = self.hrvsatellite_processor(x, start_idx_5_min=start_idx_5_min)
         pv_query = self.pv_query_generator(x, start_idx_5_min=start_idx_5_min)
