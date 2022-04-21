@@ -30,26 +30,27 @@ def plot_tsne_of_pv_system_id_embedding(
 
     pv_system_row_numbers_for_all_examples = np.unique(pv_system_row_numbers_for_all_examples)
     NUM_GSPS = 360
-    NUM_PV_SYSTEMS = 1400
     pv_system_row_numbers_for_all_examples += NUM_GSPS
     pv_system_row_numbers_for_all_examples = torch.from_numpy(
         pv_system_row_numbers_for_all_examples
     ).to(device=device)
 
-    pv_system_row_numbers_for_all_examples = torch.arange(
-        start=1,
-        end=NUM_GSPS + NUM_PV_SYSTEMS,
-        device=device,
-    )
+    all_gsp_ids = torch.arange(start=1, end=NUM_GSPS, device=device)
 
-    pv_id_embedding = pv_system_id_embedding(pv_system_row_numbers_for_all_examples)
+    all_ids = torch.concat((all_gsp_ids, pv_system_row_numbers_for_all_examples))
+
+    pv_id_embedding = pv_system_id_embedding(all_ids)
     pv_id_embedding = pv_id_embedding.detach().cpu()
 
     tsne = sklearn.manifold.TSNE(n_components=2, init="pca", learning_rate="auto")
     tsne = tsne.fit_transform(pv_id_embedding)
 
     fig, ax = plt.subplots()
-    ax.scatter(x=tsne[:, 0], y=tsne[:, 1], alpha=0.8)
+    # Use different colours for GSP and PV
+    colors = (["#384fd1"] * (NUM_GSPS - 1)) + (
+        ["#eb7005"] * len(pv_system_row_numbers_for_all_examples)
+    )
+    ax.scatter(x=tsne[:, 0], y=tsne[:, 1], alpha=0.6, c=colors)
     ax.set_title("t-SNE of PV system ID embedding for all examples in batch")
 
     return fig
