@@ -17,8 +17,8 @@ class HRVSatelliteProcessor(nn.Module):
     def forward(
         self,
         x: dict[BatchKey, torch.Tensor],
-        start_idx: int = 0,
-        start_idx_offset: int = 0,
+        start_idx_5_min: int = 0,
+        start_idx_5_min_offset: int = 0,
         num_timesteps: int = 4,
         interval: int = 3,
         satellite_only: bool = False,
@@ -33,7 +33,7 @@ class HRVSatelliteProcessor(nn.Module):
                 hrvsatellite_surface_height
                 solar_azimuth
                 solar_elevation
-            start_idx: The index of the `t0` timestep.
+            start_idx_5_min: The index of the `t0` timestep.
             num_timesteps: The number of timesteps to include.
             interval: The interval (in number of timesteps) between each timestep.
                 For example, an interval of 3 would be 15 minutes.
@@ -45,8 +45,8 @@ class HRVSatelliteProcessor(nn.Module):
         # Ignore the "channels" dimension because HRV is just a single channel:
         hrvsatellite = x[BatchKey.hrvsatellite][:, :, 0]
 
-        # Select four timesteps at 15-minute intervals, starting at start_idx.
-        sat_start_idx = start_idx + start_idx_offset
+        # Select four timesteps at 15-minute intervals, starting at start_idx_5_min.
+        sat_start_idx = start_idx_5_min + start_idx_5_min_offset
         sat_end_idx = sat_start_idx + ((num_timesteps - 1) * interval)
         assert (
             sat_end_idx < hrvsatellite.shape[1]

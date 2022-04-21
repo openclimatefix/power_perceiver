@@ -68,6 +68,23 @@ class BatchKey(Enum):
     pv_x_osgb_fourier = auto()
     pv_time_utc_fourier = auto()  # (batch_size, time, n_fourier_features)
 
+    # -------------- GSP --------------------------------------------
+    gsp = auto()  # shape: (batch_size, time)
+    gsp_id = auto()  # shape: (batch_size)
+
+    # GSP coordinates:
+    # Each has shape: (batch_size), will be NaN for missing GSPs.
+    gsp_y_osgb = auto()
+    gsp_x_osgb = auto()
+    gsp_time_utc = auto()  # Seconds since UNIX epoch (1970-01-01). (batch_size, time)
+
+    # GSP Fourier coordinates:
+    # Each has shape: (batch_size, n_fourier_features_per_dim),
+    # and will be NaN for missing GSP systems.
+    gsp_y_osgb_fourier = auto()
+    gsp_x_osgb_fourier = auto()
+    gsp_time_utc_fourier = auto()  # (batch_size, time, n_fourier_features)
+
     # -------------- SUN --------------------------------------------
     # shape = (batch_size, n_timesteps)
     solar_azimuth = auto()

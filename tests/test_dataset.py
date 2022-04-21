@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
-from power_perceiver.data_loader import PV, DataLoader, HRVSatellite
+from power_perceiver.data_loader import GSP, PV, DataLoader, HRVSatellite
 from power_perceiver.data_loader.data_loader import NumpyBatch
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime
@@ -17,7 +17,7 @@ from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import SelectPVSystemsNearCenterOfImage
 
-_DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name)
+_DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name, GSP.name)
 BATCH_SIZE = 32
 N_PV_TIMESTEPS = 31
 N_PV_SYSTEMS_PER_EXAMPLE = 128

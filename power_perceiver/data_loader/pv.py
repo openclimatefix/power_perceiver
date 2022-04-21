@@ -69,24 +69,15 @@ class PV(DataLoader):
         assert pv_mask.any(), "No valid PV systems!"
         dataset["pv_mask"] = pv_mask
 
+        # Apply the mask. In particular, this is especially important so we set the
+        # osgb coordinates to NaN for missing PV systems. In v15, the osgb coordinates
+        # are zero for missing PV systems, which confuses `EncodeSpaceTime`!
         dataset = apply_pv_mask(dataset)
 
         # PV spatial coords are float64 in v15. This will be fixed in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624
         for dataset_key in ("x_osgb", "y_osgb"):
             dataset[dataset_key] = dataset[dataset_key].astype(np.float32)
-
-        # DELETE THIS BLOCK AFTER WE GET THE ANSWER!
-        max_for_this_batch = np.nanmax(dataset["pv_system_row_number"])
-        self.max_pv_system_row_number = max(
-            getattr(self, "max_pv_system_row_number", 0), max_for_this_batch
-        )
-
-        self.num_batches = getattr(self, "num_batches", 0)
-        self.num_batches += 1
-        if self.num_batches >= 8390:
-            _log.info(f"\n\n********{self.max_pv_system_row_number=}************\n\n")
-            self.num_batches = 0
 
         return dataset
 
@@ -136,10 +127,10 @@ def apply_pv_mask(dataset: xr.Dataset) -> xr.Dataset:
     # This won't be necessary after this issue is closed:
     # https://github.com/openclimatefix/nowcasting_dataset/issues/625
 
-    # Dataset.where only operates on the data variables:
     dataset = dataset.where(dataset.pv_mask)
+    # `Dataset.where` sets `pv_mask` to zero. We want `pv_mask` to be a bool array:
     dataset["pv_mask"] = dataset.pv_mask.fillna(0).astype(bool)
-    # Also operate on the coords:
+    # `Dataset.where` *only* operates on data variables, so we need to manually mask the coords:
     for coord_name in ["pv_system_id", "x_osgb", "y_osgb"]:
         dataset[coord_name] = dataset[coord_name].where(dataset.pv_mask)
     return dataset
