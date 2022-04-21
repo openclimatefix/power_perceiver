@@ -51,7 +51,10 @@ def plot_tsne_of_pv_system_id_embedding(
         ["#eb7005"] * len(pv_system_row_numbers_for_all_examples)
     )
     ax.scatter(x=tsne[:, 0], y=tsne[:, 1], alpha=0.6, c=colors)
-    ax.set_title("t-SNE of PV system ID embedding for all examples in batch")
+    ax.set_title(
+        "t-SNE of PV system ID embedding for all examples in batch."
+        " GSPs are blue. PV systems are orange"
+    )
 
     return fig
 

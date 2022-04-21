@@ -137,10 +137,6 @@ class Model(pl.LightningModule):
         )
 
         self.pv_output_module = nn.Sequential(
-            nn.Linear(in_features=self.d_model, out_features=self.d_model),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=self.d_model),
-            nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=1),
         )
 
@@ -303,7 +299,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.10",
+    name="018.11",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -313,7 +309,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
