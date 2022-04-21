@@ -50,8 +50,12 @@ class GSP(DataLoader):
 
         # Most coords and variables are float64 in v15. This will be fixed in:
         # TODO: CREATE ISSUE
-        for dataset_key in ("y_osgb", "x_osgb", "capacity_mwp", "power_mw", "gsp_id"):
+        for dataset_key in ("y_osgb", "x_osgb", "capacity_mwp", "power_mw"):
             dataset[dataset_key] = dataset[dataset_key].astype(np.float32)
+
+        # GSP ID
+        assert not np.isnan(dataset["gsp_id"]).any()
+        dataset["gsp_id"] = dataset["gsp_id"].astype(np.int32)
 
         # Set OSGB coords to NaN! OSGB coords are 0 for missing GSPs in v15. This
         # confuses `EncodeSpaceTime`! So we must set missing OSGB coords to NaN.
