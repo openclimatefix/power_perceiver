@@ -141,6 +141,14 @@ class Model(pl.LightningModule):
             nn.Linear(in_features=self.d_model, out_features=1),
         )
 
+        self.gsp_output_module = nn.Sequential(
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=1),
+        )
+
         # Do this at the end of __post_init__ to capture model topology:
         self.save_hyperparameters()
 
@@ -176,7 +184,7 @@ class Model(pl.LightningModule):
         gsp_start_idx = pv_query.shape[1]
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
         pv_out = self.pv_output_module(attn_output[:, :gsp_start_idx])
-        gsp_out = self.pv_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
+        gsp_out = self.gsp_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
 
         return {
             "pv_out": pv_out,  # shape: (example, n_pv_systems=8, 1)
@@ -294,7 +302,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.04",
+    name="018.05",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -304,7 +312,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
