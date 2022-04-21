@@ -302,7 +302,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.06",
+    name="018.07",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -312,7 +312,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[6],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
