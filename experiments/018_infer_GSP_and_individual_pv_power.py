@@ -210,6 +210,9 @@ class Model(pl.LightningModule):
             predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
             predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
             actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
+            import ipdb
+
+            ipdb.set_trace()
 
             del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers
             predicted_pv_power = einops.rearrange(
