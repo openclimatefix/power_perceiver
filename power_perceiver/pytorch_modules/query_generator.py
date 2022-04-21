@@ -111,6 +111,11 @@ class GSPQueryGenerator(nn.Module):
         time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
         time_fourier = time_fourier[:, time_idx_30_min]  # (example, n_fourier_features)
 
+        print(
+            f"{y_fourier.shape=} {x_fourier.shape=}"
+            f" {time_fourier.shape=} {gsp_id_embedding.shape=}"
+        )
+
         gsp_query = torch.concat(
             (
                 y_fourier,
