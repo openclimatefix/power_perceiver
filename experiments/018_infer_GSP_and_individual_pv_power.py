@@ -156,11 +156,12 @@ class Model(pl.LightningModule):
                 low=0, high=22, size=(1,), device=x[BatchKey.pv].device
             )[0]
 
-        time_idx_30_min = torch.ceil(torch.tensor(start_idx_5_min) / 6).int() + 1
+        start_idx_5_min_tensor = torch.tensor(start_idx_5_min)
+        gsp_time_idx_30_min = (start_idx_5_min_tensor / 6).ceil().int() + 1
 
         byte_array = self.hrvsatellite_processor(x, start_idx_5_min=start_idx_5_min)
         pv_query = self.pv_query_generator(x, start_idx_5_min=start_idx_5_min)
-        gsp_query = self.gsp_query_generator(x, time_idx_30_min=time_idx_30_min)
+        gsp_query = self.gsp_query_generator(x, time_idx_30_min=gsp_time_idx_30_min)
 
         # Pad with zeros if necessary to get up to self.d_model:
         byte_array = maybe_pad_with_zeros(byte_array, requested_dim=self.d_model)
@@ -181,7 +182,7 @@ class Model(pl.LightningModule):
             "pv_out": pv_out,
             "gsp_out": gsp_out,
             "start_idx_5_min": start_idx_5_min,
-            "time_idx_30_min": time_idx_30_min,
+            "gsp_time_idx_30_min": gsp_time_idx_30_min,
         }
 
     def _training_or_validation_step(
@@ -195,11 +196,22 @@ class Model(pl.LightningModule):
         """
         if tag == "validation":
             predicted_pv_powers = []
+            predicted_gsp_powers = []
+            actual_gsp_powers = []
             for start_idx_5_min in range(0, 22):
                 out = self.forward(batch, start_idx_5_min=start_idx_5_min)
                 predicted_pv_powers.append(out["pv_out"])
+                predicted_gsp_powers.append(out["gsp_out"])
+                gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
+                actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
+                actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
+                actual_gsp_powers.append(actual_gsp_power)
+
             predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
-            del predicted_pv_powers
+            predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
+            actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
+
+            del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers
             predicted_pv_power = einops.rearrange(
                 predicted_pv_power,
                 "example n_pv_systems time -> example time n_pv_systems",
@@ -209,28 +221,47 @@ class Model(pl.LightningModule):
         else:
             # Training
             out = self.forward(batch)
-            # Select just a single timestep of PV data:
+            # Select a single timestep of PV data:
             start_idx_5_min = out["start_idx_5_min"]
-            actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx_5_min : 7 + start_idx_5_min]
+            actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx_5_min]
+            actual_pv_power = actual_pv_power.unsqueeze(1)  # Shape: (example, time=1, pv_systems)
             predicted_pv_power = out["pv_out"]
             predicted_pv_power = einops.rearrange(
                 predicted_pv_power,
-                "example (time n_pv_systems) 1 -> example time n_pv_systems",
-                time=actual_pv_power.shape[1],
-                n_pv_systems=actual_pv_power.shape[2],
+                "example n_pv_systems 1 -> example 1 n_pv_systems",
+                n_pv_systems=actual_pv_power.shape[2],  # sanity check!
             )
+            # Select a single timestep of GSP data:
+            gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
+            actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
+            actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
+            predicted_gsp_power = out["gsp_out"]
 
+        # Mask actual PV power:
         actual_pv_power = torch.where(
             batch[BatchKey.pv_mask].unsqueeze(1),
             actual_pv_power,
             torch.tensor(0.0, dtype=actual_pv_power.dtype, device=actual_pv_power.device),
         )
 
+        # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
-        self.log(f"{tag}/mse", pv_mse_loss)
+        self.log(f"{tag}/pv_mse", pv_mse_loss)
+        self.log(f"{tag}/mse", pv_mse_loss)  # To allow for each comparison to older models.
+
+        # GSP power loss:
+        gsp_mse_loss = F.mse_loss(predicted_gsp_power, actual_gsp_power)
+        self.log(f"{tag}/gsp_mse", gsp_mse_loss)
+
+        # Total loss:
+        total_mse_loss = pv_mse_loss + gsp_mse_loss
+        self.log(f"{tag}/total_mse", total_mse_loss)
 
         return {
-            "loss": pv_mse_loss,
+            "loss": total_mse_loss,
+            "pv_mse_loss": pv_mse_loss,
+            "gsp_mse_loss": gsp_mse_loss,
+            "predicted_gsp_power": predicted_gsp_power,
             "predicted_pv_power": predicted_pv_power,
         }
 
