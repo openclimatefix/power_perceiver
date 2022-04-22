@@ -467,8 +467,8 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         # Shape: (example time n_pv_systems)
         multi_timestep_prediction["predicted_pv_power"] = predicted_pv_power
 
-        # GSP power
-        gsp_end_idx = num_pv_elements + 1
+        # GSP power. There's just 1 GSP.
+        gsp_end_idx = num_pv_elements + n_timesteps
         predicted_gsp_power = power_out[:, num_pv_elements:gsp_end_idx, 0]
         # Shape: (example, time)
         multi_timestep_prediction["predicted_gsp_power"] = predicted_gsp_power
