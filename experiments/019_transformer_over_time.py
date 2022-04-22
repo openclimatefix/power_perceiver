@@ -358,6 +358,8 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
         multi_timestep_prediction = get_multi_timestep_prediction(
             model=self, batch=batch, start_idxs_5_min=range(0, 22)
         )
+        for key in ("pv_attn_out", "gsp_attn_out"):
+            del multi_timestep_prediction[key]
         actual_pv_power = batch[BatchKey.pv][:, 6:-3]  # example, time, n_pv_systems
         return self._training_or_validation_step(
             batch=batch,
