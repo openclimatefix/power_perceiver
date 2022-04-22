@@ -15,6 +15,8 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
 
+from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
+
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
@@ -27,9 +29,6 @@ from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformer
 from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import ReduceNumPVSystems, SelectPVSystemsNearCenterOfImage
-
-#  from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
-
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
@@ -296,6 +295,7 @@ class TrainOrValidationMixIn:
             "predicted_gsp_power": predicted_gsp_power,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": gsp_time_utc,
+            "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
         }
 
@@ -323,6 +323,8 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
         """Train on a single (random) timestep per example."""
         out = self.forward(batch)
         start_idx_5_min = out["start_idx_5_min"]
+        # The start_idx_5_min is the index into the time dimension of the start of the
+        # sequence of satellite data.
         # Select PV data:
         # We want the PV data that is 30 minutes into the 45 min sequence of images:
         actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx_5_min]
@@ -504,7 +506,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.05: Include 1 hour of historical PV power",
+    name="019.06: Include 1 hour of historical PV power + plots",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -518,7 +520,7 @@ trainer = pl.Trainer(
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
-        # LogTimeseriesPlots(),
+        LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="infer_single_timestep_of_power.pv_query_generator"),
     ],
 )

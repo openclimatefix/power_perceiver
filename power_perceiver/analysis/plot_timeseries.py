@@ -84,8 +84,10 @@ class LogTimeseriesPlots(SimpleCallback):
 
         if tag == "validation" and batch_idx < 4:
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
-            actual_pv_power = batch[BatchKey.pv].cpu()[:, 6:-3]
-            pv_datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 6:-3]
+            actual_pv_power = outputs["actual_pv_power"].cpu().detach()
+            # TODO: Generated pv_datetimes upstream and pass it into this function, just like
+            # we do with `gsp_time_utc`.
+            pv_datetimes = batch[BatchKey.pv_time_utc].cpu()[:, 6:-3:6]
             for example_idx in range(4):
                 fig = plot_pv_power(
                     actual_pv_power=actual_pv_power,
