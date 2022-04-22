@@ -179,12 +179,12 @@ class InferSingleTimestepOfPower(pl.LightningModule):
         # Select the elements of the output which correspond to the query:
         gsp_start_idx = pv_query.shape[1]
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
-        pv_out = self.pv_output_module(attn_output[:, :gsp_start_idx])
-        gsp_out = self.pv_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
+        predicted_pv_power = self.pv_output_module(attn_output[:, :gsp_start_idx])
+        predicted_gsp_power = self.pv_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
 
         return {
-            "pv_out": pv_out,  # shape: (example, n_pv_systems=8, 1)
-            "gsp_out": gsp_out,  # shape: (example, 1, 1)
+            "predicted_pv_power": predicted_pv_power,  # shape: (example, n_pv_systems=8, 1)
+            "predicted_gsp_power": predicted_gsp_power,  # shape: (example, 1, 1)
             "start_idx_5_min": start_idx_5_min,
             "gsp_time_idx_30_min": gsp_time_idx_30_min,
         }
@@ -201,8 +201,8 @@ def get_multi_timestep_prediction(
     gsp_times_utc = []
     for start_idx_5_min in start_idxs_5_min:
         out = model.forward(batch, start_idx_5_min=start_idx_5_min)
-        predicted_pv_powers.append(out["pv_out"])
-        predicted_gsp_powers.append(out["gsp_out"][:, :, 0])
+        predicted_pv_powers.append(out["predicted_pv_power"])
+        predicted_gsp_powers.append(out["predicted_gsp_power"][:, :, 0])
         gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
         actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
         actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
@@ -308,9 +308,11 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
         """Train on a single (random) timestep per example."""
         out = self.forward(batch)
         start_idx_5_min = out["start_idx_5_min"]
+        # Select PV data:
+        # We want the PV data that is 30 minutes into the 45 min sequence of images:
         actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx_5_min]
         actual_pv_power = actual_pv_power.unsqueeze(1)  # Shape: (example, time=1, pv_systems)
-        predicted_pv_power = out["pv_out"]
+        predicted_pv_power = out["predicted_pv_power"]
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
             "example n_pv_systems 1 -> example 1 n_pv_systems",
@@ -320,7 +322,7 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
         gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
         actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
         actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
-        predicted_gsp_power = out["gsp_out"][:, :, 0]  # Shape: (example, time=1)
+        predicted_gsp_power = out["predicted_gsp_power"][:, :, 0]  # Shape: (example, time=1)
         gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
         gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
         return self._training_or_validation_step(
@@ -355,7 +357,51 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
         return optimizer
 
 
-model = TrainInferSingleTimestepOfPower()
+# See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
+@dataclass(eq=False)
+class FullModel(pl.LightningModule, TrainOrValidationMixIn):
+    def __post_init__(self):
+        super().__init__()
+        self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
+            "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
+        )
+
+        # Do this at the end of __post_init__ to capture model topology to wandb:
+        self.save_hyperparameters()
+
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+        multi_timestep_prediction = get_multi_timestep_prediction(
+            model=self.infer_single_timestep_of_power,
+            batch=x,
+            start_idxs_5_min=range(3, 22, 6),  # Every half hour.
+        )
+        return multi_timestep_prediction
+
+    def training_step(
+        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
+    ) -> dict[str, object]:
+        return self.validation_step(batch, batch_idx)
+
+    def validation_step(
+        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
+    ) -> dict[str, object]:
+        """Validate on multiple timesteps."""
+        multi_timestep_prediction = self(batch)
+        actual_pv_power = batch[BatchKey.pv][:, 6:-3:6]  # example, time, n_pv_systems
+        return self._training_or_validation_step(
+            batch=batch,
+            batch_idx=batch_idx,
+            tag="train" if self.training else "validation",
+            actual_pv_power=actual_pv_power,
+            **multi_timestep_prediction,
+        )
+
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        return optimizer
+
+
+model = FullModel()
 
 wandb_logger = WandbLogger(
     name="019.02: Refactor",

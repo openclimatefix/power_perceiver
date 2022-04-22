@@ -33,7 +33,7 @@ class PVQueryGenerator(nn.Module):
         pv_system_embedding = self.pv_system_id_embedding(pv_system_row_number)
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
-        # Query for the PV system that is 30 minutes into the 45 min sequence of images:
+        # Query for the PV timestep that is 30 minutes into the 45 min sequence of images:
         time_idx_5_min = 6 + start_idx_5_min
         assert time_idx_5_min < x[BatchKey.pv].shape[1]
 
