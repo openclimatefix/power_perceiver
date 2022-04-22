@@ -80,6 +80,7 @@ class PVQueryGenerator(nn.Module):
         if num_timesteps_of_pv_power > 0:
             pv_power = x[BatchKey.pv]  # (batch_size, time, n_pv_systems)
             pv_power_start_idx = time_idx_5_min - num_timesteps_of_pv_power
+            assert pv_power_start_idx >= 0, f"{pv_power_start_idx=}"
             pv_power = pv_power[:, pv_power_start_idx:time_idx_5_min]
             pv_power = einops.rearrange(
                 pv_power, "example time n_pv_systems -> example n_pv_systems time"

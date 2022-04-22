@@ -386,7 +386,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
     d_model: int = 96  # Must be the same as for InferSingleTimestepOfPower
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
-    dropout: float = 0.0
+    dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 2
 
@@ -510,7 +510,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.07: Include 1 hour of historical PV power. Only compute loss on last 2 timesteps",
+    name="019.08: Dropout=0.1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
