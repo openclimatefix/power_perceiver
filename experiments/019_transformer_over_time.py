@@ -15,8 +15,6 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
 
-from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
-
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
@@ -29,6 +27,9 @@ from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformer
 from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import ReduceNumPVSystems, SelectPVSystemsNearCenterOfImage
+
+#  from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
+
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
@@ -179,10 +180,14 @@ class InferSingleTimestepOfPower(pl.LightningModule):
         # Select the elements of the output which correspond to the query:
         gsp_start_idx = pv_query.shape[1]
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
-        predicted_pv_power = self.pv_output_module(attn_output[:, :gsp_start_idx])
-        predicted_gsp_power = self.pv_output_module(attn_output[:, gsp_start_idx:gsp_end_idx])
+        pv_attn_out = attn_output[:, :gsp_start_idx]
+        gsp_attn_out = attn_output[:, gsp_start_idx:gsp_end_idx]
+        predicted_pv_power = self.pv_output_module(pv_attn_out)
+        predicted_gsp_power = self.pv_output_module(gsp_attn_out)
 
         return {
+            "pv_attn_out": pv_attn_out,  # shape: (example, n_pv_systems, d_model)
+            "gsp_attn_out": gsp_attn_out,  # shape: (example, 1, d_model)
             "predicted_pv_power": predicted_pv_power,  # shape: (example, n_pv_systems=8, 1)
             "predicted_gsp_power": predicted_gsp_power,  # shape: (example, 1, 1)
             "start_idx_5_min": start_idx_5_min,
@@ -199,6 +204,8 @@ def get_multi_timestep_prediction(
     predicted_gsp_powers = []
     actual_gsp_powers = []
     gsp_times_utc = []
+    pv_attn_outs = []
+    gsp_attn_outs = []
     for start_idx_5_min in start_idxs_5_min:
         out = model.forward(batch, start_idx_5_min=start_idx_5_min)
         predicted_pv_powers.append(out["predicted_pv_power"])
@@ -210,23 +217,31 @@ def get_multi_timestep_prediction(
         gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
         gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
         gsp_times_utc.append(gsp_time_utc)
+        pv_attn_outs.append(out["pv_attn_out"].unsqueeze(1))  # Shape: (example, 1, n_pv, d_mod)
+        gsp_attn_outs.append(out["gsp_attn_out"])
 
     predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
     predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
     actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
     gsp_time_utc = torch.concat(gsp_times_utc, dim=1)
+    pv_attn_out = torch.concat(pv_attn_outs, dim=1)
+    gsp_attn_out = torch.concat(gsp_attn_outs, dim=1)
 
     del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers, gsp_times_utc
+    del pv_attn_outs, gsp_attn_outs
+
     predicted_pv_power = einops.rearrange(
         predicted_pv_power,
         "example n_pv_systems time -> example time n_pv_systems",
         n_pv_systems=8,  # sanity check!
     )
     return dict(
-        predicted_pv_power=predicted_pv_power,
-        predicted_gsp_power=predicted_gsp_power,
-        actual_gsp_power=actual_gsp_power,
-        gsp_time_utc=gsp_time_utc,
+        pv_attn_out=pv_attn_out,  # Shape: (example, time, n_pv_systems, d_model)
+        gsp_attn_out=gsp_attn_out,  # Shape: (example, time, d_model)
+        predicted_pv_power=predicted_pv_power,  # Shape: (example, time, n_pv_systems)
+        predicted_gsp_power=predicted_gsp_power,  # Shape: (example, time)
+        actual_gsp_power=actual_gsp_power,  # Shape: (example, time)
+        gsp_time_utc=gsp_time_utc,  # Shape: (example, time)
     )
 
 
@@ -360,10 +375,36 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule, TrainOrValidationMixIn):
+    d_model: int = 96  # Must be the same as for InferSingleTimestepOfPower
+    pv_system_id_embedding_dim: int = 16
+    num_heads: int = 12
+    dropout: float = 0.0
+    share_weights_across_latent_transformer_layers: bool = False
+    num_latent_transformer_encoders: int = 4
+
     def __post_init__(self):
         super().__init__()
         self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
             "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
+        )
+
+        assert self.d_model == self.infer_single_timestep_of_power.d_model
+
+        self.time_transformer_encoder = MultiLayerTransformerEncoder(
+            d_model=self.d_model,
+            num_heads=self.num_heads,
+            dropout=self.dropout,
+            share_weights_across_latent_transformer_layers=(
+                self.share_weights_across_latent_transformer_layers
+            ),
+            num_latent_transformer_encoders=self.num_latent_transformer_encoders,
+        )
+
+        self.pv_output_module = nn.Sequential(
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=1),
+            nn.ReLU(),  # ReLU output guarantees that we can't predict negative PV power!
         )
 
         # Do this at the end of __post_init__ to capture model topology to wandb:
@@ -375,6 +416,44 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
             batch=x,
             start_idxs_5_min=range(3, 22, 6),  # Every half hour.
         )
+        """
+        pv_attn_out=pv_attn_out,  # Shape: (example, time, n_pv_systems, d_model)
+        gsp_attn_out=gsp_attn_out,  # Shape: (example, time, d_model)
+        predicted_pv_power=predicted_pv_power,  # Shape: (example, time, n_pv_systems)
+        predicted_gsp_power=predicted_gsp_power,  # Shape: (example, time)
+        actual_gsp_power=actual_gsp_power,  # Shape: (example, time)
+        gsp_time_utc=gsp_time_utc,  # Shape: (example, time)
+        """
+
+        pv_attn_out = multi_timestep_prediction["pv_attn_out"]
+        n_timesteps, n_pv_systems = pv_attn_out.shape[1:3]
+        pv_attn_out = einops.rearrange(
+            pv_attn_out,
+            "example time n_pv_systems d_model -> example (time n_pv_systems) d_model",
+        )
+        num_pv_elements = pv_attn_out.shape[1]
+        gsp_attn_out = multi_timestep_prediction["gsp_attn_out"]
+
+        # TODO: Add in historical PV :)
+        time_attn_in = torch.concat((pv_attn_out, gsp_attn_out), dim=1)
+        time_attn_out = self.time_transformer_encoder(time_attn_in)
+
+        power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
+
+        # Reshape the PV power predictions
+        predicted_pv_power = power_out[:, :num_pv_elements]
+        predicted_pv_power = einops.rearrange(
+            predicted_pv_power,
+            "example (time n_pv_systems) 1 -> example time n_pv_systems",
+            time=n_timesteps,
+            n_pv_systems=n_pv_systems,
+        )
+
+        # Shape: (example time n_pv_systems)
+        multi_timestep_prediction["predicted_pv_power"] = predicted_pv_power
+        # Shape: (example, time)
+        multi_timestep_prediction["predicted_gsp_power"] = power_out[:, num_pv_elements:, 0]
+
         return multi_timestep_prediction
 
     def training_step(
@@ -404,7 +483,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.03: Train with multiple timesteps",
+    name="019.04: Implement Time Transformer",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
