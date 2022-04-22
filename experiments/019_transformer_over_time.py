@@ -404,7 +404,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.02: Refactor",
+    name="019.03: Train with multiple timesteps",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
