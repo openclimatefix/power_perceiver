@@ -468,6 +468,8 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
     ) -> dict[str, object]:
         """Validate on multiple timesteps."""
         multi_timestep_prediction = self(batch)
+        for key in ("pv_attn_out", "gsp_attn_out"):
+            del multi_timestep_prediction[key]
         actual_pv_power = batch[BatchKey.pv][:, 6:-3:6]  # example, time, n_pv_systems
         return self._training_or_validation_step(
             batch=batch,
