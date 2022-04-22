@@ -100,7 +100,7 @@ def maybe_pad_with_zeros(tensor: torch.Tensor, requested_dim: int) -> torch.Tens
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
-class InferSingleTimestepOfPower(nn.Module):
+class InferSingleTimestepOfPower(pl.LightningModule):
     """Infers a single timestep of PV power and GSP power at a time.
 
     Currently just uses HRV satellite imagery as the input. In the near future it could also
@@ -195,7 +195,9 @@ class InferSingleTimestepOfPower(nn.Module):
 class TrainInferSingleTimestepOfPower(pl.LightningModule):
     def __post_init__(self):
         super().__init__()
-        self.infer_single_timestep_of_power = InferSingleTimestepOfPower()
+        self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
+            "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
+        )
 
         # Do this at the end of __post_init__ to capture model topology to wandb:
         self.save_hyperparameters()
@@ -320,7 +322,7 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule):
 model = TrainInferSingleTimestepOfPower()
 
 wandb_logger = WandbLogger(
-    name="019.00: Start to separate out models",
+    name="019.01: Load from checkpoint",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
