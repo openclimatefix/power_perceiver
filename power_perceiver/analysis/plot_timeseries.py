@@ -68,6 +68,7 @@ class LogTimeseriesPlots(SimpleCallback):
         outputs: Optional[dict[str, object]],
         batch: Any,
         batch_idx: int,
+        dataloader_idx: int,
         tag: str,
     ) -> None:
         """Called when the training batch ends.
