@@ -418,7 +418,7 @@ trainer = pl.Trainer(
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
-        LogTimeseriesPlots(),
+        # LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="infer_single_timestep_of_power.pv_query_generator"),
     ],
 )
