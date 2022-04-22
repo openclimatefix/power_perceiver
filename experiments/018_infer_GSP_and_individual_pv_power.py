@@ -140,6 +140,7 @@ class Model(pl.LightningModule):
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=1),
+            nn.ReLU(),
         )
 
         # Do this at the end of __post_init__ to capture model topology:
@@ -301,7 +302,7 @@ class Model(pl.LightningModule):
 model = Model()
 
 wandb_logger = WandbLogger(
-    name="018.12: 2-layer pv_output_module",
+    name="018.13: 2-layer pv_output_module & RELU output",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -311,7 +312,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
