@@ -443,11 +443,11 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         pv_query_generator = self.infer_single_timestep_of_power.pv_query_generator
         historical_pv = []
         for start_idx_5_min in range(START_IDX_5_MIN, START_IDX_5_MIN + 13, STEP_5_MIN):
-            historical_pv.append(
-                pv_query_generator(
-                    x=x, start_idx_5_min=start_idx_5_min, num_timesteps_of_pv_power=STEP_5_MIN
-                )
+            hist_pv = pv_query_generator(
+                x=x, start_idx_5_min=start_idx_5_min, num_timesteps_of_pv_power=STEP_5_MIN
             )
+            hist_pv = maybe_pad_with_zeros(hist_pv, requested_dim=self.d_model)
+            historical_pv.append(hist_pv)
 
         time_attn_in = [pv_attn_out, gsp_attn_out] + historical_pv
         time_attn_in = torch.concat(time_attn_in, dim=1)
