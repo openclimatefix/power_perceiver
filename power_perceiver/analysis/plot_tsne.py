@@ -83,7 +83,7 @@ class LogTSNEPlot(SimpleCallback):
             tag: train or validation
         """
         if batch_idx == 0:
-            query_generator = getattr(pl_module, self.query_generator_name)
+            query_generator = multilayer_getattr(pl_module, self.query_generator_name)
             fig = plot_tsne_of_pv_system_id_embedding(
                 batch=batch,
                 pv_system_id_embedding=query_generator.pv_system_id_embedding,
@@ -97,3 +97,12 @@ class LogTSNEPlot(SimpleCallback):
                 },
             )
             plt.close(fig)
+
+
+def multilayer_getattr(obj, name: str):
+    """Like getattr, except `name` can have dots in it."""
+    attr_names = name.split(".")
+    attr = obj
+    for attr_name in attr_names:
+        attr = getattr(attr, attr_name)
+    return attr
