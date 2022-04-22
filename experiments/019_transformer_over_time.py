@@ -270,15 +270,15 @@ class TrainOrValidationMixIn:
         )
 
         # PV power loss:
-        pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
-        pv_nmae_loss = F.l1_loss(predicted_pv_power, actual_pv_power)
+        pv_mse_loss = F.mse_loss(predicted_pv_power[:, 2:], actual_pv_power[:, 2:])
+        pv_nmae_loss = F.l1_loss(predicted_pv_power[:, 2:], actual_pv_power[:, 2:])
         self.log(f"{tag}/pv_mse", pv_mse_loss)
         self.log(f"{tag}/pv_nmae", pv_nmae_loss)
         self.log(f"{tag}/mse", pv_mse_loss)  # To allow for each comparison to older models.
 
         # GSP power loss:
-        gsp_mse_loss = F.mse_loss(predicted_gsp_power, actual_gsp_power)
-        gsp_nmae_loss = F.l1_loss(predicted_gsp_power, actual_gsp_power)
+        gsp_mse_loss = F.mse_loss(predicted_gsp_power[:, 2:], actual_gsp_power[:, 2:])
+        gsp_nmae_loss = F.l1_loss(predicted_gsp_power[:, 2:], actual_gsp_power[:, 2:])
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
         self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
 
@@ -506,7 +506,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.06: Include 1 hour of historical PV power + plots",
+    name="019.07: Include 1 hour of historical PV power. Only compute loss on last 2 timesteps",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
