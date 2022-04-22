@@ -14,7 +14,6 @@ class SimpleCallback(pl.Callback):
         outputs: Optional[dict[str, object]],
         batch: Any,
         batch_idx: int,
-        dataloader_idx: int,
         tag: str,
     ) -> None:
         """Called when the batch ends.
@@ -32,7 +31,6 @@ class SimpleCallback(pl.Callback):
         outputs: Optional[dict[str, object]],
         batch: Any,
         batch_idx: int,
-        dataloader_idx: int,
     ) -> None:
         self._on_batch_end(
             trainer=trainer,
@@ -40,7 +38,6 @@ class SimpleCallback(pl.Callback):
             outputs=outputs,
             batch=batch,
             batch_idx=batch_idx,
-            dataloader_idx=dataloader_idx,
             tag="train",
         )
 
@@ -51,7 +48,6 @@ class SimpleCallback(pl.Callback):
         outputs: Optional[dict[str, object]],
         batch: Any,
         batch_idx: int,
-        dataloader_idx: int,
     ) -> None:
         self._on_batch_end(
             trainer=trainer,
@@ -59,6 +55,5 @@ class SimpleCallback(pl.Callback):
             outputs=outputs,
             batch=batch,
             batch_idx=batch_idx,
-            dataloader_idx=dataloader_idx,
             tag="validation",
         )

@@ -1,7 +1,7 @@
 # General imports
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 import einops
 
@@ -190,25 +190,57 @@ class InferSingleTimestepOfPower(pl.LightningModule):
         }
 
 
-# See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
-@dataclass(eq=False)
-class TrainInferSingleTimestepOfPower(pl.LightningModule):
-    def __post_init__(self):
-        super().__init__()
-        self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
-            "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
-        )
+def get_multi_timestep_prediction(
+    model: nn.Module,
+    batch: dict[BatchKey, torch.Tensor],
+    start_idxs_5_min: Iterable[int],
+) -> dict[str, torch.Tensor]:
+    predicted_pv_powers = []
+    predicted_gsp_powers = []
+    actual_gsp_powers = []
+    gsp_times_utc = []
+    for start_idx_5_min in start_idxs_5_min:
+        out = model.forward(batch, start_idx_5_min=start_idx_5_min)
+        predicted_pv_powers.append(out["pv_out"])
+        predicted_gsp_powers.append(out["gsp_out"][:, :, 0])
+        gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
+        actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
+        actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
+        actual_gsp_powers.append(actual_gsp_power)
+        gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
+        gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
+        gsp_times_utc.append(gsp_time_utc)
 
-        # Do this at the end of __post_init__ to capture model topology to wandb:
-        self.save_hyperparameters()
+    predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
+    predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
+    actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
+    gsp_time_utc = torch.concat(gsp_times_utc, dim=1)
 
-    def forward(
-        self, x: dict[BatchKey, torch.Tensor], start_idx_5_min: Optional[int] = None
-    ) -> dict[str, torch.Tensor]:
-        return self.infer_single_timestep_of_power(x=x, start_idx_5_min=start_idx_5_min)
+    del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers, gsp_times_utc
+    predicted_pv_power = einops.rearrange(
+        predicted_pv_power,
+        "example n_pv_systems time -> example time n_pv_systems",
+        n_pv_systems=8,  # sanity check!
+    )
+    return dict(
+        predicted_pv_power=predicted_pv_power,
+        predicted_gsp_power=predicted_gsp_power,
+        actual_gsp_power=actual_gsp_power,
+        gsp_time_utc=gsp_time_utc,
+    )
 
+
+class TrainOrValidationMixIn:
     def _training_or_validation_step(
-        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int, tag: str
+        self,
+        batch: dict[BatchKey, torch.Tensor],
+        batch_idx: int,
+        tag: str,
+        predicted_pv_power,
+        predicted_gsp_power,
+        actual_pv_power,
+        actual_gsp_power,
+        gsp_time_utc,
     ) -> dict[str, object]:
         """
         Args:
@@ -216,59 +248,7 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule):
             tag: Either "train" or "validation"
             batch_idx: The index of the batch.
         """
-        if tag == "validation":
-            assert not self.training
-            predicted_pv_powers = []
-            predicted_gsp_powers = []
-            actual_gsp_powers = []
-            gsp_times_utc = []
-            for start_idx_5_min in range(0, 22):
-                out = self.forward(batch, start_idx_5_min=start_idx_5_min)
-                predicted_pv_powers.append(out["pv_out"])
-                predicted_gsp_powers.append(out["gsp_out"][:, :, 0])
-                gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
-                actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
-                actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
-                actual_gsp_powers.append(actual_gsp_power)
-                gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
-                gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
-                gsp_times_utc.append(gsp_time_utc)
-
-            predicted_pv_power = torch.concat(predicted_pv_powers, dim=2)
-            predicted_gsp_power = torch.concat(predicted_gsp_powers, dim=1)
-            actual_gsp_power = torch.concat(actual_gsp_powers, dim=1)
-            gsp_time_utc = torch.concat(gsp_times_utc, dim=1)
-
-            del predicted_pv_powers, predicted_gsp_powers, actual_gsp_powers, gsp_times_utc
-            predicted_pv_power = einops.rearrange(
-                predicted_pv_power,
-                "example n_pv_systems time -> example time n_pv_systems",
-                n_pv_systems=8,  # sanity check!
-            )
-            actual_pv_power = batch[BatchKey.pv][:, 6:-3]  # example, time, n_pv_systems
-        else:
-            # Training
-            assert self.training
-            out = self.forward(batch)
-            # Select a single timestep of PV data:
-            start_idx_5_min = out["start_idx_5_min"]
-            actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx_5_min]
-            actual_pv_power = actual_pv_power.unsqueeze(1)  # Shape: (example, time=1, pv_systems)
-            predicted_pv_power = out["pv_out"]
-            predicted_pv_power = einops.rearrange(
-                predicted_pv_power,
-                "example n_pv_systems 1 -> example 1 n_pv_systems",
-                n_pv_systems=actual_pv_power.shape[2],  # sanity check!
-            )
-            # Select a single timestep of GSP data:
-            gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
-            actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
-            actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
-            predicted_gsp_power = out["gsp_out"][:, :, 0]  # Shape: (example, time=1)
-            gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
-            gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
-
-        # Mask actual PV power:
+        # Set PV power to zero for missing PV systems:
         actual_pv_power = torch.where(
             batch[BatchKey.pv_mask].unsqueeze(1),
             actual_pv_power,
@@ -304,15 +284,71 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule):
             "predicted_pv_power": predicted_pv_power,
         }
 
+
+# See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
+@dataclass(eq=False)
+class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn):
+    def __post_init__(self):
+        super().__init__()
+        self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
+            "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
+        )
+
+        # Do this at the end of __post_init__ to capture model topology to wandb:
+        self.save_hyperparameters()
+
+    def forward(
+        self, x: dict[BatchKey, torch.Tensor], start_idx_5_min: Optional[int] = None
+    ) -> dict[str, torch.Tensor]:
+        return self.infer_single_timestep_of_power(x=x, start_idx_5_min=start_idx_5_min)
+
     def training_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
-        return self._training_or_validation_step(batch=batch, batch_idx=batch_idx, tag="train")
+        """Train on a single (random) timestep per example."""
+        out = self.forward(batch)
+        start_idx_5_min = out["start_idx_5_min"]
+        actual_pv_power = batch[BatchKey.pv][:, 6 + start_idx_5_min]
+        actual_pv_power = actual_pv_power.unsqueeze(1)  # Shape: (example, time=1, pv_systems)
+        predicted_pv_power = out["pv_out"]
+        predicted_pv_power = einops.rearrange(
+            predicted_pv_power,
+            "example n_pv_systems 1 -> example 1 n_pv_systems",
+            n_pv_systems=actual_pv_power.shape[2],  # sanity check!
+        )
+        # Select a single timestep of GSP data:
+        gsp_time_idx_30_min = out["gsp_time_idx_30_min"]
+        actual_gsp_power = batch[BatchKey.gsp][:, gsp_time_idx_30_min]  # Shape: (example)
+        actual_gsp_power = actual_gsp_power.unsqueeze(1)  # Shape: (example, time=1)
+        predicted_gsp_power = out["gsp_out"][:, :, 0]  # Shape: (example, time=1)
+        gsp_time_utc = batch[BatchKey.gsp_time_utc][:, gsp_time_idx_30_min]
+        gsp_time_utc = gsp_time_utc.unsqueeze(1)  # Shape: (example, time=1)
+        return self._training_or_validation_step(
+            batch=batch,
+            batch_idx=batch_idx,
+            tag="train",
+            predicted_pv_power=predicted_pv_power,
+            predicted_gsp_power=predicted_gsp_power,
+            actual_pv_power=actual_pv_power,
+            actual_gsp_power=actual_gsp_power,
+            gsp_time_utc=gsp_time_utc,
+        )
 
     def validation_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
-        return self._training_or_validation_step(batch=batch, batch_idx=batch_idx, tag="validation")
+        """Validate on multiple timesteps."""
+        multi_timestep_prediction = get_multi_timestep_prediction(
+            model=self, batch=batch, start_idxs_5_min=range(0, 22)
+        )
+        actual_pv_power = batch[BatchKey.pv][:, 6:-3]  # example, time, n_pv_systems
+        return self._training_or_validation_step(
+            batch=batch,
+            batch_idx=batch_idx,
+            tag="validation",
+            actual_pv_power=actual_pv_power,
+            **multi_timestep_prediction,
+        )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
@@ -322,7 +358,7 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule):
 model = TrainInferSingleTimestepOfPower()
 
 wandb_logger = WandbLogger(
-    name="019.01: Load from checkpoint",
+    name="019.02: Refactor",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
