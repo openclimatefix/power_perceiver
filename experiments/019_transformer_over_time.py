@@ -270,6 +270,10 @@ class TrainOrValidationMixIn:
         )
 
         # PV power loss:
+        # TODO: Fix this hack `[:, 2:]` when pre-training the "images to power" model!
+        assert (
+            predicted_pv_power.shape[1] == 4
+        ), "TODO: Fix this hack `[:, 2:]` when pre-training the 'images to power' model!"
         pv_mse_loss = F.mse_loss(predicted_pv_power[:, 2:], actual_pv_power[:, 2:])
         pv_nmae_loss = F.l1_loss(predicted_pv_power[:, 2:], actual_pv_power[:, 2:])
         self.log(f"{tag}/pv_mse", pv_mse_loss)
