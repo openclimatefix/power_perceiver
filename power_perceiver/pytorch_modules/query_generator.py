@@ -22,7 +22,12 @@ class PVQueryGenerator(nn.Module):
         super().__init__()
         self.pv_system_id_embedding = pv_system_id_embedding
 
-    def forward(self, x: dict[BatchKey, torch.Tensor], start_idx_5_min: int = 0) -> torch.Tensor:
+    def forward(
+        self,
+        x: dict[BatchKey, torch.Tensor],
+        start_idx_5_min: int = 0,
+        num_timesteps_of_pv_power: int = 0,
+    ) -> torch.Tensor:
         """The returned tensor is of shape (example, n_pv_systems, query_dim)"""
 
         y_fourier = x[BatchKey.pv_y_osgb_fourier]  # (example, n_pv_systems, fourier_features)
@@ -71,6 +76,15 @@ class PVQueryGenerator(nn.Module):
             ),
             dim=2,
         )
+
+        if num_timesteps_of_pv_power > 0:
+            pv_power = x[BatchKey.pv]  # (batch_size, time, n_pv_systems)
+            pv_power_start_idx = time_idx_5_min - 6  # Include the last half an hour.
+            pv_power = pv_power[:, pv_power_start_idx:time_idx_5_min]
+            pv_power = einops.rearrange(
+                pv_power, "example time n_pv_systems -> example n_pv_systems time"
+            )
+            pv_system_query = torch.concat((pv_system_query, pv_power), dim=2)
 
         # Missing PV systems are represented as NaN in the fourier features. Fill these with zeros.
         # (We do this because we can't mask the *query*. Instead, we'll ignore missing PV

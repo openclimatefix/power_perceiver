@@ -382,7 +382,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
     num_heads: int = 12
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 4
+    num_latent_transformer_encoders: int = 2
 
     def __post_init__(self):
         super().__init__()
@@ -413,10 +413,13 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+        START_IDX_5_MIN = 3
+        END_IDX_5_MIN = 22
+        STEP_5_MIN = 6  # Every half hour.
         multi_timestep_prediction = get_multi_timestep_prediction(
             model=self.infer_single_timestep_of_power,
             batch=x,
-            start_idxs_5_min=range(3, 22, 6),  # Every half hour.
+            start_idxs_5_min=range(START_IDX_5_MIN, END_IDX_5_MIN, STEP_5_MIN),
         )
         """
         pv_attn_out=pv_attn_out,  # Shape: (example, time, n_pv_systems, d_model)
@@ -436,8 +439,18 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         num_pv_elements = pv_attn_out.shape[1]
         gsp_attn_out = multi_timestep_prediction["gsp_attn_out"]
 
-        # TODO: Add in historical PV :)
-        time_attn_in = torch.concat((pv_attn_out, gsp_attn_out), dim=1)
+        # Historical PV
+        pv_query_generator = self.infer_single_timestep_of_power.pv_query_generator
+        historical_pv = []
+        for start_idx_5_min in range(START_IDX_5_MIN, START_IDX_5_MIN + 13, STEP_5_MIN):
+            historical_pv.append(
+                pv_query_generator(
+                    x=x, start_idx_5_min=start_idx_5_min, num_timesteps_of_pv_power=STEP_5_MIN
+                )
+            )
+
+        time_attn_in = [pv_attn_out, gsp_attn_out] + historical_pv
+        time_attn_in = torch.concat(time_attn_in, dim=1)
         time_attn_out = self.time_transformer_encoder(time_attn_in)
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
@@ -453,8 +466,12 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 
         # Shape: (example time n_pv_systems)
         multi_timestep_prediction["predicted_pv_power"] = predicted_pv_power
+
+        # GSP power
+        gsp_end_idx = num_pv_elements + 1
+        predicted_gsp_power = power_out[:, num_pv_elements:gsp_end_idx, 0]
         # Shape: (example, time)
-        multi_timestep_prediction["predicted_gsp_power"] = power_out[:, num_pv_elements:, 0]
+        multi_timestep_prediction["predicted_gsp_power"] = predicted_gsp_power
 
         return multi_timestep_prediction
 
@@ -487,7 +504,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.04: Implement Time Transformer",
+    name="019.05: Include 1 hour of historical PV power",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
