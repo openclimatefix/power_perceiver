@@ -39,7 +39,7 @@ DATA_PATH = Path(
 )
 assert DATA_PATH.exists()
 
-D_MODEL = 192
+D_MODEL = 96
 
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
@@ -514,7 +514,10 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.15: d_model=192 num_timesteps=4 start_idx_5_min_offset=0",
+    name=(
+        "019.16: 2 images straddling PV. d_model=96 num_timesteps=2"
+        " start_idx_5_min_offset=4 interval=4"
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -524,7 +527,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[5],
+    gpus=[1],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

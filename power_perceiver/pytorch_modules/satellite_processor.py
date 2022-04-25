@@ -18,9 +18,9 @@ class HRVSatelliteProcessor(nn.Module):
         self,
         x: dict[BatchKey, torch.Tensor],
         start_idx_5_min: int = 0,
-        start_idx_5_min_offset: int = 0,
-        num_timesteps: int = 4,
-        interval: int = 3,
+        start_idx_5_min_offset: int = 4,
+        num_timesteps: int = 2,
+        interval: int = 4,
         satellite_only: bool = False,
     ) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
