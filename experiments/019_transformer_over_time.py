@@ -100,7 +100,7 @@ def maybe_pad_with_zeros(tensor: torch.Tensor, requested_dim: int) -> torch.Tens
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
-class InferSingleTimestepOfPower(pl.LightningModule):
+class SatelliteTransformer(pl.LightningModule):
     """Infers a single timestep of PV power and GSP power at a time.
 
     Currently just uses HRV satellite imagery as the input. In the near future it could also
@@ -306,10 +306,10 @@ class TrainOrValidationMixIn:
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
-class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn):
+class TrainSatelliteTransformer(pl.LightningModule, TrainOrValidationMixIn):
     def __post_init__(self):
         super().__init__()
-        self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
+        self.satellite_transformer = SatelliteTransformer.load_from_checkpoint(
             "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
         )
 
@@ -319,7 +319,7 @@ class TrainInferSingleTimestepOfPower(pl.LightningModule, TrainOrValidationMixIn
     def forward(
         self, x: dict[BatchKey, torch.Tensor], start_idx_5_min: Optional[int] = None
     ) -> dict[str, torch.Tensor]:
-        return self.infer_single_timestep_of_power(x=x, start_idx_5_min=start_idx_5_min)
+        return self.satellite_transformer(x=x, start_idx_5_min=start_idx_5_min)
 
     def training_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
@@ -396,15 +396,15 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         super().__init__()
         if self.train_infer_single_timestep_from_scratch:
             assert not self.stop_gradients_upstream_of_time_transformer
-            self.infer_single_timestep_of_power = InferSingleTimestepOfPower()
+            self.satellite_transformer = SatelliteTransformer()
         else:
-            self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
+            self.satellite_transformer = SatelliteTransformer.load_from_checkpoint(
                 "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
             )
 
-        assert self.d_model == self.infer_single_timestep_of_power.d_model
+        assert self.d_model == self.satellite_transformer.d_model
 
-        self.time_transformer_encoder = MultiLayerTransformerEncoder(
+        self.time_transformer = MultiLayerTransformerEncoder(
             d_model=self.d_model,
             num_heads=self.num_heads,
             dropout=self.dropout,
@@ -429,7 +429,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         END_IDX_5_MIN = 22
         STEP_5_MIN = 6  # Every half hour.
         multi_timestep_prediction = get_multi_timestep_prediction(
-            model=self.infer_single_timestep_of_power,
+            model=self.satellite_transformer,
             batch=x,
             start_idxs_5_min=range(START_IDX_5_MIN, END_IDX_5_MIN, STEP_5_MIN),
         )
@@ -444,7 +444,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         gsp_attn_out = multi_timestep_prediction["gsp_attn_out"]
 
         # Get historical PV
-        pv_query_generator = self.infer_single_timestep_of_power.pv_query_generator
+        pv_query_generator = self.satellite_transformer.pv_query_generator
         historical_pv = []
         for start_idx_5_min in range(START_IDX_5_MIN, START_IDX_5_MIN + 13, STEP_5_MIN):
             hist_pv = pv_query_generator(
@@ -459,7 +459,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         if self.stop_gradients_upstream_of_time_transformer:
             # Detach so we don't train the previous model:
             time_attn_in = time_attn_in.detach()
-        time_attn_out = self.time_transformer_encoder(time_attn_in)
+        time_attn_out = self.time_transformer(time_attn_in)
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
