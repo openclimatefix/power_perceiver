@@ -527,7 +527,7 @@ trainer = pl.Trainer(
     logger=wandb_logger,
     callbacks=[
         LogTimeseriesPlots(),
-        LogTSNEPlot(query_generator_name="infer_single_timestep_of_power.pv_query_generator"),
+        LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
     ],
 )
 
