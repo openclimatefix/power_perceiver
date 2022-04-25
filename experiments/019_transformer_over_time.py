@@ -383,7 +383,7 @@ class TrainSatelliteTransformer(pl.LightningModule, TrainOrValidationMixIn):
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule, TrainOrValidationMixIn):
-    d_model: int = 96  # Must be the same as for InferSingleTimestepOfPower
+    d_model: int = 48  # Must be the same as for InferSingleTimestepOfPower
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
     dropout: float = 0.1
@@ -512,7 +512,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.11: 1 timestep into SatelliteTransformer. Train everything from scratch",
+    name="019.12: d_model=48",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -522,7 +522,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
