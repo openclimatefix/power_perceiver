@@ -389,12 +389,18 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 2
+    stop_gradients_upstream_of_time_transformer: bool = False
+    train_infer_single_timestep_from_scratch: bool = True
 
     def __post_init__(self):
         super().__init__()
-        self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
-            "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
-        )
+        if self.train_infer_single_timestep_from_scratch:
+            assert not self.stop_gradients_upstream_of_time_transformer
+            self.infer_single_timestep_of_power = InferSingleTimestepOfPower()
+        else:
+            self.infer_single_timestep_of_power = InferSingleTimestepOfPower.load_from_checkpoint(
+                "/home/jack/dev/ocf/power_perceiver/experiments/model_checkpoints/018.13/model.ckpt"
+            )
 
         assert self.d_model == self.infer_single_timestep_of_power.d_model
 
@@ -458,8 +464,9 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = [pv_attn_out, gsp_attn_out] + historical_pv
         time_attn_in = torch.concat(time_attn_in, dim=1)
-        # Detach so we don't train the previous model:
-        time_attn_in = time_attn_in.detach()
+        if self.stop_gradients_upstream_of_time_transformer:
+            # Detach so we don't train the previous model:
+            time_attn_in = time_attn_in.detach()
         time_attn_out = self.time_transformer_encoder(time_attn_in)
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
@@ -513,7 +520,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.09: Dropout=0.1, don't train upstream model",
+    name="019.10: Train everything from scratch",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -523,7 +530,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
