@@ -433,14 +433,6 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
             batch=x,
             start_idxs_5_min=range(START_IDX_5_MIN, END_IDX_5_MIN, STEP_5_MIN),
         )
-        """
-        pv_attn_out=pv_attn_out,  # Shape: (example, time, n_pv_systems, d_model)
-        gsp_attn_out=gsp_attn_out,  # Shape: (example, time, d_model)
-        predicted_pv_power=predicted_pv_power,  # Shape: (example, time, n_pv_systems)
-        predicted_gsp_power=predicted_gsp_power,  # Shape: (example, time)
-        actual_gsp_power=actual_gsp_power,  # Shape: (example, time)
-        gsp_time_utc=gsp_time_utc,  # Shape: (example, time)
-        """
 
         pv_attn_out = multi_timestep_prediction["pv_attn_out"]
         n_timesteps, n_pv_systems = pv_attn_out.shape[1:3]
@@ -520,7 +512,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.10: Train everything from scratch",
+    name="019.11: 1 timestep into SatelliteTransformer. Train everything from scratch",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -530,7 +522,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[4],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
