@@ -39,6 +39,8 @@ DATA_PATH = Path(
 )
 assert DATA_PATH.exists()
 
+D_MODEL = 192
+
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
     assert tag in ["train", "validation"]
@@ -110,7 +112,7 @@ class SatelliteTransformer(pl.LightningModule):
     # Params for Perceiver
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
-    d_model: int = 96
+    d_model: int = D_MODEL
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
     dropout: float = 0.0
@@ -383,7 +385,7 @@ class TrainSatelliteTransformer(pl.LightningModule, TrainOrValidationMixIn):
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule, TrainOrValidationMixIn):
-    d_model: int = 96  # Must be the same as for InferSingleTimestepOfPower
+    d_model: int = D_MODEL  # Must be the same as for InferSingleTimestepOfPower
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
     dropout: float = 0.1
@@ -512,7 +514,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.14: d_model=96 num_timesteps=2 start_idx_5_min_offset=3",
+    name="019.15: d_model=192 num_timesteps=4 start_idx_5_min_offset=0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -522,7 +524,7 @@ wandb_logger = WandbLogger(
 wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[5],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
