@@ -445,7 +445,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
         num_pv_elements = pv_attn_out.shape[1]
         gsp_attn_out = multi_timestep_prediction["gsp_attn_out"]
 
-        # Historical PV
+        # Get historical PV
         pv_query_generator = self.infer_single_timestep_of_power.pv_query_generator
         historical_pv = []
         for start_idx_5_min in range(START_IDX_5_MIN, START_IDX_5_MIN + 13, STEP_5_MIN):
@@ -455,8 +455,11 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
             hist_pv = maybe_pad_with_zeros(hist_pv, requested_dim=self.d_model)
             historical_pv.append(hist_pv)
 
+        # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = [pv_attn_out, gsp_attn_out] + historical_pv
         time_attn_in = torch.concat(time_attn_in, dim=1)
+        # Detach so we don't train the previous model:
+        time_attn_in = time_attn_in.detach()
         time_attn_out = self.time_transformer_encoder(time_attn_in)
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
@@ -510,7 +513,7 @@ class FullModel(pl.LightningModule, TrainOrValidationMixIn):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="019.08: Dropout=0.1",
+    name="019.09: Dropout=0.1, don't train upstream model",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
