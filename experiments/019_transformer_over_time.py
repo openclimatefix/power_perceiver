@@ -110,7 +110,7 @@ class SatelliteTransformer(pl.LightningModule):
     # Params for Perceiver
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
-    d_model: int = 96
+    d_model: int = 48
     pv_system_id_embedding_dim: int = 16
     num_heads: int = 12
     dropout: float = 0.0
