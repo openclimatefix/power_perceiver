@@ -18,7 +18,7 @@ class HRVSatelliteProcessor(nn.Module):
         self,
         x: dict[BatchKey, torch.Tensor],
         start_idx_5_min: int = 0,
-        start_idx_5_min_offset: int = 12,
+        start_idx_5_min_offset: int = 6,
         num_timesteps: int = 1,
         interval: int = 3,
         satellite_only: bool = False,
