@@ -31,7 +31,7 @@ class HRVSatelliteProcessor(nn.Module):
             tensor of shape (example, (y * x), (time * feature)).
         """
         # Ignore the "channels" dimension because HRV is just a single channel:
-        hrvsatellite = x[BatchKey.hrvsatellite][:, :, 0]
+        hrvsatellite = x[BatchKey.hrvsatellite][:, 0]
 
         # Get position encodings:
         y_fourier = x[BatchKey.hrvsatellite_y_osgb_fourier]
@@ -78,7 +78,7 @@ class HRVSatelliteProcessor(nn.Module):
                 surface_height,
                 hrvsatellite,
             ),
-            dim=-1,
+            dim=3,
         )
 
         # Reshape so each location is seen as a separate element.
