@@ -85,6 +85,11 @@ class BatchKey(Enum):
     gsp_x_osgb_fourier = auto()
     gsp_time_utc_fourier = auto()  # (batch_size, time, n_fourier_features)
 
+    # -------------- GSP5Min ----------------------------------------
+    gsp_5_min = auto()  # shape: (batch_size, time)
+    gsp_5_min_time_utc = auto()  # shape: (batch_size, time)
+    gsp_5_min_time_utc_fourier = auto()  # shape: (batch_size, time, n_fourier_features)
+
     # -------------- SUN --------------------------------------------
     # shape = (batch_size, n_timesteps)
     solar_azimuth = auto()

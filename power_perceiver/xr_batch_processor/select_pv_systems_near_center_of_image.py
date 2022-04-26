@@ -34,10 +34,9 @@ class SelectPVSystemsNearCenterOfImage:
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         image_dataset = xr_batch[self.image_data_loader_class]
         pv_dataset = xr_batch[PV]
-        batch_size = image_dataset.dims["example"]
         pv_id_indexes_for_all_examples = []
         # If this loop is too slow then it may be possible to vectorise this code.
-        for example_i in range(batch_size):
+        for example_i in image_dataset.example:
             # Get inner rectangle for image dataset:
             image_dataset_for_example = image_dataset.sel(example=example_i)
             inner_rectangle = self._get_maximal_regular_inner_rectangle(image_dataset_for_example)
