@@ -9,6 +9,7 @@ PV_SYSTEM_AXIS = 2
 # The index into the time dimension which marks the most recent observation.
 T0_IDX_5_MIN = 12
 T0_IDX_30_MIN = 1
+NUM_5_MIN_TIMESTEPS = 31
 
 
 class BatchKey(Enum):

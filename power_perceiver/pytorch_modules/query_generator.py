@@ -4,7 +4,7 @@ import einops
 import torch
 from torch import nn
 
-from power_perceiver.consts import T0_IDX_5_MIN, BatchKey
+from power_perceiver.consts import NUM_5_MIN_TIMESTEPS, T0_IDX_5_MIN, BatchKey
 from power_perceiver.utils import assert_num_dims
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -50,6 +50,11 @@ class PVQueryGenerator(nn.Module):
         time_fourier = x[BatchKey.pv_time_utc_fourier]
         if for_satellite_transformer:
             assert_num_dims(time_fourier, 2)
+            y_fourier = torch.repeat_interleave(y_fourier, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
+            x_fourier = torch.repeat_interleave(x_fourier, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
+            pv_system_embedding = torch.repeat_interleave(
+                pv_system_embedding, repeats=NUM_5_MIN_TIMESTEPS, dim=0
+            )
         else:
             # shape: (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
@@ -149,6 +154,7 @@ class GSPQueryGenerator(nn.Module):
             time_fourier = einops.rearrange(time_fourier, "example features -> example 1 features")
             # There might be NaNs in time_fourier.
             # NaNs will be masked in `SatelliteTransformer.forward`.
+            gsp_query = torch.repeat_interleave(gsp_query, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
         else:
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
