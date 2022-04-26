@@ -250,6 +250,10 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+        # Reduce the number of examples, so it fits into GPU RAM:
+        for batch_key, tensor in x.items():
+            x[batch_key] = tensor[:16]
+
         sat_trans_out = self.satellite_transformer(x)
         pv_attn_out = sat_trans_out["pv_attn_out"]
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
