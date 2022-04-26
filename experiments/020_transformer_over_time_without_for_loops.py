@@ -354,14 +354,14 @@ class FullModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="020.00: No loops! Implement design in issue #54",
+    name="020.01: LR=1e-4",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -371,7 +371,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
