@@ -1,4 +1,5 @@
 # General imports
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -152,6 +153,7 @@ class SatelliteTransformer(nn.Module):
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
+        x = deepcopy(x)  # TODO: Fix this hack.
         for batch_key in (
             BatchKey.gsp_5_min_time_utc_fourier,
             BatchKey.pv_time_utc_fourier,
