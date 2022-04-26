@@ -270,6 +270,7 @@ class FullModel(pl.LightningModule):
         # Get GSP query
         gsp_query_generator = self.satellite_transformer.gsp_query_generator
         gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
+        gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = (pv_attn_out, gsp_attn_out, historical_pv, gsp_query)
