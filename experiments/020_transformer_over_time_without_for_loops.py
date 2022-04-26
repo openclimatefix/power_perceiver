@@ -43,7 +43,7 @@ DATA_PATH = Path(
 )
 assert DATA_PATH.exists()
 
-D_MODEL = 64
+D_MODEL = 48
 
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
