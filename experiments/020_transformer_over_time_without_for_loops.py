@@ -15,6 +15,8 @@ from pytorch_lightning.loggers import WandbLogger
 from torch import nn
 from torch.utils import data
 
+from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
+
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import T0_IDX_5_MIN, T0_IDX_30_MIN, BatchKey
@@ -31,9 +33,6 @@ from power_perceiver.xr_batch_processor import (
     ReduceNumPVSystems,
     SelectPVSystemsNearCenterOfImage,
 )
-
-# from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
-
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
@@ -376,7 +375,7 @@ trainer = pl.Trainer(
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
-        # LogTimeseriesPlots(),
+        LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
     ],
 )
