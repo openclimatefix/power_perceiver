@@ -163,9 +163,9 @@ class SatelliteTransformer(nn.Module):
             x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")
 
         # Process satellite data and queries:
-        satellite_data = self.hrvsatellite_processor(x, for_satellite_transformer=True)
         pv_query = self.pv_query_generator(x, for_satellite_transformer=True)
         gsp_query = self.gsp_query_generator(x, for_satellite_transformer=True)
+        satellite_data = self.hrvsatellite_processor(x)
 
         # Pad with zeros if necessary to get up to self.d_model:
         pv_query = maybe_pad_with_zeros(pv_query, requested_dim=self.d_model)
