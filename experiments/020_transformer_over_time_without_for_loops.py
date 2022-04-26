@@ -178,7 +178,8 @@ class SatelliteTransformer(nn.Module):
                 torch.zeros_like(pv_query[:, :, 0]),
                 torch.isnan(gsp_query[:, :, -1]),  # The time fourier features are last in dim 2.
                 torch.zeros_like(satellite_data[:, :, 0]),
-            )
+            ),
+            dim=1,
         )
 
         # Now set NaN GSP queries to zero. They'll be ignored :)
