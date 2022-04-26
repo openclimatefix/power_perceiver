@@ -2,7 +2,7 @@ import numpy as np
 import xarray as xr
 
 from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyBatch
-from power_perceiver.utils import datetime64_to_int
+from power_perceiver.utils import datetime64_to_float
 
 SAT_MEAN = {
     "HRV": 236.13257536395903,
@@ -109,7 +109,7 @@ class HRVSatellite(DataLoader):
         batch[BatchKey.hrvsatellite] = hrvsatellite.values
 
         # Coordinates
-        batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_int(dataset["time_utc"].values)
+        batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(dataset["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
             (BatchKey.hrvsatellite_x_osgb, "x_osgb"),

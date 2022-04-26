@@ -7,7 +7,7 @@ import xarray as xr
 from power_perceiver.consts import BatchKey
 from power_perceiver.data_loader import GSP, DataLoader, HRVSatellite, XarrayBatch
 from power_perceiver.data_loader.data_loader import NumpyBatch
-from power_perceiver.utils import datetime64_to_int
+from power_perceiver.utils import datetime64_to_float
 
 
 class GSP5Min(DataLoader):
@@ -25,7 +25,7 @@ class GSP5Min(DataLoader):
         """
         batch: NumpyBatch = {}
         batch[BatchKey.gsp_5_min] = dataset["power_normalised"].values
-        batch[BatchKey.gsp_5_min_time_utc] = datetime64_to_int(dataset["time_utc"].values)
+        batch[BatchKey.gsp_5_min_time_utc] = datetime64_to_float(dataset["time_utc"].values)
         return batch
 
 

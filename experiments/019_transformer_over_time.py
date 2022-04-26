@@ -515,7 +515,7 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "019.16: 2 images straddling PV. d_model=96 num_timesteps=2"
+        "020.00: 2 images straddling PV. d_model=96 num_timesteps=2"
         " start_idx_5_min_offset=4 interval=4"
     ),
     project="power_perceiver",
@@ -524,10 +524,10 @@ wandb_logger = WandbLogger(
 )
 
 # log gradients, parameter histogram and model topology
-wandb_logger.watch(model, log="all")
+# wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[1],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

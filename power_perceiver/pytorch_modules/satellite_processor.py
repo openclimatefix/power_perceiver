@@ -5,6 +5,7 @@ import torch
 from torch import nn
 
 from power_perceiver.consts import BatchKey
+from power_perceiver.utils import assert_num_dims
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -14,15 +15,7 @@ class HRVSatelliteProcessor(nn.Module):
     def __post_init__(self):
         super().__init__()
 
-    def forward(
-        self,
-        x: dict[BatchKey, torch.Tensor],
-        start_idx_5_min: int = 0,
-        start_idx_5_min_offset: int = 4,
-        num_timesteps: int = 2,
-        interval: int = 4,
-        satellite_only: bool = False,
-    ) -> torch.Tensor:
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
 
         Args:
@@ -33,11 +26,6 @@ class HRVSatelliteProcessor(nn.Module):
                 hrvsatellite_surface_height
                 solar_azimuth
                 solar_elevation
-            start_idx_5_min: The index of the `t0` timestep.
-            num_timesteps: The number of timesteps to include.
-            interval: The interval (in number of timesteps) between each timestep.
-                For example, an interval of 3 would be 15 minutes.
-            satellite_only: If True, don't bother computing fourier features etc.
 
         Returns:
             tensor of shape (example, (y * x), (time * feature)).
@@ -45,41 +33,12 @@ class HRVSatelliteProcessor(nn.Module):
         # Ignore the "channels" dimension because HRV is just a single channel:
         hrvsatellite = x[BatchKey.hrvsatellite][:, :, 0]
 
-        # Select four timesteps at 15-minute intervals, starting at start_idx_5_min.
-        sat_start_idx = start_idx_5_min + start_idx_5_min_offset
-        sat_end_idx = sat_start_idx + ((num_timesteps - 1) * interval)
-        assert (
-            sat_end_idx < hrvsatellite.shape[1]
-        ), f"{sat_end_idx=} should be smaller than {hrvsatellite.shape[1]=}"
-        # +1 because indexing a range doesn't include the end point.
-        hrvsatellite = hrvsatellite[:, sat_start_idx : sat_end_idx + 1 : interval]
-        assert hrvsatellite.shape[1] == num_timesteps, (
-            f"{hrvsatellite.shape[1]=} != {num_timesteps=}."
-            f" {sat_start_idx=}, {sat_end_idx=}, {interval=}"
-        )
-
-        # Reshape so each timestep is concatenated into the `patch` dimension:
-        hrvsatellite = einops.rearrange(
-            hrvsatellite,
-            "example time y x feature -> example y x (time feature)",
-            time=num_timesteps,
-        )
-
-        if satellite_only:
-            # Reshape so each location is seen as a separate element.
-            return einops.rearrange(
-                hrvsatellite,
-                "example y x feature -> example (y x) feature",
-            )
-
         # Get position encodings:
         y_fourier = x[BatchKey.hrvsatellite_y_osgb_fourier]
         x_fourier = x[BatchKey.hrvsatellite_x_osgb_fourier]
         # y_fourier and x_fourier are now of shape (example, y, x, n_fourier_features).
 
-        time_fourier = x[BatchKey.hrvsatellite_time_utc_fourier]  # (example, time, n_features)
-        # Select the time encoding of the last timestep:
-        time_fourier = time_fourier[:, sat_end_idx]  # (example, n_fourier_features)
+        time_fourier = x[BatchKey.hrvsatellite_time_utc_fourier]  # (example, n_features)
         time_fourier = einops.repeat(
             time_fourier,
             "example features -> example y x features",
@@ -93,7 +52,7 @@ class HRVSatelliteProcessor(nn.Module):
         # Reshape solar features to shape: (example, y, x, 1):
         def _repeat_solar_feature_over_x_and_y(feature: torch.Tensor) -> torch.Tensor:
             # Select the last timestep:
-            feature = feature[:, sat_end_idx]
+            assert_num_dims(feature, 1)
             return einops.repeat(
                 feature,
                 "example -> example y x 1",

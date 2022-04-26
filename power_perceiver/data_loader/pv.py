@@ -4,7 +4,7 @@ import numpy as np
 import xarray as xr
 
 from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyBatch
-from power_perceiver.utils import datetime64_to_int
+from power_perceiver.utils import datetime64_to_float
 
 _log = logging.getLogger(__name__)
 
@@ -110,7 +110,7 @@ class PV(DataLoader):
         batch[BatchKey.pv_mask] = dataset["pv_mask"].values
 
         # Coordinates
-        batch[BatchKey.pv_time_utc] = datetime64_to_int(dataset["time_utc"].values)
+        batch[BatchKey.pv_time_utc] = datetime64_to_float(dataset["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.pv_x_osgb, "x_osgb"),
             (BatchKey.pv_y_osgb, "y_osgb"),
