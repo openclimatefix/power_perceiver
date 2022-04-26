@@ -176,7 +176,7 @@ class SatelliteTransformer(nn.Module):
         mask = torch.concat(
             (
                 torch.zeros_like(pv_query[:, :, 0]),
-                torch.isnan(x[BatchKey.gsp_5_min_time_utc_fourier][:, :, 0]),
+                torch.isnan(gsp_query[:, :, -1]),  # The time fourier features are last in dim 2.
                 torch.zeros_like(satellite_data[:, :, 0]),
             )
         )
