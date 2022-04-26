@@ -44,7 +44,8 @@ DATA_PATH = Path(
 )
 assert DATA_PATH.exists()
 
-D_MODEL = 48
+D_MODEL = 64
+N_HEADS = 16
 
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
@@ -120,7 +121,7 @@ class SatelliteTransformer(nn.Module):
     # Set d_model to be divisible by `num_heads`.
     d_model: int = D_MODEL
     pv_system_id_embedding_dim: int = 16
-    num_heads: int = 12
+    num_heads: int = N_HEADS
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
@@ -153,7 +154,8 @@ class SatelliteTransformer(nn.Module):
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
-        x = deepcopy(x)  # TODO: Fix this hack.
+        x = deepcopy(x)  # TODO: Fix this hack, which fixes the issue
+        # that our reshaping affects the time_transformer, too!
         for batch_key in (
             BatchKey.gsp_5_min_time_utc_fourier,
             BatchKey.pv_time_utc_fourier,
@@ -216,7 +218,7 @@ class SatelliteTransformer(nn.Module):
 class FullModel(pl.LightningModule):
     d_model: int = D_MODEL  # Must be the same as for SatelliteTransformer
     pv_system_id_embedding_dim: int = 16
-    num_heads: int = 12
+    num_heads: int = N_HEADS
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 2
