@@ -187,7 +187,7 @@ class SatelliteTransformer(nn.Module):
 
         # Prepare the attention input and run through the transformer_encoder:
         attn_input = torch.concat((pv_query, gsp_query, satellite_data), dim=1)
-        attn_output = attn_input + self.transformer_encoder(attn_input, mask=mask)
+        attn_output = attn_input + self.transformer_encoder(attn_input, src_key_padding_mask=mask)
 
         # Reshape to (example time element d_model):
         attn_output = einops.rearrange(
