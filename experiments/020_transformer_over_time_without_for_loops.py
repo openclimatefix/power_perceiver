@@ -183,7 +183,7 @@ class SatelliteTransformer(nn.Module):
         )
 
         # Now set NaN GSP queries to zero. They'll be ignored :)
-        gsp_query = torch.nan_to_num(gsp_query, num=0)
+        gsp_query = torch.nan_to_num(gsp_query, nan=0)
 
         # Prepare the attention input and run through the transformer_encoder:
         attn_input = torch.concat((pv_query, gsp_query, satellite_data), dim=1)
