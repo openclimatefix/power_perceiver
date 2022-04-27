@@ -362,8 +362,12 @@ class FullModel(pl.LightningModule):
         total_mse_loss = pv_mse_loss + gsp_mse_loss
         self.log(f"{tag}/total_mse", total_mse_loss)
 
+        # Total NMAE loss:
+        total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
+        self.log(f"{tag}/total_nmae", total_nmae_loss)
+
         return {
-            "loss": total_mse_loss,
+            "loss": total_nmae_loss,
             "pv_mse_loss": pv_mse_loss,
             "gsp_mse_loss": gsp_mse_loss,
             "pv_nmae_loss": pv_nmae_loss,
@@ -383,7 +387,10 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="020.05: D_MODEL=128. 4 TT layers. Concat hist PV. 12 timesteps during training. LR=5e-5",
+    name=(
+        "020.06: NMAE objective. D_MODEL=128. 4 TT layers. Concat hist PV."
+        " 12 timesteps during training. LR=5e-5"
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -393,7 +400,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[5],
+    gpus=[1],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

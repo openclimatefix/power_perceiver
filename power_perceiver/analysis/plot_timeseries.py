@@ -77,7 +77,7 @@ class LogTimeseriesPlots(SimpleCallback):
             outputs: The output from Model.training_step
             tag: train or validation
         """
-        if tag == "validation" and batch_idx < 4:
+        if batch_idx < 4:
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
             actual_pv_power = outputs["actual_pv_power"].cpu().detach()
             # TODO: Generate pv_datetimes upstream and pass it into this function, just like
