@@ -227,7 +227,7 @@ class SatelliteTransformer(nn.Module):
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    d_model: int = D_MODEL + 1  # + 1 for historical PV
+    d_model: int = D_MODEL + N_HEADS  # + N_HEADS for historical PV
     pv_system_id_embedding_dim: int = 16
     num_heads: int = N_HEADS
     dropout: float = 0.1
@@ -275,6 +275,7 @@ class FullModel(pl.LightningModule):
         n_timesteps, n_pv_systems = pv_attn_out.shape[1:3]
         REARRANGE_STR = "example time n_pv_systems d_model -> example (time n_pv_systems) d_model"
         pv_attn_out = einops.rearrange(pv_attn_out, REARRANGE_STR)
+        pv_attn_out = maybe_pad_with_zeros(pv_attn_out, requested_dim=self.d_model)
         gsp_attn_out = einops.rearrange(gsp_attn_out, REARRANGE_STR, n_pv_systems=1)
         gsp_attn_out = maybe_pad_with_zeros(gsp_attn_out, requested_dim=self.d_model)
         n_pv_elements = pv_attn_out.shape[1]
