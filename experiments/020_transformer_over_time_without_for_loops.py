@@ -371,7 +371,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="020.03: 6 timesteps during training. LR=5e-5",
+    name="020.04: 12 timesteps during training. LR=5e-5",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -381,7 +381,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

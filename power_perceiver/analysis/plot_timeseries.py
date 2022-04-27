@@ -77,11 +77,6 @@ class LogTimeseriesPlots(SimpleCallback):
             outputs: The output from Model.training_step
             tag: train or validation
         """
-        if tag == "train":
-            # We currently only train on a single timestep at a time, so not much point
-            # plotting a timeseries!
-            return
-
         if tag == "validation" and batch_idx < 4:
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
             actual_pv_power = outputs["actual_pv_power"].cpu().detach()
