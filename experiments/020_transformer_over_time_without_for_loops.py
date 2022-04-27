@@ -61,7 +61,7 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
         AlignGSPTo5Min(),
     ]
     if tag == "train":
-        xr_batch_processors.append(ReduceNumTimesteps(keys=(HRVSatellite, PV, GSP5Min)))
+        xr_batch_processors.append(ReduceNumTimesteps(keys=(HRVSatellite, PV, GSP5Min, Sun)))
 
     dataset = NowcastingDataset(
         data_path=data_path,
