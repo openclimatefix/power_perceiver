@@ -45,7 +45,7 @@ DATA_PATH = Path(
 )
 assert DATA_PATH.exists()
 
-D_MODEL = 64
+D_MODEL = 128
 N_HEADS = 16
 T0_IDX_5_MIN_TRAINING = 3
 T0_IDX_5_MIN_VALIDATION = 12
@@ -232,7 +232,7 @@ class FullModel(pl.LightningModule):
     num_heads: int = N_HEADS
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 2
+    num_latent_transformer_encoders: int = 4
 
     def __post_init__(self):
         super().__init__()
@@ -383,7 +383,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="020.05: Concat hist PV. 12 timesteps during training. LR=5e-5",
+    name="020.05: D_MODEL=128. 4 TT layers. Concat hist PV. 12 timesteps during training. LR=5e-5",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
