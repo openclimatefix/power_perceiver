@@ -55,7 +55,7 @@ class PVQueryGenerator(nn.Module):
         if for_satellite_transformer:
             # time_fourier shape: (example features)
             assert_num_dims(time_fourier, 2)
-            n_repeats = time_fourier.shape[0] / y_fourier.shape[0]
+            n_repeats = int(time_fourier.shape[0] / y_fourier.shape[0])
             y_fourier = torch.repeat_interleave(y_fourier, repeats=n_repeats, dim=0)
             x_fourier = torch.repeat_interleave(x_fourier, repeats=n_repeats, dim=0)
             pv_system_embedding = torch.repeat_interleave(
@@ -160,7 +160,7 @@ class GSPQueryGenerator(nn.Module):
             time_fourier = einops.rearrange(time_fourier, "example features -> example 1 features")
             # There might be NaNs in time_fourier.
             # NaNs will be masked in `SatelliteTransformer.forward`.
-            n_repeats = time_fourier.shape[0] / y_fourier.shape[0]
+            n_repeats = int(time_fourier.shape[0] / y_fourier.shape[0])
             gsp_query = torch.repeat_interleave(gsp_query, repeats=n_repeats, dim=0)
         else:
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)

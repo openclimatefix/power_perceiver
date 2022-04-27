@@ -49,7 +49,7 @@ class HRVSatelliteProcessor(nn.Module):
         surface_height = x[BatchKey.hrvsatellite_surface_height]  # (example, y, x)
         surface_height = surface_height.unsqueeze(-1)  # (example, y, x, 1)
 
-        n_repeats = time_fourier.shape[0] / y_fourier.shape[0]
+        n_repeats = int(time_fourier.shape[0] / y_fourier.shape[0])
         y_fourier = torch.repeat_interleave(y_fourier, repeats=n_repeats, dim=0)
         x_fourier = torch.repeat_interleave(x_fourier, repeats=n_repeats, dim=0)
         surface_height = torch.repeat_interleave(surface_height, repeats=n_repeats, dim=0)
