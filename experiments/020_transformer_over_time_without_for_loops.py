@@ -19,7 +19,7 @@ from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
-from power_perceiver.consts import T0_IDX_5_MIN, T0_IDX_30_MIN, BatchKey
+from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
 from power_perceiver.data_loader import GSP, PV, HRVSatellite, Sun
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime, Topography
@@ -31,8 +31,10 @@ from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import (
     AlignGSPTo5Min,
     ReduceNumPVSystems,
+    ReduceNumTimesteps,
     SelectPVSystemsNearCenterOfImage,
 )
+from power_perceiver.xr_batch_processor.align_gsp_to_5_min import GSP5Min
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
@@ -45,11 +47,21 @@ assert DATA_PATH.exists()
 
 D_MODEL = 64
 N_HEADS = 16
+T0_IDX_5_MIN_TRAINING = 1
+T0_IDX_5_MIN_VALIDATION = 12
 
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
     assert tag in ["train", "validation"]
     assert data_path.exists()
+
+    xr_batch_processors = [
+        SelectPVSystemsNearCenterOfImage(),
+        ReduceNumPVSystems(requested_num_pv_systems=8),
+        AlignGSPTo5Min(),
+    ]
+    if tag == "train":
+        xr_batch_processors.append(ReduceNumTimesteps(keys=(HRVSatellite, PV, GSP5Min)))
 
     dataset = NowcastingDataset(
         data_path=data_path,
@@ -63,11 +75,7 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
             Sun(),
             GSP(),
         ],
-        xr_batch_processors=[
-            SelectPVSystemsNearCenterOfImage(),
-            ReduceNumPVSystems(requested_num_pv_systems=8),
-            AlignGSPTo5Min(),
-        ],
+        xr_batch_processors=xr_batch_processors,
         np_batch_processors=[
             EncodeSpaceTime(),
             Topography("/home/jack/europe_dem_2km_osgb.tif"),
@@ -136,7 +144,11 @@ class SatelliteTransformer(nn.Module):
             embedding_dim=self.pv_system_id_embedding_dim,
         )
 
-        self.pv_query_generator = PVQueryGenerator(pv_system_id_embedding=id_embedding)
+        self.pv_query_generator = PVQueryGenerator(
+            pv_system_id_embedding=id_embedding,
+            t0_idx_5_min_training=T0_IDX_5_MIN_TRAINING,
+            t0_idx_5_min_validation=T0_IDX_5_MIN_VALIDATION,
+        )
 
         self.gsp_query_generator = GSPQueryGenerator(gsp_id_embedding=id_embedding)
 
@@ -249,10 +261,6 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        # Reduce the number of examples, so it fits into GPU RAM:
-        for batch_key, tensor in x.items():
-            x[batch_key] = tensor[:16]
-
         sat_trans_out = self.satellite_transformer(x)
         pv_attn_out = sat_trans_out["pv_attn_out"]
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
@@ -321,8 +329,10 @@ class FullModel(pl.LightningModule):
 
         # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
+        t0_idx_5_min = T0_IDX_5_MIN_TRAINING if self.training else T0_IDX_5_MIN_VALIDATION
+
         pv_nmae_loss = F.l1_loss(
-            predicted_pv_power[:, T0_IDX_5_MIN + 1 :], actual_pv_power[:, T0_IDX_5_MIN + 1 :]
+            predicted_pv_power[:, t0_idx_5_min + 1 :], actual_pv_power[:, t0_idx_5_min + 1 :]
         )
         self.log(f"{tag}/pv_mse", pv_mse_loss)
         self.log(f"{tag}/pv_nmae", pv_nmae_loss)
@@ -354,14 +364,14 @@ class FullModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
         return optimizer
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="020.02: LR=1e-5",
+    name="020.03: 6 timesteps during training. LR=5e-5",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -371,7 +381,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

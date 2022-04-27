@@ -4,7 +4,7 @@ import einops
 import torch
 from torch import nn
 
-from power_perceiver.consts import NUM_5_MIN_TIMESTEPS, BatchKey
+from power_perceiver.consts import BatchKey
 from power_perceiver.utils import assert_num_dims
 
 
@@ -49,9 +49,10 @@ class HRVSatelliteProcessor(nn.Module):
         surface_height = x[BatchKey.hrvsatellite_surface_height]  # (example, y, x)
         surface_height = surface_height.unsqueeze(-1)  # (example, y, x, 1)
 
-        y_fourier = torch.repeat_interleave(y_fourier, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
-        x_fourier = torch.repeat_interleave(x_fourier, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
-        surface_height = torch.repeat_interleave(surface_height, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
+        n_repeats = time_fourier.shape[0] / y_fourier.shape[0]
+        y_fourier = torch.repeat_interleave(y_fourier, repeats=n_repeats, dim=0)
+        x_fourier = torch.repeat_interleave(x_fourier, repeats=n_repeats, dim=0)
+        surface_height = torch.repeat_interleave(surface_height, repeats=n_repeats, dim=0)
 
         # Reshape solar features to shape: (example, y, x, 1):
         def _repeat_solar_feature_over_x_and_y(feature: torch.Tensor) -> torch.Tensor:

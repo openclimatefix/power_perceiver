@@ -4,7 +4,7 @@ import einops
 import torch
 from torch import nn
 
-from power_perceiver.consts import NUM_5_MIN_TIMESTEPS, T0_IDX_5_MIN, BatchKey
+from power_perceiver.consts import BatchKey
 from power_perceiver.utils import assert_num_dims
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -14,6 +14,9 @@ from power_perceiver.utils import assert_num_dims
 @dataclass(eq=False)
 class PVQueryGenerator(nn.Module):
     """Create a query from the locations of the PV systems."""
+
+    t0_idx_5_min_training: int
+    t0_idx_5_min_validation: int
 
     # This must be an InitVar because PyTorch does not allow modules to be
     # assigned before super().__init__()
@@ -48,17 +51,20 @@ class PVQueryGenerator(nn.Module):
 
         # (example features) if for_satellite_transformer else (example, time, n_fourier_features)
         time_fourier = x[BatchKey.pv_time_utc_fourier]
+        t0_idx_5_min = self.t0_idx_5_min_training if self.training else self.t0_idx_5_min_validation
         if for_satellite_transformer:
+            # time_fourier shape: (example features)
             assert_num_dims(time_fourier, 2)
-            y_fourier = torch.repeat_interleave(y_fourier, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
-            x_fourier = torch.repeat_interleave(x_fourier, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
+            n_repeats = time_fourier.shape[0] / y_fourier.shape[0]
+            y_fourier = torch.repeat_interleave(y_fourier, repeats=n_repeats, dim=0)
+            x_fourier = torch.repeat_interleave(x_fourier, repeats=n_repeats, dim=0)
             pv_system_embedding = torch.repeat_interleave(
-                pv_system_embedding, repeats=NUM_5_MIN_TIMESTEPS, dim=0
+                pv_system_embedding, repeats=n_repeats, dim=0
             )
         else:
-            # shape: (example, time, n_fourier_features)
+            # time_fourier shape: (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
-            time_fourier = time_fourier[:, T0_IDX_5_MIN]
+            time_fourier = time_fourier[:, t0_idx_5_min]
         # Repeat across all PV systems:
         time_fourier = einops.repeat(
             time_fourier,
@@ -73,7 +79,7 @@ class PVQueryGenerator(nn.Module):
             else:
                 assert_num_dims(solar_feature, 2)
                 # Select the timestep. The original shape is (example, time).
-                solar_feature = solar_feature[:, T0_IDX_5_MIN]
+                solar_feature = solar_feature[:, t0_idx_5_min]
             return einops.repeat(
                 solar_feature,
                 "example -> example n_pv_systems 1",
@@ -98,7 +104,7 @@ class PVQueryGenerator(nn.Module):
         if not for_satellite_transformer:
             pv_power = x[BatchKey.pv]  # (batch_size, time, n_pv_systems)
             assert_num_dims(pv_power, 3)
-            pv_power = pv_power[:, : T0_IDX_5_MIN + 1]
+            pv_power = pv_power[:, : t0_idx_5_min + 1]
             pv_power = einops.rearrange(
                 pv_power, "example time n_pv_systems -> example n_pv_systems time"
             )
@@ -154,7 +160,8 @@ class GSPQueryGenerator(nn.Module):
             time_fourier = einops.rearrange(time_fourier, "example features -> example 1 features")
             # There might be NaNs in time_fourier.
             # NaNs will be masked in `SatelliteTransformer.forward`.
-            gsp_query = torch.repeat_interleave(gsp_query, repeats=NUM_5_MIN_TIMESTEPS, dim=0)
+            n_repeats = time_fourier.shape[0] / y_fourier.shape[0]
+            gsp_query = torch.repeat_interleave(gsp_query, repeats=n_repeats, dim=0)
         else:
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
