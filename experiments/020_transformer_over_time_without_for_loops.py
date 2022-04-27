@@ -227,7 +227,7 @@ class SatelliteTransformer(nn.Module):
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    d_model: int = D_MODEL  # Must be the same as for SatelliteTransformer
+    d_model: int = D_MODEL + 1  # Must be the same as for SatelliteTransformer
     pv_system_id_embedding_dim: int = 16
     num_heads: int = N_HEADS
     dropout: float = 0.1
@@ -262,8 +262,15 @@ class FullModel(pl.LightningModule):
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         sat_trans_out = self.satellite_transformer(x)
-        pv_attn_out = sat_trans_out["pv_attn_out"]
+        pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
+
+        # Concatenate historical PV
+        t0_idx_5_min = T0_IDX_5_MIN_TRAINING if self.training else T0_IDX_5_MIN_VALIDATION
+        historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
+        historical_pv[:, : t0_idx_5_min + 1] = x[BatchKey.pv][:, : t0_idx_5_min + 1]
+        historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
+        pv_attn_out = torch.concat((pv_attn_out, historical_pv), dim=3)
 
         # Reshape pv and gsp attention outputs so each timestep an each pv system is
         # seen as a separate element into the `time transformer`.
@@ -271,12 +278,13 @@ class FullModel(pl.LightningModule):
         REARRANGE_STR = "example time n_pv_systems d_model -> example (time n_pv_systems) d_model"
         pv_attn_out = einops.rearrange(pv_attn_out, REARRANGE_STR)
         gsp_attn_out = einops.rearrange(gsp_attn_out, REARRANGE_STR, n_pv_systems=1)
+        gsp_attn_out = maybe_pad_with_zeros(gsp_attn_out, requested_dim=self.d_model)
         n_pv_elements = pv_attn_out.shape[1]
 
         # Get historical PV
-        pv_query_generator = self.satellite_transformer.pv_query_generator
-        historical_pv = pv_query_generator(x, for_satellite_transformer=False)
-        historical_pv = maybe_pad_with_zeros(historical_pv, requested_dim=self.d_model)
+        # pv_query_generator = self.satellite_transformer.pv_query_generator
+        # historical_pv = pv_query_generator(x, for_satellite_transformer=False)
+        # historical_pv = maybe_pad_with_zeros(historical_pv, requested_dim=self.d_model)
 
         # Get GSP query
         gsp_query_generator = self.satellite_transformer.gsp_query_generator
@@ -284,7 +292,12 @@ class FullModel(pl.LightningModule):
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
         # Concatenate all the things we're going to feed into the "time transformer":
-        time_attn_in = (pv_attn_out, gsp_attn_out, historical_pv, gsp_query)
+        time_attn_in = (
+            pv_attn_out,
+            gsp_attn_out,
+            # historical_pv,
+            gsp_query,
+        )
         time_attn_in = torch.concat(time_attn_in, dim=1)
         time_attn_out = self.time_transformer(time_attn_in)
 
@@ -371,7 +384,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="020.04: 12 timesteps during training. LR=5e-5",
+    name="020.05: Concat hist PV. 12 timesteps during training. LR=5e-5",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -381,7 +394,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[4],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
