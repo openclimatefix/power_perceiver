@@ -391,8 +391,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "020.07: Mark hist. MSE objective. D_MODEL=128. 4 TT layers. Concat hist PV."
-        " 12 timesteps during training. LR=5e-5"
+        "020.08: Mark PV vs GSP. Mark hist. MSE objective. D_MODEL=128. 4 TT layers."
+        " Concat hist PV. 12 timesteps during training. LR=5e-5"
     ),
     project="power_perceiver",
     entity="openclimatefix",
@@ -403,7 +403,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
