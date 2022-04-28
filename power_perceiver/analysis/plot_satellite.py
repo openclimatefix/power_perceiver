@@ -7,7 +7,7 @@ import torch
 import wandb
 
 from power_perceiver.analysis.simple_callback import SimpleCallback
-from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
+from power_perceiver.consts import BatchKey
 
 
 def plot_satellite(
@@ -25,13 +25,11 @@ def plot_satellite(
     for ax, tensor, title in zip(axes, (actual_sat, predicted_sat), ("actual", "predicted")):
         for i in range(num_timesteps):
             timestep_idx = int(i * interval)
-            dt = datetimes[timestep_idx + NUM_HIST_SAT_IMAGES - 2]
+            dt = datetimes[timestep_idx]
             dt = dt.strftime("%Y-%m-%d %H:%M")
-            if title == "actual":
-                timestep_idx += NUM_HIST_SAT_IMAGES - 2
             image = tensor[example_idx, timestep_idx]
             ax[i].imshow(image)
-            ax[i].set_title(f"{title} {timestep_idx=} {dt}")
+            ax[i].set_title(f"{title} {timestep_idx=}\n{dt}")
 
     return fig
 
