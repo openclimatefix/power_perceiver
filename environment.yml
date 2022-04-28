@@ -1,6 +1,7 @@
 name: power_perceiver
 channels:
   - pytorch
+  - fastchan
   - conda-forge
   - pvlib
 dependencies:
@@ -25,6 +26,7 @@ dependencies:
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
+  - fastai
   - pytorch-lightning
   - einops
   - wandb
