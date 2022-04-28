@@ -1,12 +1,13 @@
 from typing import Any, Optional
 
 import matplotlib.pyplot as plt
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import wandb
 
 from power_perceiver.analysis.simple_callback import SimpleCallback
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
 
 
 def plot_satellite(
@@ -18,13 +19,19 @@ def plot_satellite(
     interval: int = 6,
 ) -> plt.Figure:
 
+    datetimes = pd.to_datetime(sat_datetimes[example_idx], unit="s")
+
     fig, axes = plt.subplots(nrows=2, ncols=num_timesteps)
     for ax, tensor, title in zip(axes, (actual_sat, predicted_sat), ("actual", "predicted")):
         for i in range(num_timesteps):
             timestep_idx = int(i * interval)
+            dt = datetimes[timestep_idx + NUM_HIST_SAT_IMAGES]
+            dt = dt.strftime("%Y-%m-%d %H:%M")
+            if title == "actual":
+                timestep_idx += NUM_HIST_SAT_IMAGES
             image = tensor[example_idx, timestep_idx]
             ax[i].imshow(image)
-            ax[i].set_title(f"{title} {timestep_idx=}")
+            ax[i].set_title(f"{title} {timestep_idx=} {dt}")
 
     return fig
 

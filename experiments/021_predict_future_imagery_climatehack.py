@@ -13,7 +13,7 @@ from torch.utils import data
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
 # power_perceiver imports
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
 from power_perceiver.data_loader import HRVSatellite
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
@@ -25,9 +25,6 @@ DATA_PATH = Path("/home/jack/data/v15")
 #  "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
 #  "prepared_ML_training_data/v15/"
 assert DATA_PATH.exists()
-
-T0_IDX_5_MIN_VALIDATION = 12
-NUM_HIST_SAT_IMAGES = 7
 
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
@@ -84,10 +81,12 @@ class FullModel(pl.LightningModule):
     def validation_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
+        tag = "train" if self.training else "validation"
         network_out = self(batch)
         predicted_sat = network_out["predicted_sat"]
         actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
+        self.log(f"{tag}/sat_mse", sat_mse_loss)
         return dict(
             loss=sat_mse_loss,
             predicted_sat=predicted_sat,
