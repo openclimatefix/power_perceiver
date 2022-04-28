@@ -17,8 +17,8 @@ class ReduceNumTimesteps:
     each xr_dataset.
     """
 
-    num_requested_history_timesteps: int = 2
-    num_requested_forecast_timesteps: int = 4
+    num_requested_history_timesteps: int = 4
+    num_requested_forecast_timesteps: int = 8
 
     num_history_timesteps_available: int = 12
     num_total_timesteps_available: int = 31

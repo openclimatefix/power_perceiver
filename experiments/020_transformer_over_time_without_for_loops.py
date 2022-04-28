@@ -39,15 +39,14 @@ from power_perceiver.xr_batch_processor.align_gsp_to_5_min import GSP5Min
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
-DATA_PATH = Path(
-    "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-    "prepared_ML_training_data/v15/"
-)
+DATA_PATH = Path("/home/jack/data/v15")
+#  "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+#  "prepared_ML_training_data/v15/"
 assert DATA_PATH.exists()
 
 D_MODEL = 128
 N_HEADS = 16
-T0_IDX_5_MIN_TRAINING = 1
+T0_IDX_5_MIN_TRAINING = 3
 T0_IDX_5_MIN_VALIDATION = 12
 
 
@@ -370,7 +369,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/total_nmae", total_nmae_loss)
 
         return {
-            "loss": total_nmae_loss,
+            "loss": total_mse_loss,
             "pv_mse_loss": pv_mse_loss,
             "gsp_mse_loss": gsp_mse_loss,
             "pv_nmae_loss": pv_nmae_loss,
@@ -391,8 +390,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "020.09: Mark PV vs GSP. Mark hist. MSE objective. D_MODEL=128. 4 TT layers."
-        " Concat hist PV. 6 timesteps during training. LR=5e-5"
+        "020.10: GCP! Mark PV vs GSP. Mark hist. MSE objective. D_MODEL=128. 4 TT layers."
+        " Concat hist PV. 12 timesteps during training. LR=5e-5"
     ),
     project="power_perceiver",
     entity="openclimatefix",
