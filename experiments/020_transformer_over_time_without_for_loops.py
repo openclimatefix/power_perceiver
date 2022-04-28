@@ -268,7 +268,10 @@ class FullModel(pl.LightningModule):
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
         historical_pv[:, : t0_idx_5_min + 1] = x[BatchKey.pv][:, : t0_idx_5_min + 1]
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
-        pv_attn_out = torch.concat((pv_attn_out, historical_pv), dim=3)
+        # Now append a "marker" to indicate which timesteps are history:
+        hist_pv_marker = torch.zeros_like(historical_pv)
+        hist_pv_marker[:, : t0_idx_5_min + 1] = 1
+        pv_attn_out = torch.concat((pv_attn_out, historical_pv, hist_pv_marker), dim=3)
 
         # Reshape pv and gsp attention outputs so each timestep an each pv system is
         # seen as a separate element into the `time transformer`.
@@ -388,7 +391,7 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "020.06: NMAE objective. D_MODEL=128. 4 TT layers. Concat hist PV."
+        "020.07: Mark hist. MSE objective. D_MODEL=128. 4 TT layers. Concat hist PV."
         " 12 timesteps during training. LR=5e-5"
     ),
     project="power_perceiver",
@@ -400,7 +403,7 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 trainer = pl.Trainer(
-    gpus=[1],
+    gpus=[0],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[

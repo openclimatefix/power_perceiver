@@ -89,8 +89,12 @@ class PVQueryGenerator(nn.Module):
         solar_azimuth = _repeat_solar_feature_over_pv_systems(x[BatchKey.solar_azimuth])
         solar_elevation = _repeat_solar_feature_over_pv_systems(x[BatchKey.solar_elevation])
 
+        # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
+        # pv_marker = torch.zeros_like(y_fourier)
+
         pv_system_query = torch.concat(
             (
+                # pv_marker,
                 y_fourier,
                 x_fourier,
                 time_fourier,
@@ -143,8 +147,12 @@ class GSPQueryGenerator(nn.Module):
         gsp_id = x[BatchKey.gsp_id]  # Shape: (example,)
         gsp_id_embedding = self.gsp_id_embedding(gsp_id)
 
+        # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
+        # gsp_marker = torch.ones_like(y_fourier)
+
         gsp_query = torch.concat(
             (
+                # gsp_marker,
                 y_fourier,
                 x_fourier,
                 gsp_id_embedding,
