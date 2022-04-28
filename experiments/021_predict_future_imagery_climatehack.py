@@ -87,7 +87,6 @@ class FullModel(pl.LightningModule):
         network_out = self(batch)
         predicted_sat = network_out["predicted_sat"]
         actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
-        print(f"{predicted_sat.shape=}, {actual_sat.shape=}")
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         return dict(
             loss=sat_mse_loss,
