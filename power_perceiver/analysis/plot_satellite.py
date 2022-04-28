@@ -25,10 +25,10 @@ def plot_satellite(
     for ax, tensor, title in zip(axes, (actual_sat, predicted_sat), ("actual", "predicted")):
         for i in range(num_timesteps):
             timestep_idx = int(i * interval)
-            dt = datetimes[timestep_idx + NUM_HIST_SAT_IMAGES - 1]
+            dt = datetimes[timestep_idx + NUM_HIST_SAT_IMAGES - 2]
             dt = dt.strftime("%Y-%m-%d %H:%M")
             if title == "actual":
-                timestep_idx += NUM_HIST_SAT_IMAGES - 1
+                timestep_idx += NUM_HIST_SAT_IMAGES - 2
             image = tensor[example_idx, timestep_idx]
             ax[i].imshow(image)
             ax[i].set_title(f"{title} {timestep_idx=} {dt}")
