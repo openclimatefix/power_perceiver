@@ -44,7 +44,7 @@ class LogSatellitePlots(SimpleCallback):
         if batch_idx < 4:
             predicted_sat = outputs["predicted_sat"].cpu().detach()
             actual_sat = outputs["actual_sat"].cpu().detach()
-            sat_datetimes = batch[BatchKey.sat_time_utc].cpu()
+            sat_datetimes = batch[BatchKey.hrvsatellite_time_utc].cpu()
             for example_idx in range(4):
                 fig = plot_satellite(
                     actual_sat=actual_sat,

@@ -72,7 +72,7 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        historical_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES]
+        historical_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
         predicted_sat = self.satellite_predictor(historical_sat)
         return dict(predicted_sat=predicted_sat)
 
@@ -86,7 +86,8 @@ class FullModel(pl.LightningModule):
     ) -> dict[str, object]:
         network_out = self(batch)
         predicted_sat = network_out["predicted_sat"]
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:]
+        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+        print(f"{predicted_sat.shape=}, {actual_sat.shape=}")
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         return dict(
             loss=sat_mse_loss,
@@ -95,7 +96,7 @@ class FullModel(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
         return optimizer
 
 

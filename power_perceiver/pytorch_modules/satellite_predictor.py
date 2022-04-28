@@ -17,7 +17,7 @@ class XResUNet(nn.Module):
 
     def __init__(
         self,
-        input_size: tuple(int, int),
+        input_size: tuple[int, int],
         forecast_steps: int,
         history_steps: int,
         pretrained: bool = False,
