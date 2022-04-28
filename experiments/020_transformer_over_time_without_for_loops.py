@@ -390,7 +390,7 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "020.10: GCP! Mark PV vs GSP. Mark hist. MSE objective. D_MODEL=128. 4 TT layers."
+        "020.11: GCP! Mark hist. MSE objective. D_MODEL=128. 4 TT layers."
         " Concat hist PV. 12 timesteps during training. LR=5e-5"
     ),
     project="power_perceiver",
