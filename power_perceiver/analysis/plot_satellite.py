@@ -10,16 +10,21 @@ from power_perceiver.consts import BatchKey
 
 
 def plot_satellite(
-    actual_sat: torch.Tensor,
+    actual_sat: torch.Tensor,  # shape: (example, time, y, x)
     predicted_sat: torch.Tensor,
     example_idx: torch.Tensor,
     sat_datetimes: torch.Tensor,
+    num_timesteps: int = 4,
+    interval: int = 6,
 ) -> plt.Figure:
-    fig, (axes_pred, axes_actual) = plt.subplots(nrows=2, ncols=4)
 
-    print(f"{len(axes_pred)=}")
-    print(f"{actual_sat.shape=}")
-    print(f"{predicted_sat.shape=}")
+    fig, axes = plt.subplots(nrows=2, ncols=num_timesteps)
+    for ax, tensor, title in zip(axes, (actual_sat, predicted_sat), ("actual", "predicted")):
+        for i in range(num_timesteps):
+            timestep_idx = int(i * interval)
+            image = tensor[example_idx, timestep_idx]
+            ax[i].imshow(image)
+            ax[i].set_title(f"{title} {timestep_idx=}")
 
     return fig
 
