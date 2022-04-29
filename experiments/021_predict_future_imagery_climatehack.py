@@ -94,14 +94,14 @@ class FullModel(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-3)
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
         return optimizer
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="021.00: ClimateHack satellite predictor",
+    name="021.01: LR=1e-4. ClimateHack satellite predictor",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
