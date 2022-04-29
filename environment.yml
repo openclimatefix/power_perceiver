@@ -40,3 +40,6 @@ dependencies:
   - pre-commit
   - pydocstyle
   - isort
+
+  - pip:
+      - pytorch-msssim

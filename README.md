@@ -4,6 +4,8 @@ Machine learning experiments using the Perceiver IO model to forecast the electr
 
 # Installation
 
+We recommend installing [mamba](https://github.com/mamba-org/mamba) and using `mamba env create -f environment.yml` instead of `conda env create -f environment.yml`.
+
 ```shell
 conda env create -f environment.yml
 conda activate power_perceiver

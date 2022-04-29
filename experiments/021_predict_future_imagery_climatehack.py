@@ -8,6 +8,7 @@ import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_msssim import ms_ssim
 from torch.utils import data
 
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
@@ -15,6 +16,7 @@ from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 # power_perceiver imports
 from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
 from power_perceiver.data_loader import HRVSatellite
+from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 
@@ -25,6 +27,7 @@ DATA_PATH = Path("/home/jack/data/v15")
 #  "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
 #  "prepared_ML_training_data/v15/"
 assert DATA_PATH.exists()
+NUM_FUTURE_SAT_IMAGES = 24
 
 
 def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
@@ -61,7 +64,7 @@ class FullModel(pl.LightningModule):
         self.satellite_predictor = XResUNet(
             input_size=(64, 64),
             history_steps=NUM_HIST_SAT_IMAGES,
-            forecast_steps=24,
+            forecast_steps=NUM_FUTURE_SAT_IMAGES,
             pretrained=False,
         )
 
@@ -87,8 +90,21 @@ class FullModel(pl.LightningModule):
         actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         self.log(f"{tag}/sat_mse", sat_mse_loss)
+
+        # MS-SSIM. Requires images to be de-normalised:
+        actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
+        predicted_sat_denorm = (predicted_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
+        ms_ssim_loss = 1 - ms_ssim(
+            predicted_sat_denorm,
+            actual_sat_denorm,
+            data_range=1023,
+            size_average=True,  # Return a scalar.
+            win_size=3,
+        )
+        self.log(f"{tag}/ms_ssim", ms_ssim_loss)
+
         return dict(
-            loss=sat_mse_loss,
+            loss=ms_ssim_loss,
             predicted_sat=predicted_sat,
             actual_sat=actual_sat,
         )
@@ -101,7 +117,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="021.01: LR=1e-4. ClimateHack satellite predictor. GCP-1",
+    name="021.02: MS-SSIM. LR=1e-4. ClimateHack satellite predictor. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
