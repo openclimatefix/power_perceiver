@@ -102,9 +102,10 @@ class FullModel(pl.LightningModule):
             win_size=3,
         )
         self.log(f"{tag}/ms_ssim", ms_ssim_loss)
+        self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
         return dict(
-            loss=ms_ssim_loss,
+            loss=ms_ssim_loss + sat_mse_loss,
             predicted_sat=predicted_sat,
             actual_sat=actual_sat,
         )
@@ -117,7 +118,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="021.02: MS-SSIM. LR=1e-4. ClimateHack satellite predictor. GCP-2",
+    name="021.03: MS-SSIM+SAT_MSE. LR=1e-4. ClimateHack satellite predictor. GCP-3",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
