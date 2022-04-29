@@ -101,7 +101,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="021.01: LR=1e-4. ClimateHack satellite predictor",
+    name="021.01: LR=1e-4. ClimateHack satellite predictor. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
