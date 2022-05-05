@@ -9,7 +9,6 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
-from torch.utils import data
 
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
@@ -17,12 +16,17 @@ from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
 from power_perceiver.data_loader import HRVSatellite
 from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.data_loader.satellite_from_zarr import SatelliteDataset, worker_init_fn
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
+SATELLITE_ZARR_PATH = (
+    "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/"
+    "v3/eumetsat_seviri_hrv_uk.zarr"
+)
 DATA_PATH = Path("/home/jack/data/v15")
 #  "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
 #  "prepared_ML_training_data/v15/"
@@ -30,29 +34,27 @@ assert DATA_PATH.exists()
 NUM_FUTURE_SAT_IMAGES = 24
 
 
-def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
-    assert tag in ["train", "validation"]
-    assert data_path.exists()
+torch.manual_seed(42)
 
-    dataset = NowcastingDataset(
-        data_path=data_path,
+train_dataloader = torch.utils.data.DataLoader(
+    SatelliteDataset(satellite_zarr_path=SATELLITE_ZARR_PATH),
+    batch_size=32,
+    num_workers=2,  # TODO: Change?
+    pin_memory=True,
+    worker_init_fn=worker_init_fn,
+)
+
+val_dataloader = torch.utils.data.DataLoader(
+    NowcastingDataset(
+        data_path=DATA_PATH / "test",
         data_loaders=[
             HRVSatellite(),
         ],
-    )
-
-    dataloader = data.DataLoader(
-        dataset,
-        batch_size=None,
-        num_workers=12,
-        pin_memory=True,
-    )
-
-    return dataloader
-
-
-train_dataloader = get_dataloader(DATA_PATH / "train", tag="train")
-val_dataloader = get_dataloader(DATA_PATH / "test", tag="validation")
+    ),
+    batch_size=None,
+    num_workers=12,
+    pin_memory=True,
+)
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -118,7 +120,10 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="021.03: MS-SSIM+SAT_MSE. LR=1e-4. ClimateHack satellite predictor. GCP-3",
+    name=(
+        "022.00: Train from sat zarr. MS-SSIM+SAT_MSE. LR=1e-4. ClimateHack satellite predictor."
+        " GCP-1"
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

@@ -15,8 +15,8 @@ def plot_satellite(
     predicted_sat: torch.Tensor,
     example_idx: torch.Tensor,
     sat_datetimes: torch.Tensor,
-    num_timesteps: int = 4,
-    interval: int = 6,
+    num_timesteps: int = 8,
+    interval: int = 3,
 ) -> plt.Figure:
 
     datetimes = pd.to_datetime(sat_datetimes[example_idx], unit="s")
