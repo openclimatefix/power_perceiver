@@ -24,7 +24,9 @@ plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
 SATELLITE_ZARR_PATH = (
-    "gs://solar-pv-nowcasting-data/satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
+    # "gs://solar-pv-nowcasting-data/satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
+    "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+    "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
 )
 DATA_PATH = Path("/home/jack/data/v15")
 #  "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
@@ -120,8 +122,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "022.00: Train from sat zarr. MS-SSIM+SAT_MSE. LR=1e-4. ClimateHack satellite predictor."
-        " GCP-1"
+        "022.01: Train from sat zarr. MS-SSIM+SAT_MSE. LR=1e-4. ClimateHack satellite predictor."
+        " donatello GPU 0. n_days_to_load_per_epoch=128. n_examples_per_epoch=1024x128"
     ),
     project="power_perceiver",
     entity="openclimatefix",

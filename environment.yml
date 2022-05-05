@@ -6,6 +6,7 @@ channels:
   - pvlib
 dependencies:
   - python>=3.9
+  - pip
 
   # Scientific Python
   - numpy
