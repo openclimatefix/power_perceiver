@@ -23,7 +23,6 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
-# TODO: Try OCF's Zarr path?
 SATELLITE_ZARR_PATH = (
     "gs://solar-pv-nowcasting-data/satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
 )
@@ -39,7 +38,7 @@ torch.manual_seed(42)
 train_dataloader = torch.utils.data.DataLoader(
     SatelliteDataset(satellite_zarr_path=SATELLITE_ZARR_PATH),
     batch_size=32,
-    num_workers=4,  # TODO: Change?
+    num_workers=1,  # TODO: Change?
     pin_memory=True,
     worker_init_fn=worker_init_fn,
 )
