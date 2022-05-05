@@ -28,9 +28,11 @@ SATELLITE_ZARR_PATH = (
     "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
     "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
 )
-DATA_PATH = Path("/home/jack/data/v15")
-#  "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-#  "prepared_ML_training_data/v15/"
+# DATA_PATH = Path("/home/jack/data/v15")
+DATA_PATH = Path(
+    "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+    "prepared_ML_training_data/v15/"
+)
 assert DATA_PATH.exists()
 NUM_FUTURE_SAT_IMAGES = 24
 
