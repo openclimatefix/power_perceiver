@@ -199,8 +199,11 @@ class SatelliteDataset(torch.utils.data.IterableDataset):
         # The +1 is necessary because segment[-1] gives the *index* which might be
         # as low as self.n_timesteps_per_example - 1.
         max_legal_start_idx = segment[-1] - self.n_timesteps_per_example + 1
-        assert max_legal_start_idx > 0, f"{max_legal_start_idx=}"
-        start_idx = self.rng.integers(low=segment[0], high=max_legal_start_idx)
+        assert max_legal_start_idx >= 0, f"{max_legal_start_idx=}"
+        if max_legal_start_idx == 0:
+            start_idx = 0
+        else:
+            start_idx = self.rng.integers(low=segment[0], high=max_legal_start_idx)
         end_idx = start_idx + self.n_timesteps_per_example
 
         return sat_data_for_date.isel(time=slice(start_idx, end_idx))
