@@ -1,4 +1,5 @@
 # General imports
+import socket
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -30,9 +31,7 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
-ON_DONATELLO = False
-
-if ON_DONATELLO:
+if socket.gethostname() == "donatello":
     SATELLITE_ZARR_PATH = (
         "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
         "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
@@ -94,15 +93,28 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
     coord_conv: bool = False
+    crop: bool = False
+
+    # kwargs to fastai DynamicUnet. See this page for details:
+    # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
+    pretrained: bool = False
+    blur_final: bool = False  # Blur final layer. fastai default is True.
+    self_attention: bool = True  # Use SA layer at the third block before the end.
+    last_cross: bool = True  # Use a cross-connection with the direct input of the model.
+    bottle: bool = False  # Bottleneck the last skip connection.
 
     def __post_init__(self):
         super().__init__()
 
         self.satellite_predictor = XResUNet(
-            input_size=(64, 64),
-            history_steps=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0),
-            forecast_steps=NUM_FUTURE_SAT_IMAGES,
-            pretrained=False,
+            img_size=(64, 64),
+            n_in=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0),
+            n_out=NUM_FUTURE_SAT_IMAGES,
+            pretrained=self.pretrained,
+            blur_final=self.blur_final,
+            self_attention=self.self_attention,
+            last_cross=self.last_cross,
+            bottle=self.bottle,
         )
 
         # Do this at the end of __post_init__ to capture model topology to wandb:
@@ -140,33 +152,38 @@ class FullModel(pl.LightningModule):
         ms_ssim_loss = 1 - ms_ssim(
             predicted_sat_denorm,
             actual_sat_denorm,
-            data_range=1023,
+            data_range=1023.0,
             size_average=True,  # Return a scalar.
             win_size=3,  # ClimateHack folks used win_size=3.
         )
         self.log(f"{tag}/ms_ssim", ms_ssim_loss)
         self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
-        # Loss on 33x33 central crop:
-        # The image has to be larger than 32x32 otherwise ms-ssim complains:
-        # AssertionError: Image size should be larger than 32 due to the 4 downsamplings in ms-ssim
-        CROP = 15
-        sat_mse_loss_crop = F.mse_loss(
-            predicted_sat[:, :, CROP:-CROP, CROP:-CROP], actual_sat[:, :, CROP:-CROP, CROP:-CROP]
-        )
-        self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
-        ms_ssim_loss_crop = 1 - ms_ssim(
-            predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
-            actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
-            data_range=1023.0,
-            size_average=True,  # Return a scalar.
-            win_size=3,  # ClimateHack folks used win_size=3.
-        )
-        self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
-        self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
+        if self.crop:
+            # Loss on 33x33 central crop:
+            # The image has to be larger than 32x32 otherwise ms-ssim complains:
+            # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
+            CROP = 15
+            sat_mse_loss_crop = F.mse_loss(
+                predicted_sat[:, :, CROP:-CROP, CROP:-CROP],
+                actual_sat[:, :, CROP:-CROP, CROP:-CROP],
+            )
+            self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
+            ms_ssim_loss_crop = 1 - ms_ssim(
+                predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
+                actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
+                data_range=1023.0,
+                size_average=True,  # Return a scalar.
+                win_size=3,  # ClimateHack folks used win_size=3.
+            )
+            self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
+            self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
+            loss = ms_ssim_loss_crop + sat_mse_loss_crop
+        else:
+            loss = ms_ssim_loss + sat_mse_loss
 
         return dict(
-            loss=ms_ssim_loss_crop + sat_mse_loss_crop,
+            loss=loss,
             predicted_sat=predicted_sat,
             actual_sat=actual_sat,
         )
@@ -179,7 +196,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.05: Only compute loss for central 33x33 image. No CoordConv. GCP-3",
+    name="022.06: Don't blur final layer. 64x64. Coord conv. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

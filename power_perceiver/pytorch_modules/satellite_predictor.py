@@ -15,23 +15,16 @@ class XResUNet(nn.Module):
     https://github.com/jmather625/climatehack
     """
 
-    def __init__(
-        self,
-        input_size: tuple[int, int],
-        forecast_steps: int,
-        history_steps: int,
-        pretrained: bool = False,
-    ):
+    def __init__(self, arch=None, **kwargs):
+        """Create a DynamicUnet.
+
+        See this page for a description of the kwargs:
+        https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
+        """
         super().__init__()
-        arch = partial(xse_resnext50_deeper, act_cls=Mish, sa=True)
-        self.model = create_unet_model(
-            arch=arch,
-            n_out=forecast_steps,
-            img_size=input_size,
-            pretrained=pretrained,
-            n_in=history_steps,
-            self_attention=True,
-        )
+        if arch is None:
+            arch = partial(xse_resnext50_deeper, act_cls=Mish, sa=True)
+        self.model = create_unet_model(arch=arch, **kwargs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.model(x)

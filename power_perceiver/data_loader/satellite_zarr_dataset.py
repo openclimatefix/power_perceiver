@@ -28,7 +28,6 @@ def get_contiguous_segments(
     Returns a list of arrays. Each array holds the indicies into `dt_index` of
     one contiguous segment.
     """
-
     gap_mask = np.diff(dt_index) > max_gap
     gap_indices = np.argwhere(gap_mask)[:, 0]
 
