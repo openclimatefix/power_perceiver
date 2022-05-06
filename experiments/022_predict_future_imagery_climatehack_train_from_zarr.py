@@ -11,6 +11,7 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
+from ranger21 import Ranger21
 
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
@@ -99,13 +100,15 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
+    optimizer_class: torch.optim.optimizer.Optimizer = Ranger21
+    optimizer_kwargs: dict = dict(lr=1e-3, num_epochs=20, num_batches_per_epoch=4096)
 
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
     pretrained: bool = False
-    blur_final: bool = True  # Blur final layer. fastai default is True.
+    blur_final: bool = False  # Blur final layer. fastai default is True.
     self_attention: bool = True  # Use SA layer at the third block before the end.
-    last_cross: bool = False  # Use a cross-connection with the direct input of the model.
+    last_cross: bool = True  # Use a cross-connection with the direct input of the model.
     bottle: bool = False  # Bottleneck the last skip connection.
 
     def __post_init__(self):
@@ -194,14 +197,14 @@ class FullModel(pl.LightningModule):
         )
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=1e-4)
+        optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
         return optimizer
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.07: last_cross=False. blur_final=True. 64x64. Coord conv. GCP-3",
+    name="022.08: Ranger21. last_cross=False. blur_final=False. 64x64. Coord conv. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
