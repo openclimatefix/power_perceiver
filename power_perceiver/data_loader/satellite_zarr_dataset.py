@@ -156,6 +156,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
 
     def _load_random_days_from_disk(self) -> None:
         """Sets `sat_data_in_mem` and `available_dates`."""
+        self.sat_data_in_mem = None  # Remove previous data from memory.
         all_available_dates_on_disk = get_dates(self.xr_sat_dataset)
         days_to_load = self.rng.choice(
             all_available_dates_on_disk, size=self.n_days_to_load_per_epoch, replace=False

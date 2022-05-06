@@ -21,6 +21,10 @@ def plot_satellite(
 
     datetimes = pd.to_datetime(sat_datetimes[example_idx], unit="s")
 
+    # Use the same "exposure" for all plots:
+    vmin = min(actual_sat.min(), predicted_sat.min())
+    vmax = max(actual_sat.max(), predicted_sat.max())
+
     fig, axes = plt.subplots(nrows=2, ncols=num_timesteps)
     for ax, tensor, title in zip(axes, (actual_sat, predicted_sat), ("actual", "predicted")):
         for i in range(num_timesteps):
@@ -28,7 +32,7 @@ def plot_satellite(
             dt = datetimes[timestep_idx]
             dt = dt.strftime("%Y-%m-%d %H:%M")
             image = tensor[example_idx, timestep_idx]
-            ax[i].imshow(image)
+            ax[i].imshow(image, vmin=vmin, vmax=vmax)
             ax[i].set_title(f"{title} {timestep_idx=}\n{dt}")
 
     return fig

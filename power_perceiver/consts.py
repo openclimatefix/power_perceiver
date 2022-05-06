@@ -10,6 +10,11 @@ PV_SYSTEM_AXIS = 2
 T0_IDX_30_MIN = 1
 NUM_HIST_SAT_IMAGES = 7
 
+Y_OSGB_MEAN = 357021.38
+Y_OSGB_STD = 612920.2
+X_OSGB_MEAN = 187459.94
+X_OSGB_STD = 622805.44
+
 
 class BatchKey(Enum):
     """The names of the different elements of each batch.

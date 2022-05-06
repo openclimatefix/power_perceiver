@@ -13,7 +13,14 @@ from pytorch_msssim import ms_ssim
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
 # power_perceiver imports
-from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
+from power_perceiver.consts import (
+    NUM_HIST_SAT_IMAGES,
+    X_OSGB_MEAN,
+    X_OSGB_STD,
+    Y_OSGB_MEAN,
+    Y_OSGB_STD,
+    BatchKey,
+)
 from power_perceiver.data_loader import HRVSatellite
 from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.data_loader.satellite_zarr_dataset import SatelliteZarrDataset, worker_init_fn
@@ -70,6 +77,19 @@ val_dataloader = torch.utils.data.DataLoader(
 )
 
 
+def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+    """Returns tensor of shape (example, 2, y, x)."""
+    y_osgb = batch[BatchKey.hrvsatellite_y_osgb]
+    x_osgb = batch[BatchKey.hrvsatellite_x_osgb]
+
+    # Normalise:
+    y_osgb = (y_osgb - Y_OSGB_MEAN) / Y_OSGB_STD
+    x_osgb = (x_osgb - X_OSGB_MEAN) / X_OSGB_STD
+
+    # Concat:
+    return torch.stack((y_osgb, x_osgb), dim=1)
+
+
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
@@ -78,7 +98,7 @@ class FullModel(pl.LightningModule):
 
         self.satellite_predictor = XResUNet(
             input_size=(64, 64),
-            history_steps=NUM_HIST_SAT_IMAGES,
+            history_steps=NUM_HIST_SAT_IMAGES + 2,  # + 2 for OSGB coords
             forecast_steps=NUM_FUTURE_SAT_IMAGES,
             pretrained=False,
         )
@@ -88,7 +108,10 @@ class FullModel(pl.LightningModule):
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         historical_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
-        predicted_sat = self.satellite_predictor(historical_sat)
+        # `historical_sat` is now of shape: (example, time, y, x)
+        osgb_coords = get_osgb_coords_for_coord_conv(x)
+        data = torch.concat((historical_sat, osgb_coords), dim=1)
+        predicted_sat = self.satellite_predictor(data)
         return dict(predicted_sat=predicted_sat)
 
     def training_step(
@@ -133,10 +156,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name=(
-        "022.02: Train from sat zarr. MS-SSIM+SAT_MSE. LR=1e-4. ClimateHack satellite predictor."
-        " GCP-1. n_days_to_load_per_epoch=128. n_examples_per_epoch=1024x128."
-    ),
+    name="022.03: CoordConv. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
