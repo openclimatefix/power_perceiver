@@ -28,6 +28,7 @@ from power_perceiver.data_loader import HRVSatellite
 from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.data_loader.satellite_zarr_dataset import SatelliteZarrDataset, worker_init_fn
 from power_perceiver.dataset import NowcastingDataset
+from power_perceiver.np_batch_processor.topography import Topography
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 
 logging.basicConfig()
@@ -103,8 +104,9 @@ class FullModel(pl.LightningModule):
     optimizer_class: torch.optim.Optimizer = Ranger
     optimizer_kwargs: dict = field(
         # lambda trick from https://stackoverflow.com/a/52064202/732596
-        default_factory=lambda: dict(lr=1e-3)
+        default_factory=lambda: dict(lr=1e-4)
     )
+    use_topography: bool = True
 
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
@@ -117,9 +119,12 @@ class FullModel(pl.LightningModule):
     def __post_init__(self):
         super().__init__()
 
+        if self.use_topography:
+            self.topography = Topography("/home/jack/europe_dem_2km_osgb.tif")
+
         self.satellite_predictor = XResUNet(
             img_size=(64, 64),
-            n_in=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0),
+            n_in=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0) + int(self.use_topography),
             n_out=NUM_FUTURE_SAT_IMAGES,
             pretrained=self.pretrained,
             blur_final=self.blur_final,
@@ -132,13 +137,19 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        historical_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
-        # `historical_sat` is now of shape: (example, time, y, x)
+
+        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
+        # `data` is now of shape: (example, time, y, x)
         if self.coord_conv:
             osgb_coords = get_osgb_coords_for_coord_conv(x)
-            data = torch.concat((historical_sat, osgb_coords), dim=1)
-        else:
-            data = historical_sat
+            data = torch.concat((data, osgb_coords), dim=1)
+
+        if self.use_topography:
+            x = self.topography(x)
+            surface_height = x[BatchKey.hrvsatellite_surface_height]
+            surface_height = surface_height.unsqueeze(1)  # Add channel dim
+            data = torch.concat((data, surface_height), dim=1)
+
         predicted_sat = self.satellite_predictor(data)
         return dict(predicted_sat=predicted_sat)
 
@@ -207,7 +218,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.09: Ranger. last_cross=False. blur_final=False. 64x64. Coord conv. GCP-1",
+    name="022.10: Topography. Ranger LR=1e-4. GCP-3",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

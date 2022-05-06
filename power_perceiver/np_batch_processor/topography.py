@@ -77,6 +77,7 @@ class Topography:
     def _normalise(self, data: np.ndarray) -> np.ndarray:
         data -= self.topo_mean
         data /= self.topo_std
+        data = np.nan_to_num(data, nan=0.0)
         return data
 
 
