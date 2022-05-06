@@ -13,6 +13,8 @@ pip install -e .
 pre-commit install
 ```
 
+If using `Ranger21` optimizer then please install [Ranger21 with my tiny little patch](https://github.com/JackKelly/Ranger21/tree/patch-1).
+
 # Data pipeline
 
 The data flows through several steps, in order:

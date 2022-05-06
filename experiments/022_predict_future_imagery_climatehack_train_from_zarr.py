@@ -11,7 +11,7 @@ import torch
 import torch.nn.functional as F
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
-from ranger21 import Ranger21
+from ranger import Ranger
 
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
@@ -100,10 +100,10 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
-    optimizer_class: torch.optim.Optimizer = Ranger21
+    optimizer_class: torch.optim.Optimizer = Ranger
     optimizer_kwargs: dict = field(
         # lambda trick from https://stackoverflow.com/a/52064202/732596
-        default_factory=lambda: dict(lr=1e-3, num_epochs=20, num_batches_per_epoch=4096)
+        default_factory=lambda: dict(lr=1e-3)
     )
 
     # kwargs to fastai DynamicUnet. See this page for details:
@@ -207,14 +207,11 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.08: Ranger21. last_cross=False. blur_final=False. 64x64. Coord conv. GCP-1",
+    name="022.09: Ranger. last_cross=False. blur_final=False. 64x64. Coord conv. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
 )
-
-# log gradients, parameter histogram and model topology
-# wandb_logger.watch(model, log="all")
 
 # log model only if validation loss decreases
 if model.crop:

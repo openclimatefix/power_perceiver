@@ -46,4 +46,4 @@ dependencies:
 
   - pip:
       - pytorch-msssim
-      - git+https://github.com/lessw2020/Ranger21.git
+      - git+https://github.com/lessw2020/Ranger-Deep-Learning-Optimizer.git
