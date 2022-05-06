@@ -1,7 +1,7 @@
 # General imports
 import logging
 import socket
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # ML imports
@@ -101,7 +101,10 @@ class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
     optimizer_class: torch.optim.Optimizer = Ranger21
-    optimizer_kwargs: dict = dict(lr=1e-3, num_epochs=20, num_batches_per_epoch=4096)
+    optimizer_kwargs: dict = field(
+        # lambda trick from https://stackoverflow.com/a/52064202/732596
+        default_factory=lambda: dict(lr=1e-3, num_epochs=20, num_batches_per_epoch=4096)
+    )
 
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
