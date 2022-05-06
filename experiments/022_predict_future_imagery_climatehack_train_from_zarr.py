@@ -100,7 +100,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
-    optimizer_class: torch.optim.optimizer.Optimizer = Ranger21
+    optimizer_class: torch.optim.Optimizer = Ranger21
     optimizer_kwargs: dict = dict(lr=1e-3, num_epochs=20, num_batches_per_epoch=4096)
 
     # kwargs to fastai DynamicUnet. See this page for details:
