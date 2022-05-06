@@ -142,10 +142,10 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/ms_ssim", ms_ssim_loss)
         self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
-        # Loss on 34x34 central crop:
+        # Loss on 36x64 central crop:
         # The image has to be larger than 32x32 otherwise ms-ssim complains:
         # AssertionError: Image size should be larger than 32 due to the 4 downsamplings in ms-ssim
-        CROP = 14
+        CROP = 12
         sat_mse_loss_crop = F.mse_loss(
             predicted_sat[:, CROP:-CROP, CROP:-CROP], actual_sat[:, CROP:-CROP, CROP:-CROP]
         )
@@ -158,7 +158,7 @@ class FullModel(pl.LightningModule):
             win_size=3,  # ClimateHack folks used win_size=3.
         )
         self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
-        self.log(f"{tag}/ms_ssim+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
+        self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
 
         return dict(
             loss=ms_ssim_loss_crop + sat_mse_loss_crop,
@@ -174,7 +174,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.04: Only compute loss for central 34x34 image. CoordConv. GCP-2",
+    name="022.04: Only compute loss for central 36x36 image. CoordConv. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -185,7 +185,7 @@ wandb_logger = WandbLogger(
 
 # log model only if validation loss decreases
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    monitor="validation/ms_ssim+sat_mse_32x32", mode="min"
+    monitor="validation/ms_ssim_crop+sat_mse_crop", mode="min"
 )
 
 trainer = pl.Trainer(
