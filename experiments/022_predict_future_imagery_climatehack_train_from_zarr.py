@@ -142,17 +142,17 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/ms_ssim", ms_ssim_loss)
         self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
-        # Loss on 36x64 central crop:
+        # Loss on 32x32 central crop:
         # The image has to be larger than 32x32 otherwise ms-ssim complains:
         # AssertionError: Image size should be larger than 32 due to the 4 downsamplings in ms-ssim
-        CROP = 12
+        CROP = 16
         sat_mse_loss_crop = F.mse_loss(
-            predicted_sat[:, CROP:-CROP, CROP:-CROP], actual_sat[:, CROP:-CROP, CROP:-CROP]
+            predicted_sat[:, :, CROP:-CROP, CROP:-CROP], actual_sat[:, :, CROP:-CROP, CROP:-CROP]
         )
         self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
         ms_ssim_loss_crop = 1 - ms_ssim(
-            predicted_sat_denorm[:, CROP:-CROP, CROP:-CROP],
-            actual_sat_denorm[:, CROP:-CROP, CROP:-CROP],
+            predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
+            actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
             data_range=1023,
             size_average=True,  # Return a scalar.
             win_size=3,  # ClimateHack folks used win_size=3.
@@ -174,7 +174,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.04: Only compute loss for central 36x36 image. CoordConv. GCP-2",
+    name="022.04: Only compute loss for central 32x32 image. CoordConv. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
