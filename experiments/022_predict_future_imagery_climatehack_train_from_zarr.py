@@ -142,8 +142,23 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/ms_ssim", ms_ssim_loss)
         self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
+        # Loss on 32x32 central crop:
+        sat_mse_loss_32x32 = F.mse_loss(
+            predicted_sat[:, 16:-16, 16:-16], actual_sat[:, 16:-16, 16:-16]
+        )
+        self.log(f"{tag}/sat_mse_32x32", sat_mse_loss_32x32)
+        ms_ssim_loss_32x32 = 1 - ms_ssim(
+            predicted_sat_denorm[:, 16:-16, 16:-16],
+            actual_sat_denorm[:, 16:-16, 16:-16],
+            data_range=1023,
+            size_average=True,  # Return a scalar.
+            win_size=3,  # ClimateHack folks used win_size=3.
+        )
+        self.log(f"{tag}/ms_ssim_32x32", ms_ssim_loss_32x32)
+        self.log(f"{tag}/ms_ssim+sat_mse_32x32", ms_ssim_loss_32x32 + sat_mse_loss_32x32)
+
         return dict(
-            loss=ms_ssim_loss + sat_mse_loss,
+            loss=ms_ssim_loss_32x32 + sat_mse_loss_32x32,
             predicted_sat=predicted_sat,
             actual_sat=actual_sat,
         )
@@ -156,7 +171,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.03: CoordConv. GCP-1",
+    name="022.04: Only compute loss for central 32x32 image. CoordConv. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -166,7 +181,9 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 # log model only if validation loss decreases
-checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="validation/ms_ssim+sat_mse", mode="min")
+checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    monitor="validation/ms_ssim+sat_mse_32x32", mode="min"
+)
 
 trainer = pl.Trainer(
     gpus=[0],
