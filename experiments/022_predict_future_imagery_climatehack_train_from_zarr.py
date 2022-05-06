@@ -1,4 +1,5 @@
 # General imports
+import logging
 import socket
 from dataclasses import dataclass
 from pathlib import Path
@@ -27,6 +28,10 @@ from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.data_loader.satellite_zarr_dataset import SatelliteZarrDataset, worker_init_fn
 from power_perceiver.dataset import NowcastingDataset
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
+
+logging.basicConfig()
+_log = logging.getLogger("power_perceiver")
+_log.setLevel(logging.DEBUG)
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
@@ -92,7 +97,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    coord_conv: bool = False
+    coord_conv: bool = True
     crop: bool = False
 
     # kwargs to fastai DynamicUnet. See this page for details:
@@ -196,7 +201,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.06: Don't blur final layer. 64x64. Coord conv. GCP-2",
+    name="022.06: blur_final=False. 64x64. Coord conv. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -206,9 +211,11 @@ wandb_logger = WandbLogger(
 # wandb_logger.watch(model, log="all")
 
 # log model only if validation loss decreases
-checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    monitor="validation/ms_ssim_crop+sat_mse_crop", mode="min"
-)
+if model.crop:
+    loss_name = "validation/ms_ssim_crop+sat_mse_crop"
+else:
+    loss_name = "validation/ms_ssim+sat_mse"
+checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min")
 
 trainer = pl.Trainer(
     gpus=[0],
