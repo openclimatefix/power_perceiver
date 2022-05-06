@@ -103,9 +103,9 @@ class FullModel(pl.LightningModule):
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
     pretrained: bool = False
-    blur_final: bool = False  # Blur final layer. fastai default is True.
+    blur_final: bool = True  # Blur final layer. fastai default is True.
     self_attention: bool = True  # Use SA layer at the third block before the end.
-    last_cross: bool = True  # Use a cross-connection with the direct input of the model.
+    last_cross: bool = False  # Use a cross-connection with the direct input of the model.
     bottle: bool = False  # Bottleneck the last skip connection.
 
     def __post_init__(self):
@@ -201,7 +201,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.06: blur_final=False. 64x64. Coord conv. GCP-2",
+    name="022.07: last_cross=False. blur_final=True. 64x64. Coord conv. GCP-3",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
