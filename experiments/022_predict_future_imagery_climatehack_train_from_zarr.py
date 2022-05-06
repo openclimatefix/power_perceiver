@@ -218,7 +218,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.11: Ranger LR=1e-4. GCP-1",
+    name="022.11: Ranger LR=1e-4. GCP-3",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
