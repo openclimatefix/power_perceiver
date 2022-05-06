@@ -98,7 +98,7 @@ def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
 
 
 @dataclass
-class SatelliteDataset(torch.utils.data.IterableDataset):
+class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     """Loads data directly from the satellite Zarr store.
 
     The basic strategy implemented by this class is:
@@ -147,10 +147,6 @@ class SatelliteDataset(torch.utils.data.IterableDataset):
             xr_sat_dataset, min_timesteps=self.n_timesteps_per_example
         )
         _log.info("After filtering, " + date_summary_str(xr_sat_dataset))
-
-        # Normalise
-        xr_sat_dataset = self._normalise(xr_sat_dataset)
-
         self.xr_sat_dataset = xr_sat_dataset
 
     def __iter__(self):
@@ -169,16 +165,11 @@ class SatelliteDataset(torch.utils.data.IterableDataset):
         self.sat_data_in_mem = self.xr_sat_dataset.isel(time=mask).load()
         self.available_dates = get_dates(self.sat_data_in_mem)
 
-    def _normalise(self, sat_data: xr.Dataset) -> xr.Dataset:
-        sat_data = sat_data.astype(np.float32)
-        sat_data -= SAT_MEAN["HRV"]
-        sat_data /= SAT_STD["HRV"]
-        return sat_data
-
     def _get_example(self) -> np.ndarray:
         xr_data = self._get_time_slice()
         xr_data = self._get_square(xr_data)
         xr_data = xr_data["data"]
+        xr_data = _normalise(xr_data)
         return to_numpy_batch(xr_data)
 
     def _get_time_slice(self) -> xr.Dataset:
@@ -222,7 +213,7 @@ class SatelliteDataset(torch.utils.data.IterableDataset):
         )
 
 
-def worker_init_fn(worker_id):
+def worker_init_fn(worker_id: int):
     """Configures each dataset worker process.
 
     Just has one job!  To call SatelliteDataset.per_worker_init().
@@ -230,4 +221,11 @@ def worker_init_fn(worker_id):
     # get_worker_info() returns information specific to each worker process.
     worker_info = torch.utils.data.get_worker_info()
     dataset_obj = worker_info.dataset  # The Dataset copy in this worker process.
-    dataset_obj.per_worker_init(worker_id=worker_info.id)
+    dataset_obj.per_worker_init(worker_id=worker_id)
+
+
+def _normalise(sat_data: xr.Dataset) -> xr.Dataset:
+    sat_data = sat_data.astype(np.float32)
+    sat_data -= SAT_MEAN["HRV"]
+    sat_data /= SAT_STD["HRV"]
+    return sat_data
