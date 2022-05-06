@@ -174,7 +174,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.04: Only compute loss for central 32x32 image. CoordConv. GCP-2",
+    name="022.04: Only compute loss for central 33x33 image. CoordConv. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
