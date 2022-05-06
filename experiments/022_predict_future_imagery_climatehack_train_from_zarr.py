@@ -9,9 +9,9 @@ import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from pytorch_forecasting.optim import Ranger
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
-from ranger import Ranger
 
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
@@ -227,6 +227,7 @@ trainer = pl.Trainer(
     callbacks=[
         LogSatellitePlots(),
         checkpoint_callback,
+        pl.callbacks.LearningRateMonitor(logging_interval="step"),
     ],
 )
 
