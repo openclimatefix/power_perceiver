@@ -153,7 +153,7 @@ class FullModel(pl.LightningModule):
         ms_ssim_loss_crop = 1 - ms_ssim(
             predicted_sat_denorm[:, CROP:-CROP, CROP:-CROP],
             actual_sat_denorm[:, CROP:-CROP, CROP:-CROP],
-            data_range=1023.0,
+            data_range=1023,
             size_average=True,  # Return a scalar.
             win_size=3,  # ClimateHack folks used win_size=3.
         )
