@@ -106,7 +106,7 @@ class FullModel(pl.LightningModule):
         # lambda trick from https://stackoverflow.com/a/52064202/732596
         default_factory=lambda: dict(lr=1e-4)
     )
-    use_topography: bool = True
+    use_topography: bool = False
 
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
@@ -218,7 +218,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.10: Topography. Ranger LR=1e-4. GCP-3",
+    name="022.11: Ranger LR=1e-4. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
