@@ -93,12 +93,14 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
+    coord_conv: bool = False
+
     def __post_init__(self):
         super().__init__()
 
         self.satellite_predictor = XResUNet(
             input_size=(64, 64),
-            history_steps=NUM_HIST_SAT_IMAGES + 2,  # + 2 for OSGB coords
+            history_steps=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0),
             forecast_steps=NUM_FUTURE_SAT_IMAGES,
             pretrained=False,
         )
@@ -109,8 +111,11 @@ class FullModel(pl.LightningModule):
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         historical_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
         # `historical_sat` is now of shape: (example, time, y, x)
-        osgb_coords = get_osgb_coords_for_coord_conv(x)
-        data = torch.concat((historical_sat, osgb_coords), dim=1)
+        if self.coord_conv:
+            osgb_coords = get_osgb_coords_for_coord_conv(x)
+            data = torch.concat((historical_sat, osgb_coords), dim=1)
+        else:
+            data = historical_sat
         predicted_sat = self.satellite_predictor(data)
         return dict(predicted_sat=predicted_sat)
 
@@ -153,7 +158,7 @@ class FullModel(pl.LightningModule):
         ms_ssim_loss_crop = 1 - ms_ssim(
             predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
             actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
-            data_range=1023,
+            data_range=1023.0,
             size_average=True,  # Return a scalar.
             win_size=3,  # ClimateHack folks used win_size=3.
         )
@@ -174,7 +179,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.04: Only compute loss for central 33x33 image. CoordConv. GCP-2",
+    name="022.05: Only compute loss for central 33x33 image. No CoordConv. GCP-3",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

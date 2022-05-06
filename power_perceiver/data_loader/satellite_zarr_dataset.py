@@ -17,11 +17,13 @@ _log = logging.getLogger(__name__)
 
 
 def get_contiguous_segments(
-    dt_index: pd.DatetimeIndex, min_timesteps: int, max_gap: pd.Timedelta = pd.Timedelta("5T")
+    dt_index: pd.DatetimeIndex, min_timesteps: int, max_gap: pd.Timedelta = pd.Timedelta("8T")
 ) -> list[np.ndarray]:
     """Chunk datetime index into contiguous segments, each at least min_timesteps long.
 
     max_gap defines the threshold for what constitutes a 'gap' between contiguous segments.
+    Defaults to 8 minutes because the satellite timesteps aren't always exactly on the
+    5 minute boundary.
 
     Returns a list of arrays. Each array holds the indicies into `dt_index` of
     one contiguous segment.
