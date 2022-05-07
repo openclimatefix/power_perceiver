@@ -108,7 +108,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
-    optimizer_class: torch.optim.Optimizer = torch.optim.Adam
+    optimizer_class: torch.optim.Optimizer = torch.optim.RAdam
     optimizer_kwargs: dict = field(
         # lambda trick from https://stackoverflow.com/a/52064202/732596
         default_factory=lambda: dict(lr=1e-4)
@@ -227,7 +227,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.15: LambdaLR(50). Topography. Adam. LR=1e-4. donatello-0.",
+    name="022.16: LambdaLR(50). Topography. RAdam. LR=1e-4. donatello-2.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -241,7 +241,7 @@ else:
 checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min")
 
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[2],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
