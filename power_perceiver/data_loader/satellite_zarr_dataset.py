@@ -85,11 +85,11 @@ def _select_timesteps_in_contiguous_periods(
 def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
     example: NumpyBatch = {}
     # Insert a "channels" dimension:
-    example[BatchKey.hrvsatellite] = xr_data.expand_dims(dim="channel", axis=2).values
+    example[BatchKey.hrvsatellite] = xr_data.expand_dims(dim="channel", axis=2).values.copy()
 
     # Insert example dimensions:
     example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(
-        xr_data["time"].expand_dims(dim="example", axis=0).values
+        xr_data["time"].expand_dims(dim="example", axis=0).values.copy()
     )
     for batch_key, dataset_key in (
         (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
@@ -98,7 +98,7 @@ def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
         (BatchKey.hrvsatellite_x_geostationary, "x"),
     ):
         # HRVSatellite coords are already float32.
-        example[batch_key] = xr_data[dataset_key].expand_dims(dim="example", axis=0).values
+        example[batch_key] = xr_data[dataset_key].expand_dims(dim="example", axis=0).values.copy()
     return example
 
 
@@ -186,6 +186,10 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
         if self.np_batch_processors:
             for batch_processor in self.np_batch_processors:
                 np_batch = batch_processor(np_batch)
+
+        # Remove example dim:
+        for key, array in np_batch.items():
+            np_batch[key] = array[0]
         return np_batch
 
     def _get_time_slice(self) -> xr.Dataset:
