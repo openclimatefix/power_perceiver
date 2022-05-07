@@ -216,18 +216,18 @@ class FullModel(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
 
-        # def _lr_lambda(epoch):
-        #     return 50 / (epoch + 50)
+        def _lr_lambda(epoch):
+            return 50 / (epoch + 50)
 
-        # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
-        # return [optimizer], [scheduler]
-        return optimizer
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
+        return [optimizer], [scheduler]
+        # return optimizer
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.14: Topography. Adam. LR=1e-4. GCP-3.",
+    name="022.15: LambdaLR(50). Topography. Adam. LR=1e-4. donatello-0.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
