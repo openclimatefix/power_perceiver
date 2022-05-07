@@ -41,6 +41,7 @@ class Topography:
     def __post_init__(self):
         self.topo = load_topo_data(self.topo_filename)
         self.topo = reproject_topo_data_from_osgb_to_geostationary(self.topo)
+        self.topo = self.topo.fillna(0)
         self.topo_mean = self.topo.mean().item()
         self.topo_std = self.topo.std().item()
 
@@ -92,7 +93,7 @@ def load_topo_data(filename: str) -> xr.DataArray:
     topo = topo.rename({"x": "x_osgb", "y": "y_osgb"})
 
     # Select just the UK:
-    topo = topo.sel(x_osgb=slice(0, 700_000), y_osgb=slice(1_300_000, -100_000))
+    topo = topo.sel(x_osgb=slice(-300_000, 1_500_000), y_osgb=slice(1_300_000, -800_000))
 
     return topo
 

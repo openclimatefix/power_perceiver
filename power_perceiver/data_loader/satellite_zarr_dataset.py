@@ -2,7 +2,7 @@ import datetime
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -85,8 +85,12 @@ def _select_timesteps_in_contiguous_periods(
 def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
     example: NumpyBatch = {}
     # Insert a "channels" dimension:
-    example[BatchKey.hrvsatellite] = np.expand_dims(xr_data.values, axis=1)
-    example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(xr_data["time"].values)
+    example[BatchKey.hrvsatellite] = xr_data.expand_dims(dim="channel", axis=2).values
+
+    # Insert example dimensions:
+    example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(
+        xr_data["time"].expand_dims(dim="example", axis=0).values
+    )
     for batch_key, dataset_key in (
         (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
         (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
@@ -94,7 +98,7 @@ def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
         (BatchKey.hrvsatellite_x_geostationary, "x"),
     ):
         # HRVSatellite coords are already float32.
-        example[batch_key] = xr_data[dataset_key].values
+        example[batch_key] = xr_data[dataset_key].expand_dims(dim="example", axis=0).values
     return example
 
 
@@ -115,6 +119,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     start_date: datetime.datetime = pd.Timestamp("2020-01-01 00:00")
     end_date: datetime.datetime = pd.Timestamp("2020-12-31 23:59")
     size_pixels: int = 64
+    np_batch_processors: Optional[list[Callable]] = None
 
     def __post_init__(self):
         super().__init__()
@@ -148,6 +153,10 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
             xr_sat_dataset, min_timesteps=self.n_timesteps_per_example
         )
         _log.info("After filtering, " + date_summary_str(xr_sat_dataset))
+
+        # Flip coordinates to top-left first
+        xr_sat_dataset = xr_sat_dataset.reindex(x=xr_sat_dataset.x[::-1])
+
         self.xr_sat_dataset = xr_sat_dataset
 
     def __iter__(self):
@@ -167,12 +176,17 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
         self.sat_data_in_mem = self.xr_sat_dataset.isel(time=mask).load()
         self.available_dates = get_dates(self.sat_data_in_mem)
 
-    def _get_example(self) -> np.ndarray:
+    def _get_example(self) -> NumpyBatch:
         xr_data = self._get_time_slice()
         xr_data = self._get_square(xr_data)
         xr_data = xr_data["data"]
+        xr_data = xr_data.expand_dims(dim="example", axis=0)
         xr_data = _normalise(xr_data)
-        return to_numpy_batch(xr_data)
+        np_batch = to_numpy_batch(xr_data)
+        if self.np_batch_processors:
+            for batch_processor in self.np_batch_processors:
+                np_batch = batch_processor(np_batch)
+        return np_batch
 
     def _get_time_slice(self) -> xr.Dataset:
         # Select a random date from the in-memory data

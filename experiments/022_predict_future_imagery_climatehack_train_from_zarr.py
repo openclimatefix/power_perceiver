@@ -9,7 +9,6 @@ import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from pytorch_forecasting.optim import Ranger
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
 
@@ -38,6 +37,8 @@ _log.setLevel(logging.DEBUG)
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
+USE_TOPOGRAPHY = True
+
 if socket.gethostname() == "donatello":
     SATELLITE_ZARR_PATH = (
         "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
@@ -60,8 +61,13 @@ NUM_FUTURE_SAT_IMAGES = 24
 
 torch.manual_seed(42)
 
+np_batch_processors = [Topography("/home/jack/europe_dem_2km_osgb.tif")] if USE_TOPOGRAPHY else None
+
 train_dataloader = torch.utils.data.DataLoader(
-    SatelliteZarrDataset(satellite_zarr_path=SATELLITE_ZARR_PATH),
+    SatelliteZarrDataset(
+        satellite_zarr_path=SATELLITE_ZARR_PATH,
+        np_batch_processors=np_batch_processors,
+    ),
     batch_size=32,
     num_workers=1,  # TODO: Change?
     pin_memory=True,
@@ -75,6 +81,7 @@ val_dataloader = torch.utils.data.DataLoader(
         data_loaders=[
             HRVSatellite(),
         ],
+        np_batch_processors=np_batch_processors,
     ),
     batch_size=None,
     num_workers=12,
@@ -101,12 +108,12 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
-    optimizer_class: torch.optim.Optimizer = Ranger
+    optimizer_class: torch.optim.Optimizer = torch.optim.Adam
     optimizer_kwargs: dict = field(
         # lambda trick from https://stackoverflow.com/a/52064202/732596
-        default_factory=lambda: dict(lr=5e-5)
+        default_factory=lambda: dict(lr=1e-4)
     )
-    use_topography: bool = False
+    use_topography: bool = USE_TOPOGRAPHY
 
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
@@ -118,9 +125,6 @@ class FullModel(pl.LightningModule):
 
     def __post_init__(self):
         super().__init__()
-
-        if self.use_topography:
-            self.topography = Topography("/home/jack/europe_dem_2km_osgb.tif")
 
         self.satellite_predictor = XResUNet(
             img_size=(64, 64),
@@ -145,7 +149,6 @@ class FullModel(pl.LightningModule):
             data = torch.concat((data, osgb_coords), dim=1)
 
         if self.use_topography:
-            x = self.topography(x)
             surface_height = x[BatchKey.hrvsatellite_surface_height]
             surface_height = surface_height.unsqueeze(1)  # Add channel dim
             data = torch.concat((data, surface_height), dim=1)
@@ -213,17 +216,18 @@ class FullModel(pl.LightningModule):
     def configure_optimizers(self):
         optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
 
-        def _lr_lambda(epoch):
-            return 50 / (epoch + 50)
+        # def _lr_lambda(epoch):
+        #     return 50 / (epoch + 50)
 
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
-        return [optimizer], [scheduler]
+        # scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
+        # return [optimizer], [scheduler]
+        return optimizer
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.13: Ranger. LambdaLR: 50/(epoch+50). LR=1e-4. GCP-2.",
+    name="022.14: Topography. Adam. LR=1e-4. GCP-3.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
