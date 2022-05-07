@@ -106,9 +106,9 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    coord_conv: bool = True
+    coord_conv: bool = False
     crop: bool = False
-    optimizer_class: torch.optim.Optimizer = torch.optim.RAdam
+    optimizer_class: torch.optim.Optimizer = torch.optim.Adam
     optimizer_kwargs: dict = field(
         # lambda trick from https://stackoverflow.com/a/52064202/732596
         default_factory=lambda: dict(lr=1e-4)
@@ -121,7 +121,7 @@ class FullModel(pl.LightningModule):
     blur_final: bool = False  # Blur final layer. fastai default is True.
     self_attention: bool = True  # Use SA layer at the third block before the end.
     last_cross: bool = True  # Use a cross-connection with the direct input of the model.
-    bottle: bool = True  # Bottleneck the last skip connection.
+    bottle: bool = False  # Bottleneck the last skip connection.
 
     def __post_init__(self):
         super().__init__()
@@ -227,7 +227,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.17: Bottle. LambdaLR(50). Topography. RAdam. LR=1e-4. donatello-4.",
+    name="022.18: coord_conv=False. LambdaLR(50). Topography. Adam. LR=1e-4. donatello-4.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
