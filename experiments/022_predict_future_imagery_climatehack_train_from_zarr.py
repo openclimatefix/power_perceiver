@@ -121,7 +121,7 @@ class FullModel(pl.LightningModule):
     blur_final: bool = False  # Blur final layer. fastai default is True.
     self_attention: bool = True  # Use SA layer at the third block before the end.
     last_cross: bool = True  # Use a cross-connection with the direct input of the model.
-    bottle: bool = False  # Bottleneck the last skip connection.
+    bottle: bool = True  # Bottleneck the last skip connection.
 
     def __post_init__(self):
         super().__init__()
@@ -227,7 +227,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.16: LambdaLR(50). Topography. RAdam. LR=1e-4. donatello-2.",
+    name="022.17: Bottle. LambdaLR(50). Topography. RAdam. LR=1e-4. donatello-4.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -241,7 +241,7 @@ else:
 checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min")
 
 trainer = pl.Trainer(
-    gpus=[2],
+    gpus=[4],
     max_epochs=70,
     logger=wandb_logger,
     callbacks=[
