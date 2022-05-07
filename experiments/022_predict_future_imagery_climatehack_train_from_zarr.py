@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
+from pytorch_forecasting.optim import Ranger
 from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
 
@@ -100,10 +101,10 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 class FullModel(pl.LightningModule):
     coord_conv: bool = True
     crop: bool = False
-    optimizer_class: torch.optim.Optimizer = torch.optim.RAdam
+    optimizer_class: torch.optim.Optimizer = Ranger
     optimizer_kwargs: dict = field(
         # lambda trick from https://stackoverflow.com/a/52064202/732596
-        default_factory=lambda: dict(lr=1e-4)
+        default_factory=lambda: dict(lr=5e-5)
     )
     use_topography: bool = False
 
@@ -211,13 +212,18 @@ class FullModel(pl.LightningModule):
 
     def configure_optimizers(self):
         optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
-        return optimizer
+
+        def _lr_lambda(epoch):
+            return 50 / (epoch + 50)
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
+        return [optimizer], [scheduler]
 
 
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.12: RAdam. LR=1e-4. GCP-1",
+    name="022.13: Ranger. LambdaLR: 50/(epoch+50). LR=1e-4. GCP-2.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
