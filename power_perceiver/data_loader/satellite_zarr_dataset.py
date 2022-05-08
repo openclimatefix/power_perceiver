@@ -120,6 +120,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     end_date: datetime.datetime = pd.Timestamp("2020-12-31 23:59")
     size_pixels: int = 64
     np_batch_processors: Optional[list[Callable]] = None
+    load_once: bool = False
 
     def __post_init__(self):
         super().__init__()
@@ -135,6 +136,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
         _log.info(f"{worker_id=} has random number generator {seed=:,d}")
         self.rng = np.random.default_rng(seed=seed)
 
+        self.sat_data_in_mem = None
         self._open_satellite_zarr()
 
     def _open_satellite_zarr(self):
@@ -160,7 +162,8 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
         self.xr_sat_dataset = xr_sat_dataset
 
     def __iter__(self):
-        self._load_random_days_from_disk()  # TODO: Could be done asynchronously
+        if self.sat_data_in_mem is None or not self.load_once:
+            self._load_random_days_from_disk()  # TODO: Could be done asynchronously
         for _ in range(self.n_examples_per_epoch):
             yield self._get_example()
 

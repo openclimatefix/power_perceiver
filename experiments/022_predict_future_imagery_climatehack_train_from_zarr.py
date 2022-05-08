@@ -6,6 +6,7 @@ from pathlib import Path
 
 # ML imports
 import matplotlib.pyplot as plt
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -37,6 +38,7 @@ _log.setLevel(logging.DEBUG)
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
+IMAGE_SIZE_PIXELS = 128
 USE_TOPOGRAPHY = True
 
 if socket.gethostname() == "donatello":
@@ -67,27 +69,45 @@ train_dataloader = torch.utils.data.DataLoader(
     SatelliteZarrDataset(
         satellite_zarr_path=SATELLITE_ZARR_PATH,
         np_batch_processors=np_batch_processors,
+        size_pixels=IMAGE_SIZE_PIXELS,
     ),
     batch_size=32,
-    num_workers=1,  # TODO: Change?
+    num_workers=1,
     pin_memory=True,
     worker_init_fn=worker_init_fn,
     persistent_workers=True,
 )
 
-val_dataloader = torch.utils.data.DataLoader(
-    NowcastingDataset(
-        data_path=DATA_PATH / "test",
-        data_loaders=[
-            HRVSatellite(),
-        ],
-        np_batch_processors=np_batch_processors,
-    ),
-    batch_size=None,
-    num_workers=12,
-    pin_memory=True,
-    persistent_workers=True,
-)
+if IMAGE_SIZE_PIXELS == 64:
+    val_dataloader = torch.utils.data.DataLoader(
+        NowcastingDataset(
+            data_path=DATA_PATH / "test",
+            data_loaders=[
+                HRVSatellite(),
+            ],
+            np_batch_processors=np_batch_processors,
+        ),
+        batch_size=None,
+        num_workers=12,
+        pin_memory=True,
+        persistent_workers=True,
+    )
+else:
+    val_dataloader = torch.utils.data.DataLoader(
+        SatelliteZarrDataset(
+            satellite_zarr_path=SATELLITE_ZARR_PATH,
+            np_batch_processors=np_batch_processors,
+            size_pixels=IMAGE_SIZE_PIXELS,
+            start_date=pd.Timestamp("2021-01-01 00:00"),
+            end_date=pd.Timestamp("2021-12-31 23:59"),
+            load_once=True,
+        ),
+        batch_size=32,
+        num_workers=1,
+        pin_memory=True,
+        worker_init_fn=worker_init_fn,
+        persistent_workers=True,
+    )
 
 
 def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
@@ -127,7 +147,7 @@ class FullModel(pl.LightningModule):
         super().__init__()
 
         self.satellite_predictor = XResUNet(
-            img_size=(64, 64),
+            img_size=(IMAGE_SIZE_PIXELS, IMAGE_SIZE_PIXELS),
             n_in=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0) + int(self.use_topography),
             n_out=NUM_FUTURE_SAT_IMAGES,
             pretrained=self.pretrained,
@@ -227,7 +247,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.18: coord_conv=False. LambdaLR(50). Topography. Adam. LR=1e-4. donatello-4.",
+    name="022.19: 128x128. coord_conv=False. LambdaLR(50). Topography. Adam. LR=1e-4. GCP-3.",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
