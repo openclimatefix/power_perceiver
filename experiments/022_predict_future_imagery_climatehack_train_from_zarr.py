@@ -261,7 +261,7 @@ else:
 checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min")
 
 trainer = pl.Trainer(
-    gpus=[4],
+    gpus=[0],
     max_epochs=200,
     logger=wandb_logger,
     callbacks=[
