@@ -38,7 +38,7 @@ _log.setLevel(logging.DEBUG)
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
-IMAGE_SIZE_PIXELS = 64
+IMAGE_SIZE_PIXELS = 128
 USE_TOPOGRAPHY = True
 
 if socket.gethostname() == "donatello":
@@ -101,6 +101,7 @@ else:
             start_date=pd.Timestamp("2021-01-01 00:00"),
             end_date=pd.Timestamp("2021-12-31 23:59"),
             load_once=True,
+            n_days_to_load_per_epoch=8,  # Don't use up too much RAM!
         ),
         batch_size=32,
         num_workers=1,
@@ -248,8 +249,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "022.20: 64x64. blur_final=True. coord_conv=False. LambdaLR(50)."
-        " Topography. Adam. LR=1e-4. GCP-2."
+        "022.21: 128x128. blur_final=True. coord_conv=False. LambdaLR(50)."
+        " Topography. Adam. LR=1e-4. GCP-3."
     ),
     project="power_perceiver",
     entity="openclimatefix",
