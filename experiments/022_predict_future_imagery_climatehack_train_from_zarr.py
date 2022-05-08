@@ -38,7 +38,7 @@ _log.setLevel(logging.DEBUG)
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
-IMAGE_SIZE_PIXELS = 128
+IMAGE_SIZE_PIXELS = 64
 USE_TOPOGRAPHY = True
 
 if socket.gethostname() == "donatello":
@@ -138,7 +138,7 @@ class FullModel(pl.LightningModule):
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
     pretrained: bool = False
-    blur_final: bool = False  # Blur final layer. fastai default is True.
+    blur_final: bool = True  # Blur final layer. fastai default is True.
     self_attention: bool = True  # Use SA layer at the third block before the end.
     last_cross: bool = True  # Use a cross-connection with the direct input of the model.
     bottle: bool = False  # Bottleneck the last skip connection.
@@ -247,7 +247,10 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.19: 128x128. coord_conv=False. LambdaLR(50). Topography. Adam. LR=1e-4. GCP-3.",
+    name=(
+        "022.20: 64x64. blur_final=True. coord_conv=False. LambdaLR(50)."
+        " Topography. Adam. LR=1e-4. GCP-2."
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -260,8 +263,13 @@ else:
     loss_name = "validation/ms_ssim+sat_mse"
 checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min")
 
+
+if socket.gethostname() == "donatello":
+    GPU = 4
+else:  # On GCP
+    GPU = 0
 trainer = pl.Trainer(
-    gpus=[0],
+    gpus=[GPU],
     max_epochs=200,
     logger=wandb_logger,
     callbacks=[
