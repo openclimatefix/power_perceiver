@@ -192,8 +192,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
 
         # Remove example dim:
         for key, array in np_batch.items():
-            # np_batch[key] = array[0]
-            pass
+            np_batch[key] = array[0]
         return np_batch
 
     def _get_time_slice(self) -> xr.Dataset:

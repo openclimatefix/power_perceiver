@@ -43,7 +43,14 @@ class SunPosition:
         for i, (lat, lon, dt) in enumerate(zip(lats, lons, datetimes)):
             dt = pd.DatetimeIndex([dt])  # pvlib expects a `pd.DatetimeIndex`.
             solpos = pvlib.solarposition.get_solarposition(
-                time=dt, latitude=lat, longitude=lon, method="nrel_numba"
+                time=dt,
+                latitude=lat,
+                longitude=lon,
+                # pyephem seems to be a good mix between speed and ease.
+                # nrel_numba doesn't work when using multiple worker processes.
+                # nrel_c is probably fastest but requires C code to be manually compiled:
+                # https://midcdmz.nrel.gov/spa/
+                method="pyephem",
             )
             solpos = solpos.iloc[0]
             azimuth[i] = solpos["azimuth"]
