@@ -8,7 +8,6 @@ PV_TIME_AXIS = 1
 PV_SYSTEM_AXIS = 2
 # The index into the time dimension which marks the most recent observation.
 T0_IDX_30_MIN = 1
-NUM_HIST_SAT_IMAGES = 7
 
 Y_OSGB_MEAN = 357021.38
 Y_OSGB_STD = 612920.2

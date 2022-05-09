@@ -120,7 +120,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     end_date: datetime.datetime = pd.Timestamp("2020-12-31 23:59")
     size_pixels: int = 64
     np_batch_processors: Optional[list[Callable]] = None
-    load_once: bool = False
+    load_once: bool = False  #: Set to True for use as validation dataset.
 
     def __post_init__(self):
         super().__init__()
