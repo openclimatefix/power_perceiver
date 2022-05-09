@@ -130,7 +130,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    use_coord_conv: bool = False
+    use_coord_conv: bool = True
     crop: bool = False
     optimizer_class: torch.optim.Optimizer = torch.optim.Adam
     optimizer_kwargs: dict = field(
@@ -264,7 +264,10 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.26: load 64 days. Use all data where Sun >= 5 degrees above horizon. donatello-2",
+    name=(
+        "022.27: Coord conv. Load 64 days. Use all data where Sun >= 5 degrees above horizon."
+        " donatello-4"
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -279,7 +282,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min"
 
 
 if socket.gethostname() == "donatello":
-    GPU = 2
+    GPU = 4
 else:  # On GCP
     GPU = 0
 trainer = pl.Trainer(
