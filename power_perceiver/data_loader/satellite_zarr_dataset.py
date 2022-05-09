@@ -1,16 +1,20 @@
 import datetime
+import itertools
 import logging
 from dataclasses import dataclass
+from numbers import Number
 from pathlib import Path
 from typing import Callable, Optional, Union
 
 import numpy as np
 import pandas as pd
+import pvlib
 import torch
 import xarray as xr
 
 from power_perceiver.data_loader.data_loader import BatchKey, NumpyBatch
 from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.geospatial import osgb_to_lat_lon
 from power_perceiver.utils import datetime64_to_float
 
 _log = logging.getLogger(__name__)
@@ -49,10 +53,36 @@ def get_contiguous_segments(
     return good_time_idx
 
 
-def _select_data_in_daylight(xr_sat_dataset: xr.Dataset) -> xr.Dataset:
-    # TODO: Use angle of the Sun, not hour-of-day.
-    time_index = pd.DatetimeIndex(xr_sat_dataset.time)
-    daylight_hours_mask = (time_index.hour >= 9) & (time_index.hour <= 15)
+def _select_data_in_daylight(
+    xr_sat_dataset: xr.Dataset, solar_elevation_threshold_degrees: Number = 5
+) -> xr.Dataset:
+    """Only select data where, for at least one of the four corners of the satellite imagery,
+    the Sun is at least `solar_elevation_threshold_degrees` above the horizon."""
+    y_osgb = xr_sat_dataset.y_osgb
+    x_osgb = xr_sat_dataset.x_osgb
+
+    corners_osgb = [
+        (x_osgb.isel(x=x, y=y).values, y_osgb.isel(x=x, y=y).values)
+        for x, y in itertools.product((0, -1), (0, -1))
+    ]
+
+    corners_osgb = pd.DataFrame(corners_osgb, columns=["x", "y"])
+
+    lats, lons = osgb_to_lat_lon(x=corners_osgb.x, y=corners_osgb.y)
+
+    elevation_for_all_corners = []
+    for lat, lon in zip(lats, lons):
+        solpos = pvlib.solarposition.get_solarposition(
+            time=xr_sat_dataset.time,
+            latitude=lat,
+            longitude=lon,
+        )
+        elevation = solpos["elevation"]
+        elevation_for_all_corners.append(elevation)
+
+    elevation_for_all_corners = pd.concat(elevation_for_all_corners, axis="columns")
+    max_elevation = elevation_for_all_corners.max(axis="columns")
+    daylight_hours_mask = max_elevation >= solar_elevation_threshold_degrees
     return xr_sat_dataset.isel(time=daylight_hours_mask)
 
 
@@ -66,10 +96,12 @@ def num_days(xr_sat_dataset: xr.Dataset) -> int:
 
 
 def date_summary_str(xr_sat_dataset: xr.Dataset) -> str:
+    # Convert to pd.DatetimeIndex to get prettier date string formatting.
     time_index = pd.DatetimeIndex(xr_sat_dataset.time)
     return (
         f"there are {num_days(xr_sat_dataset):,d} days of data"
-        f" from {time_index[0]} to {time_index[-1]}"
+        f" from {time_index[0]} to {time_index[-1]}."
+        f" A total of {len(time_index):,d} timesteps."
     )
 
 

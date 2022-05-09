@@ -38,7 +38,7 @@ NUM_HIST_SAT_IMAGES = 7  # v15 pre-prepared batches use 7
 NUM_FUTURE_SAT_IMAGES = 24  # v15 pre-prepared batches use 24
 IMAGE_SIZE_PIXELS = 64  # v15 pre-prepared batches use 64
 USE_TOPOGRAPHY = True
-USE_SUN_POSITION = False
+USE_SUN_POSITION = True
 
 if socket.gethostname() == "donatello":
     SATELLITE_ZARR_PATH = (
@@ -264,10 +264,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name=(
-        "022.24: 64x64. 7 history. blur_final=True. coord_conv=False. LambdaLR(50)."
-        " Topography. Adam. LR=1e-4. GCP-3."
-    ),
+    name="022.25: Use all data where Sun >= 5 degrees above horizon. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -282,7 +279,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min"
 
 
 if socket.gethostname() == "donatello":
-    GPU = 4
+    GPU = 0
 else:  # On GCP
     GPU = 0
 trainer = pl.Trainer(
