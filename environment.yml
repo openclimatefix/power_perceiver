@@ -46,4 +46,4 @@ dependencies:
 
   - pip:
       - pytorch-msssim
-      - pytorch-forecasting # Used for Ranger optimizer
+      # - pytorch-forecasting  # Used for Ranger optimizer (not currently used)

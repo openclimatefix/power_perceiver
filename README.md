@@ -15,6 +15,15 @@ pre-commit install
 
 If using `Ranger21` optimizer then please install [Ranger21 with my tiny little patch](https://github.com/JackKelly/Ranger21/tree/patch-1).
 
+To prevent `mamba update --all` from trying to replace the GPU version of PyTorch with the CPU version,
+add this to `~/miniconda3/envs/power_perceiver/conda-meta/pinned`:
+
+```
+# Prevent mamba update --all from trying to install CPU version of torch.
+# See: https://stackoverflow.com/a/70536292/732596
+cudatoolkit<11.6
+```
+
 # Data pipeline
 
 The data flows through several steps, in order:
