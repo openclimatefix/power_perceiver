@@ -18,7 +18,7 @@ class SunPosition:
     from the Zarr! Hence we need this when training directly from Zarr!
     """
 
-    t0_timestep: int = 7
+    t0_timestep_idx: int = 6
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         """Sets `BatchKey.solar_azimuth_at_t0` and `BatchKey.solar_elevation_at_t0`."""
@@ -31,7 +31,7 @@ class SunPosition:
         x_centre_idx = int(y_osgb.shape[2] // 2)
         y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
         x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
-        time_utc_t0 = time_utc[:, self.t0_timestep]  # Shape: (example,)
+        time_utc_t0 = time_utc[:, self.t0_timestep_idx]  # Shape: (example,)
 
         # Convert to the units that pvlib expects: lat, lon and pd.Timestamp.
         lats, lons = osgb_to_lat_lon(x=x_osgb_centre, y=y_osgb_centre)
@@ -46,11 +46,11 @@ class SunPosition:
                 time=dt,
                 latitude=lat,
                 longitude=lon,
-                # pyephem seems to be a good mix between speed and ease.
+                # Which `method` to use?
+                # pyephem seemed to be a good mix between speed and ease but causes segfaults!
                 # nrel_numba doesn't work when using multiple worker processes.
                 # nrel_c is probably fastest but requires C code to be manually compiled:
                 # https://midcdmz.nrel.gov/spa/
-                method="pyephem",
             )
             solpos = solpos.iloc[0]
             azimuth[i] = solpos["azimuth"]

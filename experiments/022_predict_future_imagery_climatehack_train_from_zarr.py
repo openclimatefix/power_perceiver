@@ -35,10 +35,10 @@ plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
 NUM_HIST_SAT_IMAGES = 7  # v15 pre-prepared batches use 7
-NUM_FUTURE_SAT_IMAGES = 24
+NUM_FUTURE_SAT_IMAGES = 24  # v15 pre-prepared batches use 24
 IMAGE_SIZE_PIXELS = 64  # v15 pre-prepared batches use 64
 USE_TOPOGRAPHY = True
-USE_SUN_POSITION = True
+USE_SUN_POSITION = False
 
 if socket.gethostname() == "donatello":
     SATELLITE_ZARR_PATH = (
@@ -63,7 +63,7 @@ torch.manual_seed(42)
 
 np_batch_processors = []
 if USE_SUN_POSITION:
-    np_batch_processors.append(SunPosition(t0_timestep=NUM_HIST_SAT_IMAGES - 1))
+    np_batch_processors.append(SunPosition(t0_timestep_idx=NUM_HIST_SAT_IMAGES - 1))
 if USE_TOPOGRAPHY:
     np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
@@ -265,8 +265,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "022.23: Sun pos at t0. 64x64. 7 history. blur_final=True. coord_conv=False. LambdaLR(50)."
-        " Topography. Adam. LR=1e-4. GCP-2."
+        "022.24: 64x64. 7 history. blur_final=True. coord_conv=False. LambdaLR(50)."
+        " Topography. Adam. LR=1e-4. GCP-3."
     ),
     project="power_perceiver",
     entity="openclimatefix",
