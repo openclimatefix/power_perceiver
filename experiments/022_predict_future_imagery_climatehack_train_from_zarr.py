@@ -264,7 +264,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="022.25: Use all data where Sun >= 5 degrees above horizon. donatello-0",
+    name="022.26: load 64 days. Use all data where Sun >= 5 degrees above horizon. donatello-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -279,7 +279,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min"
 
 
 if socket.gethostname() == "donatello":
-    GPU = 0
+    GPU = 2
 else:  # On GCP
     GPU = 0
 trainer = pl.Trainer(

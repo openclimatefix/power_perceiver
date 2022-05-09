@@ -145,7 +145,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     """
 
     satellite_zarr_path: Union[Path, str]
-    n_days_to_load_per_epoch: int = 32  #: Number of random days to load per epoch.
+    n_days_to_load_per_epoch: int = 64  #: Number of random days to load per epoch.
     n_examples_per_epoch: int = 1024 * 32
     n_timesteps_per_example: int = 31  #: 31 is what's used in v15 of the pre-prepared dataset.
     start_date: datetime.datetime = pd.Timestamp("2020-01-01 00:00")
