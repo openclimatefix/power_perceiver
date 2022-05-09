@@ -4,6 +4,8 @@ import socket
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import einops
+
 # ML imports
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -21,6 +23,7 @@ from power_perceiver.data_loader import HRVSatellite
 from power_perceiver.data_loader.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.data_loader.satellite_zarr_dataset import SatelliteZarrDataset, worker_init_fn
 from power_perceiver.dataset import NowcastingDataset
+from power_perceiver.np_batch_processor.sun_position import SunPosition
 from power_perceiver.np_batch_processor.topography import Topography
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 
@@ -31,10 +34,11 @@ _log.setLevel(logging.DEBUG)
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
-NUM_HIST_SAT_IMAGES = 12
+NUM_HIST_SAT_IMAGES = 7  # v15 pre-prepared batches use 7
 NUM_FUTURE_SAT_IMAGES = 24
-IMAGE_SIZE_PIXELS = 128
+IMAGE_SIZE_PIXELS = 64  # v15 pre-prepared batches use 64
 USE_TOPOGRAPHY = True
+USE_SUN_POSITION = True
 
 if socket.gethostname() == "donatello":
     SATELLITE_ZARR_PATH = (
@@ -57,23 +61,35 @@ assert DATA_PATH.exists()
 
 torch.manual_seed(42)
 
-np_batch_processors = [Topography("/home/jack/europe_dem_2km_osgb.tif")] if USE_TOPOGRAPHY else None
+np_batch_processors = []
+if USE_SUN_POSITION:
+    np_batch_processors.append(SunPosition(t0_timestep=NUM_HIST_SAT_IMAGES - 1))
+if USE_TOPOGRAPHY:
+    np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
-train_dataloader = torch.utils.data.DataLoader(
-    SatelliteZarrDataset(
-        satellite_zarr_path=SATELLITE_ZARR_PATH,
-        np_batch_processors=np_batch_processors,
-        size_pixels=IMAGE_SIZE_PIXELS,
-        n_timesteps_per_example=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
-    ),
-    batch_size=32,
-    num_workers=1,
-    pin_memory=True,
-    worker_init_fn=worker_init_fn,
-    persistent_workers=True,
-)
 
-if IMAGE_SIZE_PIXELS == 64:
+def get_satellite_zarr_dataloader(**kwargs):
+    return torch.utils.data.DataLoader(
+        SatelliteZarrDataset(
+            satellite_zarr_path=SATELLITE_ZARR_PATH,
+            np_batch_processors=np_batch_processors,
+            size_pixels=IMAGE_SIZE_PIXELS,
+            n_timesteps_per_example=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
+            **kwargs,
+        ),
+        batch_size=32,
+        num_workers=1,
+        pin_memory=True,
+        worker_init_fn=worker_init_fn,
+        persistent_workers=True,
+    )
+
+
+train_dataloader = get_satellite_zarr_dataloader()
+
+
+if IMAGE_SIZE_PIXELS == 64 and NUM_HIST_SAT_IMAGES == 7:
+    # Use pre-prepared batches:
     val_dataloader = torch.utils.data.DataLoader(
         NowcastingDataset(
             data_path=DATA_PATH / "test",
@@ -88,22 +104,11 @@ if IMAGE_SIZE_PIXELS == 64:
         persistent_workers=True,
     )
 else:
-    val_dataloader = torch.utils.data.DataLoader(
-        SatelliteZarrDataset(
-            satellite_zarr_path=SATELLITE_ZARR_PATH,
-            np_batch_processors=np_batch_processors,
-            size_pixels=IMAGE_SIZE_PIXELS,
-            start_date=pd.Timestamp("2021-01-01 00:00"),
-            end_date=pd.Timestamp("2021-12-31 23:59"),
-            load_once=True,
-            n_days_to_load_per_epoch=8,  # Don't use up too much RAM!
-            n_timesteps_per_example=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
-        ),
-        batch_size=32,
-        num_workers=1,
-        pin_memory=True,
-        worker_init_fn=worker_init_fn,
-        persistent_workers=True,
+    val_dataloader = get_satellite_zarr_dataloader(
+        start_date=pd.Timestamp("2021-01-01 00:00"),
+        end_date=pd.Timestamp("2021-12-31 23:59"),
+        load_once=True,
+        n_days_to_load_per_epoch=8,  # Don't use up too much RAM!
     )
 
 
@@ -123,7 +128,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    coord_conv: bool = False
+    use_coord_conv: bool = False
     crop: bool = False
     optimizer_class: torch.optim.Optimizer = torch.optim.Adam
     optimizer_kwargs: dict = field(
@@ -131,6 +136,7 @@ class FullModel(pl.LightningModule):
         default_factory=lambda: dict(lr=1e-4)
     )
     use_topography: bool = USE_TOPOGRAPHY
+    use_sun_position: bool = USE_SUN_POSITION
 
     # kwargs to fastai DynamicUnet. See this page for details:
     # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
@@ -145,7 +151,12 @@ class FullModel(pl.LightningModule):
 
         self.satellite_predictor = XResUNet(
             img_size=(IMAGE_SIZE_PIXELS, IMAGE_SIZE_PIXELS),
-            n_in=NUM_HIST_SAT_IMAGES + (2 if self.coord_conv else 0) + int(self.use_topography),
+            n_in=(
+                NUM_HIST_SAT_IMAGES
+                + (2 if self.use_coord_conv else 0)
+                + (1 if self.use_topography else 0)
+                + (2 if self.use_sun_position else 0)
+            ),
             n_out=NUM_FUTURE_SAT_IMAGES,
             pretrained=self.pretrained,
             blur_final=self.blur_final,
@@ -158,9 +169,9 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
-        # `data` is now of shape: (example, time, y, x)
-        if self.coord_conv:
+        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+        height, width = data.shape[2:]
+        if self.use_coord_conv:
             osgb_coords = get_osgb_coords_for_coord_conv(x)
             data = torch.concat((data, osgb_coords), dim=1)
 
@@ -168,6 +179,15 @@ class FullModel(pl.LightningModule):
             surface_height = x[BatchKey.hrvsatellite_surface_height]
             surface_height = surface_height.unsqueeze(1)  # Add channel dim
             data = torch.concat((data, surface_height), dim=1)
+
+        if self.use_sun_position:
+            azimuth = x[BatchKey.solar_azimuth_at_t0]
+            elevation = x[BatchKey.solar_elevation_at_t0]
+            sun_pos = torch.stack((azimuth, elevation), dim=1)  # Shape: (example, 2)
+            del azimuth, elevation
+            # Repeat over y and x:
+            sun_pos = einops.repeat(sun_pos, "example 2 -> example 2 y x", y=height, x=width)
+            data = torch.concat((data, sun_pos), dim=1)
 
         predicted_sat = self.satellite_predictor(data)
         return dict(predicted_sat=predicted_sat)
@@ -243,8 +263,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "022.22: 128x128. 12 history. blur_final=True. coord_conv=False. LambdaLR(50)."
-        " Topography. Adam. LR=1e-4. GCP-1."
+        "022.23: Sun pos at t0. 64x64. 7 history. blur_final=True. coord_conv=False. LambdaLR(50)."
+        " Topography. Adam. LR=1e-4. GCP-2."
     ),
     project="power_perceiver",
     entity="openclimatefix",

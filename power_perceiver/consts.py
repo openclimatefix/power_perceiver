@@ -98,9 +98,16 @@ class BatchKey(Enum):
     gsp_5_min_time_utc_fourier = auto()  # shape: (batch_size, time, n_fourier_features)
 
     # -------------- SUN --------------------------------------------
+    # Solar position at every timestep (from the `Sun` pre-prepared batch.)
     # shape = (batch_size, n_timesteps)
     solar_azimuth = auto()
     solar_elevation = auto()
+
+    # Solar position at the centre of the HRV image at t0
+    # (from `power_perceiver.np_batch_processor.SunPosition`)
+    # shape = (example,)
+    solar_azimuth_at_t0 = auto()
+    solar_elevation_at_t0 = auto()
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(

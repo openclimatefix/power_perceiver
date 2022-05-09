@@ -33,6 +33,8 @@ class Sun(DataLoader):
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:
         """This is called from Dataset.__getitem__.
 
+        Sets `BatchKey.solar_azimuth` and `BatchKey.solar_elevation`.
+
         This processes this modality's xr.Dataset, to convert the xr.Dataset
         into a dictionary mapping BatchKeys to numpy arrays, as documented
         in the BatchKey class.
