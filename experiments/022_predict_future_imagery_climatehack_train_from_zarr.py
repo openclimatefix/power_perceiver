@@ -78,7 +78,7 @@ def get_satellite_zarr_dataloader(**kwargs):
             **kwargs,
         ),
         batch_size=32,
-        num_workers=1,
+        num_workers=4,
         pin_memory=True,
         worker_init_fn=worker_init_fn,
         persistent_workers=True,
@@ -90,6 +90,7 @@ train_dataloader = get_satellite_zarr_dataloader()
 
 if IMAGE_SIZE_PIXELS == 64 and NUM_HIST_SAT_IMAGES == 7:
     # Use pre-prepared batches:
+    _log.info("Using pre-prepared batches for validation set.")
     val_dataloader = torch.utils.data.DataLoader(
         NowcastingDataset(
             data_path=DATA_PATH / "test",
@@ -104,11 +105,12 @@ if IMAGE_SIZE_PIXELS == 64 and NUM_HIST_SAT_IMAGES == 7:
         persistent_workers=True,
     )
 else:
+    _log.info("Using SatelliteZarrDataset for validation set.")
     val_dataloader = get_satellite_zarr_dataloader(
         start_date=pd.Timestamp("2021-01-01 00:00"),
         end_date=pd.Timestamp("2021-12-31 23:59"),
         load_once=True,
-        n_days_to_load_per_epoch=8,  # Don't use up too much RAM!
+        n_days_to_load_per_epoch=2,  # Don't use up too much RAM!
     )
 
 

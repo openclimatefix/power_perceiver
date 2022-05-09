@@ -42,7 +42,9 @@ class SunPosition:
         elevation = np.full_like(y_osgb_centre, fill_value=np.NaN)
         for i, (lat, lon, dt) in enumerate(zip(lats, lons, datetimes)):
             dt = pd.DatetimeIndex([dt])  # pvlib expects a `pd.DatetimeIndex`.
-            solpos = pvlib.solarposition.get_solarposition(time=dt, latitude=lat, longitude=lon)
+            solpos = pvlib.solarposition.get_solarposition(
+                time=dt, latitude=lat, longitude=lon, method="nrel_numba"
+            )
             solpos = solpos.iloc[0]
             azimuth[i] = solpos["azimuth"]
             elevation[i] = solpos["elevation"]

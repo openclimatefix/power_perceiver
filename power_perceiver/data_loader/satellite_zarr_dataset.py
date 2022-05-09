@@ -113,8 +113,8 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     """
 
     satellite_zarr_path: Union[Path, str]
-    n_days_to_load_per_epoch: int = 128  #: Number of random days to load per epoch.
-    n_examples_per_epoch: int = 1024 * 128
+    n_days_to_load_per_epoch: int = 32  #: Number of random days to load per epoch.
+    n_examples_per_epoch: int = 1024 * 32
     n_timesteps_per_example: int = 31  #: 31 is what's used in v15 of the pre-prepared dataset.
     start_date: datetime.datetime = pd.Timestamp("2020-01-01 00:00")
     end_date: datetime.datetime = pd.Timestamp("2020-12-31 23:59")
@@ -192,7 +192,8 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
 
         # Remove example dim:
         for key, array in np_batch.items():
-            np_batch[key] = array[0]
+            # np_batch[key] = array[0]
+            pass
         return np_batch
 
     def _get_time_slice(self) -> xr.Dataset:

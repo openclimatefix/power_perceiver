@@ -1,3 +1,4 @@
+import logging
 from functools import partial
 
 import torch
@@ -5,6 +6,8 @@ from fastai.layers import Mish
 from fastai.vision.learner import create_unet_model
 from fastai.vision.models.xresnet import xse_resnext50_deeper
 from torch import nn
+
+_log = logging.getLogger(__name__)
 
 
 class XResUNet(nn.Module):
@@ -21,6 +24,7 @@ class XResUNet(nn.Module):
         See this page for a description of the kwargs:
         https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
         """
+        _log.info(f"kwargs for XResUNet = {kwargs}")
         super().__init__()
         if arch is None:
             arch = partial(xse_resnext50_deeper, act_cls=Mish, sa=True)
