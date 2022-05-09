@@ -186,7 +186,7 @@ class FullModel(pl.LightningModule):
             sun_pos = torch.stack((azimuth, elevation), dim=1)  # Shape: (example, 2)
             del azimuth, elevation
             # Repeat over y and x:
-            sun_pos = einops.repeat(sun_pos, "example 2 -> example 2 y x", y=height, x=width)
+            sun_pos = einops.repeat(sun_pos, "example chan -> example chan y x", y=height, x=width)
             data = torch.concat((data, sun_pos), dim=1)
 
         predicted_sat = self.satellite_predictor(data)
