@@ -45,10 +45,10 @@ from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import (
     AlignGSPTo5Min,
-    GSP5Min,
     ReduceNumPVSystems,
     SelectPVSystemsNearCenterOfImage,
 )
+from power_perceiver.xr_batch_processor.align_gsp_to_5_min import GSP5Min
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import ReduceNumTimesteps
 
 logging.basicConfig()
