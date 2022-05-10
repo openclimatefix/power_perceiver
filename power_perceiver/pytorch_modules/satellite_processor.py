@@ -31,12 +31,37 @@ class HRVSatelliteProcessor(nn.Module):
             tensor of shape (example, (y * x), (time * feature)).
         """
         # Ignore the "channels" dimension because HRV is just a single channel:
+        # (Remember that we assume there is no `time` dimension, and that all timesteps
+        # are reshaped as examples).
         hrvsatellite = x[BatchKey.hrvsatellite][:, 0]
+
+        PATCH_SIZE = 4
+
+        # Patch the hrvsatellite
+        hrvsatellite = einops.rearrange(
+            hrvsatellite,
+            "example (y y_patch) (x x_patch) -> example y x (y_patch x_patch)",
+            y_patch=PATCH_SIZE,
+            x_patch=PATCH_SIZE,
+        )
 
         # Get position encodings:
         y_fourier = x[BatchKey.hrvsatellite_y_osgb_fourier]
         x_fourier = x[BatchKey.hrvsatellite_x_osgb_fourier]
         # y_fourier and x_fourier are now of shape (example, y, x, n_fourier_features).
+
+        # Patch the position encodings
+        def _reduce(tensor):
+            return einops.reduce(
+                tensor,
+                "example (y y_patch) (x x_patch) ... -> example y x ...",
+                "mean",
+                y_patch=PATCH_SIZE,
+                x_patch=PATCH_SIZE,
+            )
+
+        y_fourier = _reduce(y_fourier)
+        x_fourier = _reduce(x_fourier)
 
         time_fourier = x[BatchKey.hrvsatellite_time_utc_fourier]  # (example, n_features)
         time_fourier = einops.repeat(
@@ -47,6 +72,7 @@ class HRVSatelliteProcessor(nn.Module):
         )
 
         surface_height = x[BatchKey.hrvsatellite_surface_height]  # (example, y, x)
+        surface_height = _reduce(surface_height)
         surface_height = surface_height.unsqueeze(-1)  # (example, y, x, 1)
 
         n_repeats = int(time_fourier.shape[0] / y_fourier.shape[0])

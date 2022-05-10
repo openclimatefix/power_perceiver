@@ -44,7 +44,6 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
-from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import (
     AlignGSPTo5Min,
     ReduceNumPVSystems,
@@ -116,11 +115,9 @@ def get_dataloader(data_path: Path, tag: str) -> torch.utils.data.DataLoader:
     dataset = NowcastingDataset(
         data_path=data_path,
         data_loaders=[
-            HRVSatellite(
-                transforms=[
-                    PatchSatellite(),
-                ]
-            ),
+            # Note that we're NOT using `PatchSatellite`. Instead we use `einops` to
+            # patch the satellite data.
+            HRVSatellite(),
             PV(transforms=[PVPowerRollingWindow()]),
             Sun(),
             GSP(),
@@ -210,8 +207,8 @@ class SatellitePredictor(pl.LightningModule):
         # Do this at the end of __post_init__ to capture model topology to wandb:
         self.save_hyperparameters()
 
-    def forward(self, hrvsatellite: torch.Tensor, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        data = hrvsatellite[:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
         assert height == IMAGE_SIZE_PIXELS, f"{height=}"
         assert width == IMAGE_SIZE_PIXELS, f"{width=}"
@@ -470,20 +467,7 @@ class FullModel(pl.LightningModule):
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Predict future satellite images.
-        # Un-patch hrvsatellite (SatellitePredictor doesn't want patched images!)
-        unpatched_sat = einops.rearrange(
-            x[BatchKey.hrvsatellite],
-            (
-                "example time channel y x (y_patch x_patch)"
-                " -> example time channel (y y_patch) (x x_patch)"
-            ),
-            x_patch=4,
-            y_patch=4,
-        )
-
-        predicted_sat = self.satellite_predictor(
-            hrvsatellite=unpatched_sat, x=x
-        )  # Shape: example, time, y, x
+        predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
         # Select a subset of predicted images, if we're in training mode:
         if BatchKey.requested_timesteps in x:
@@ -493,13 +477,6 @@ class FullModel(pl.LightningModule):
 
         # Replace the "actual" future satellite images with predicted images
         # shape: (batch_size, time, channels, y, x, n_pixels_per_patch)
-        # Patch predicted_sat:
-        predicted_sat = einops.rearrange(
-            predicted_sat,
-            "example time (y y_patch) (x x_patch) -> example time y x (y_patch x_patch)",
-            x_patch=4,
-            y_patch=4,
-        )
         x[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0] = predicted_sat
 
         sat_trans_out = self.satellite_transformer(x)
