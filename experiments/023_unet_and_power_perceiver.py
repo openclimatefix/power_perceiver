@@ -170,7 +170,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class SatellitePredictor(pl.LightningModule):
-    use_coord_conv: bool = True
+    use_coord_conv: bool = False
     crop: bool = False
     optimizer_class: torch.optim.Optimizer = torch.optim.Adam
     optimizer_kwargs: dict = field(
@@ -213,6 +213,8 @@ class SatellitePredictor(pl.LightningModule):
     def forward(self, hrvsatellite: torch.Tensor, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
         data = hrvsatellite[:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
+        assert height == IMAGE_SIZE_PIXELS, f"{height=}"
+        assert width == IMAGE_SIZE_PIXELS, f"{width=}"
         if self.use_coord_conv:
             osgb_coords = get_osgb_coords_for_coord_conv(x)
             data = torch.concat((data, osgb_coords), dim=1)
