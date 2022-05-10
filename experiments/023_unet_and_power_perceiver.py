@@ -116,7 +116,9 @@ def get_dataloader(data_path: Path, tag: str) -> torch.utils.data.DataLoader:
         data_path=data_path,
         data_loaders=[
             # Note that we're NOT using `PatchSatellite`. Instead we use `einops` to
-            # patch the satellite data.
+            # patch the satellite data. The U-Net doesn't work with `PatchSatellite`,
+            # and it's easier to use `einops` to patch the satellite and downsample the
+            # position encodings in PyTorch land.
             HRVSatellite(),
             PV(transforms=[PVPowerRollingWindow()]),
             Sun(),

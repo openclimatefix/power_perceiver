@@ -35,7 +35,8 @@ class ReduceNumTimesteps:
         num_total_requested_timesteps = (
             self.num_requested_history_timesteps + self.num_requested_forecast_timesteps
         )
-        requested_timesteps = np.empty(num_total_requested_timesteps, dtype=np.int32)
+        # Need to use int64 so PyTorch can use requested_timesteps as an index.
+        requested_timesteps = np.empty(num_total_requested_timesteps, dtype=np.int64)
         requested_timesteps[
             : self.num_requested_history_timesteps
         ] = self._random_int_without_replacement(
