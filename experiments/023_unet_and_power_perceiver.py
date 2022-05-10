@@ -210,8 +210,8 @@ class SatellitePredictor(pl.LightningModule):
         # Do this at the end of __post_init__ to capture model topology to wandb:
         self.save_hyperparameters()
 
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+    def forward(self, hrvsatellite: torch.Tensor, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+        data = hrvsatellite[:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
         if self.use_coord_conv:
             osgb_coords = get_osgb_coords_for_coord_conv(x)
@@ -467,8 +467,21 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        # Predict future satellite images
-        predicted_sat = self.satellite_predictor(x)  # Shape: example, time, y, x
+        # Predict future satellite images.
+        # Un-patch hrvsatellite (SatellitePredictor doesn't want patched images!)
+        unpatched_sat = einops.rearrange(
+            x[BatchKey.hrvsatellite],
+            (
+                "example time channel y x (y_patch x_patch)"
+                " -> example time channel (y y_patch) (x x_patch)"
+            ),
+            x_patch=4,
+            y_patch=4,
+        )
+
+        predicted_sat = self.satellite_predictor(
+            hrvsatellite=unpatched_sat, x=x
+        )  # Shape: example, time, y, x
 
         # Select a subset of predicted images, if we're in training mode:
         if BatchKey.requested_timesteps in x:
