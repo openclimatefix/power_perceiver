@@ -438,6 +438,7 @@ class FullModel(pl.LightningModule):
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
+    cheat: bool = True  #: Use real satellite imagery of the future.
 
     def __post_init__(self):
         super().__init__()
@@ -483,7 +484,8 @@ class FullModel(pl.LightningModule):
 
         # Replace the "actual" future satellite images with predicted images
         # shape: (batch_size, time, channels, y, x, n_pixels_per_patch)
-        x[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0] = predicted_sat
+        if not self.cheat:
+            x[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0] = predicted_sat
 
         sat_trans_out = self.satellite_transformer(x)
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
@@ -610,7 +612,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="023.00: U-Net & Power Perceiver. GCP-1",
+    name="023.01: Cheat. U-Net & Power Perceiver. GCP-2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
