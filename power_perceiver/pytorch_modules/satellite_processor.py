@@ -20,7 +20,7 @@ class HRVSatelliteProcessor(nn.Module):
 
         Args:
             x: A batch with at least these BatchKeys:
-                hrvsatellite
+                hrvsatellite shape: (batch_size, channels, y, x, n_pixels_per_patch)
                 hrvsatellite_y_osgb_fourier
                 hrvsatellite_x_osgb_fourier
                 hrvsatellite_surface_height

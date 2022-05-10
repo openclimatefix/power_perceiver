@@ -12,6 +12,10 @@ class PatchSatellite:
     """Appends a `patch` dimension to the satellite data.
 
     The `patch` dim will be x_patch_size_pixels * y_patch_size_pixels in size.
+
+    TODO: Given that we have to `patch` the satellite imagery using `einops`
+    after `SatellitePredictor`, maybe we should get rid of this `PatchSatellite`
+    class and always use `einops` to patch the satellite imagery.
     """
 
     y_patch_size_pixels: int = 4

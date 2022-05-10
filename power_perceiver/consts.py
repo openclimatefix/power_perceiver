@@ -109,6 +109,9 @@ class BatchKey(Enum):
     solar_azimuth_at_t0 = auto()
     solar_elevation_at_t0 = auto()
 
+    # Added by `ReduceNumTimesteps`. Gives the indicies of the randomly selected timesteps.
+    requested_timesteps = auto()  # shape: (n_requested_timesteps)
+
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(
     "gs://ocf-public/data_for_unit_tests/prepared_ML_training_data"

@@ -129,7 +129,7 @@ def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
-class FullModel(pl.LightningModule):
+class SatellitePredictor(pl.LightningModule):
     use_coord_conv: bool = True
     crop: bool = False
     optimizer_class: torch.optim.Optimizer = torch.optim.Adam
@@ -261,7 +261,7 @@ class FullModel(pl.LightningModule):
         return [optimizer], [scheduler]
 
 
-model = FullModel()
+model = SatellitePredictor()
 
 wandb_logger = WandbLogger(
     name=(

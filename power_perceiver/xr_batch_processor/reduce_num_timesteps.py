@@ -3,6 +3,7 @@ from typing import Iterable, Optional
 
 import numpy as np
 
+from power_perceiver.consts import BatchKey
 from power_perceiver.data_loader.data_loader import DataLoader, XarrayBatch
 
 
@@ -17,10 +18,10 @@ class ReduceNumTimesteps:
     each xr_dataset.
     """
 
-    num_requested_history_timesteps: int = 4
+    num_requested_history_timesteps: int = 7  # Has to be total number available when using UNet.
     num_requested_forecast_timesteps: int = 8
 
-    num_history_timesteps_available: int = 12
+    num_history_timesteps_available: int = 7
     num_total_timesteps_available: int = 31
 
     keys: Optional[Iterable[DataLoader]] = None
@@ -59,6 +60,9 @@ class ReduceNumTimesteps:
         for key in keys:
             xr_dataset = xr_batch[key]
             xr_batch[key] = xr_dataset.isel(time=requested_timesteps)
+
+        xr_batch[BatchKey.requested_timesteps] = requested_timesteps
+
         return xr_batch
 
     def _random_int_without_replacement(self, start: int, stop: int, num: int) -> np.ndarray:

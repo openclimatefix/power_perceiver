@@ -6,6 +6,7 @@ from typing import Callable, Iterable, Optional
 import torch
 import torch.utils.data
 
+from power_perceiver.consts import BatchKey
 from power_perceiver.data_loader import DataLoader, NumpyBatch
 
 _log = logging.getLogger(__name__)
@@ -104,8 +105,13 @@ class NowcastingDataset(torch.utils.data.Dataset):
         """Convert from xarray Datasets to numpy."""
         np_batch: NumpyBatch = {}
         for data_loader_class, xr_dataset in xr_batch.items():
-            np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
-            np_batch.update(np_data_for_data_source)
+            if data_loader_class == BatchKey.requested_timesteps:
+                # `ReduceNumTimesteps` introduces a `requested_timesteps` key,
+                # whose value is a np.ndarray.
+                np_batch[data_loader_class] = xr_dataset
+            else:
+                np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
+                np_batch.update(np_data_for_data_source)
         return np_batch
 
     def _process_np_batch(self, np_batch: NumpyBatch) -> NumpyBatch:
