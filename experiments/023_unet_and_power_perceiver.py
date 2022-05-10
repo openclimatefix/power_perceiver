@@ -473,18 +473,19 @@ class FullModel(pl.LightningModule):
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Predict future satellite images.
-        predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
-
-        # Select a subset of predicted images, if we're in training mode:
-        if BatchKey.requested_timesteps in x:
-            # If `requested_timesteps` is in `x` then `ReduceNumTimesteps` was in the data pipeline
-            forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
-            forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
-            predicted_sat = predicted_sat[:, forecast_timesteps]
-
-        # Replace the "actual" future satellite images with predicted images
-        # shape: (batch_size, time, channels, y, x, n_pixels_per_patch)
         if not self.cheat:
+            predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
+
+            # Select a subset of predicted images, if we're in training mode:
+            if BatchKey.requested_timesteps in x:
+                # If `requested_timesteps` is in `x` then `ReduceNumTimesteps` was in the data
+                # pipeline
+                forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
+                forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
+                predicted_sat = predicted_sat[:, forecast_timesteps]
+
+            # Replace the "actual" future satellite images with predicted images
+            # shape: (batch_size, time, channels, y, x, n_pixels_per_patch)
             x[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0] = predicted_sat
 
         sat_trans_out = self.satellite_transformer(x)
