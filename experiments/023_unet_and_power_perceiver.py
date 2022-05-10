@@ -438,10 +438,15 @@ class FullModel(pl.LightningModule):
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
-    cheat: bool = True  #: Use real satellite imagery of the future.
+    cheat: bool = False  #: Use real satellite imagery of the future.
+    stop_gradients_before_unet: bool = True
 
     def __post_init__(self):
         super().__init__()
+
+        if self.cheat:
+            _log.warning("CHEATING MODE ENABLED! Using real satellite imagery of future!")
+
         # Predict future satellite images:
         self.satellite_predictor = SatellitePredictor.load_from_checkpoint(
             "/home/jack/model_params/022.25/exp_022.25_29_epochs.ckpt"
@@ -483,6 +488,9 @@ class FullModel(pl.LightningModule):
                 forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
                 forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
                 predicted_sat = predicted_sat[:, forecast_timesteps]
+
+            if self.stop_gradients_before_unet:
+                predicted_sat = predicted_sat.detach()
 
             # Replace the "actual" future satellite images with predicted images
             # shape: (batch_size, time, channels, y, x, n_pixels_per_patch)
@@ -613,7 +621,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="023.01: Cheat. U-Net & Power Perceiver. GCP-2",
+    name="023.02: Stop gradient before U-Net. U-Net & Power Perceiver. GCP-3",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
