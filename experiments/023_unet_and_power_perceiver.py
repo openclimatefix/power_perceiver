@@ -17,7 +17,9 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
 from torch import nn
 
-from power_perceiver.analysis.plot_satellite import LogSatellitePlots
+# from power_perceiver.analysis.plot_satellite import LogSatellitePlots
+from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
+from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 
 # power_perceiver imports
 from power_perceiver.consts import (
@@ -610,18 +612,14 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name=("023.00: U-Net & Power Perceiver. GCP-1"),
+    name="023.00: U-Net & Power Perceiver. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
 )
 
 # log model only if validation loss decreases
-if model.crop:
-    loss_name = "validation/ms_ssim_crop+sat_mse_crop"
-else:
-    loss_name = "validation/ms_ssim+sat_mse"
-checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor=loss_name, mode="min")
+checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="validation/total_mse", mode="min")
 
 
 if socket.gethostname() == "donatello":
@@ -633,9 +631,11 @@ trainer = pl.Trainer(
     max_epochs=200,
     logger=wandb_logger,
     callbacks=[
-        LogSatellitePlots(),
+        # LogSatellitePlots(),
         checkpoint_callback,
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
+        LogTimeseriesPlots(),
+        LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
     ],
 )
 
