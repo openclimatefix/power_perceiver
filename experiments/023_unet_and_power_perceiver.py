@@ -1,7 +1,6 @@
 # General imports
 import logging
 import socket
-from copy import deepcopy
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -366,9 +365,9 @@ class SatelliteTransformer(nn.Module):
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
-        # TODO: Fix this `deepcopy` hack, which is needed to prevent the reshaping affecting
+        # TODO: Fix this `original_x` hack, which is needed to prevent the reshaping affecting
         # the time_transformer, too!
-        x = deepcopy(x)
+        original_x = {}
         for batch_key in (
             BatchKey.gsp_5_min_time_utc_fourier,
             BatchKey.pv_time_utc_fourier,
@@ -377,6 +376,7 @@ class SatelliteTransformer(nn.Module):
             BatchKey.hrvsatellite,
             BatchKey.hrvsatellite_time_utc_fourier,
         ):
+            original_x[batch_key] = x[batch_key]
             x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")
 
         # Process satellite data and queries:
@@ -419,6 +419,9 @@ class SatelliteTransformer(nn.Module):
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
+
+        # Put back the original data! TODO: Remove this hack!
+        x.update(original_x)
 
         return {
             "pv_attn_out": pv_attn_out,  # shape: (example, n_pv_systems, d_model)
