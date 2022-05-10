@@ -478,6 +478,7 @@ class FullModel(pl.LightningModule):
         if BatchKey.requested_timesteps in x:
             # If `requested_timesteps` is in `x` then `ReduceNumTimesteps` was in the data pipeline
             forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
+            forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
             predicted_sat = predicted_sat[:, forecast_timesteps]
 
         # Replace the "actual" future satellite images with predicted images
