@@ -25,11 +25,11 @@ class PreparedDataset(torch.utils.data.Dataset):
         xr_batch_processors: Functions which takes an XarrayBatch,
             and does processing *across* modalities, and returns the processed XarrayBatch.
             Note that and processing *within* a modality should be done in
-            DataLoader.to_numpy.
+            PreparedDataSource.to_numpy.
         np_batch_processors: Functions which takes a NumpyBatch,
             and does processing *across* modalities, and returns the processed NumpyBatch.
             Note that and processing *within* a modality should be done in
-            DataLoader.to_numpy.
+            PreparedDataSource.to_numpy.
 
     Attributes:
         n_batches: int. Set by _set_number_of_batches.
@@ -45,7 +45,7 @@ class PreparedDataset(torch.utils.data.Dataset):
         # Sanity checks
         assert self.data_path.exists()
         assert len(self.data_loaders) > 0
-        # Prepare DataLoaders.
+        # Prepare PreparedDataSources.
         self._set_data_path_in_data_loaders()
         self._set_number_of_batches()
         super().__init__()

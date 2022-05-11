@@ -10,7 +10,7 @@ batch processor.
 
 The `__call__` method must accept an `XarrayBatch` and return an `XarrayBatch`.
 `XarrayBatch` is defined in `data_loader.py` as simply
- `XarrayBatch = dict[DataLoader.__class__, xr.Dataset]`.
+ `XarrayBatch = dict[PreparedDataSource.__class__, xr.Dataset]`.
 That is, an `XarrayBatch` is a dictionary containing the unprocessed xarray datasets which hold
 data for every data loader for a given batch index.
 

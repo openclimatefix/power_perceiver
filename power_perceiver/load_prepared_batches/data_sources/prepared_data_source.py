@@ -28,7 +28,7 @@ class PreparedDataSource:
     How to add a new subclass:
       1. Create new subclass :)
       2. Override / set:
-         - DataLoader.to_numpy
+         - PreparedDataSource.to_numpy
       3. If necessary, also update BatchKey in consts.py
     """
 

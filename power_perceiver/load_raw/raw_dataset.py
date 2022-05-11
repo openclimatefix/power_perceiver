@@ -27,11 +27,11 @@ class RawDataset(torch.utils.data.Dataset):
         xr_batch_processors: Functions which takes an XarrayBatch,
             and does processing *across* modalities, and returns the processed XarrayBatch.
             Note that and processing *within* a modality should be done in
-            DataLoader.to_numpy.
+            PreparedDataSource.to_numpy.
         np_batch_processors: Functions which takes a NumpyBatch,
             and does processing *across* modalities, and returns the processed NumpyBatch.
             Note that and processing *within* a modality should be done in
-            DataLoader.to_numpy.
+            PreparedDataSource.to_numpy.
     """
 
     data_loaders: dict[str, Iterable[RawDataSource]]
