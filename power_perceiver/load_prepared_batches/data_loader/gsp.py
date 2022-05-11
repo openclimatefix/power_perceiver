@@ -3,17 +3,17 @@ import logging
 import numpy as np
 import xarray as xr
 
-from power_perceiver.load_prepared_batches.data_loader.data_loader import (
+from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import (
     BatchKey,
-    DataLoader,
     NumpyBatch,
+    PreparedDataLoader,
 )
 from power_perceiver.utils import datetime64_to_float
 
 _log = logging.getLogger(__name__)
 
 
-class GSP(DataLoader):
+class GSP(PreparedDataLoader):
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # TODO: MAKE ISSUE!

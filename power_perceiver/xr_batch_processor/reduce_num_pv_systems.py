@@ -4,7 +4,7 @@ import numpy as np
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_loader import PV
-from power_perceiver.load_prepared_batches.data_loader.data_loader import XarrayBatch
+from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import XarrayBatch
 
 
 @dataclass

@@ -4,8 +4,13 @@ import numpy as np
 import pytest
 
 from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
-from power_perceiver.load_prepared_batches.data_loader import GSP, PV, DataLoader, HRVSatellite
-from power_perceiver.load_prepared_batches.data_loader.data_loader import NumpyBatch
+from power_perceiver.load_prepared_batches.data_loader import (
+    GSP,
+    PV,
+    HRVSatellite,
+    PreparedDataLoader,
+)
+from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import NumpyBatch
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime
 from power_perceiver.testing import (
@@ -50,7 +55,7 @@ def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
     ],
 )
 def test_dataset_with_single_data_source(
-    data_loader: DataLoader, expected_batch_keys: Iterable[BatchKey]
+    data_loader: PreparedDataLoader, expected_batch_keys: Iterable[BatchKey]
 ):
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),

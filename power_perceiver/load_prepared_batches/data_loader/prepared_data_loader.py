@@ -16,7 +16,7 @@ NumpyBatch = dict[BatchKey, np.ndarray]
 
 
 @dataclass
-class DataLoader:
+class PreparedDataLoader:
     """Load each data source.
 
     Initialisation arguments:
@@ -92,4 +92,4 @@ def load_netcdf(filename, engine="h5netcdf", *args, **kwargs) -> xr.Dataset:
 
 # The one exception to this type, is that `ReduceNumTimesteps`
 # adds a `BatchKey.requested_timesteps` key, whose value is a np.ndarray.
-XarrayBatch = dict[DataLoader.__class__, xr.Dataset]
+XarrayBatch = dict[PreparedDataLoader.__class__, xr.Dataset]

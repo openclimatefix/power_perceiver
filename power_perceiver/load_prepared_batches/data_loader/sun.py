@@ -1,10 +1,10 @@
 import numpy as np
 import xarray as xr
 
-from power_perceiver.load_prepared_batches.data_loader.data_loader import (
+from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import (
     BatchKey,
-    DataLoader,
     NumpyBatch,
+    PreparedDataLoader,
 )
 
 ELEVATION_MEAN = 37.4
@@ -13,7 +13,7 @@ AZIMUTH_MEAN = 177.7
 AZIMUTH_STD = 41.7
 
 
-class Sun(DataLoader):
+class Sun(PreparedDataLoader):
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/635

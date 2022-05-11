@@ -7,8 +7,8 @@ import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_loader import (
     PV,
-    DataLoader,
     HRVSatellite,
+    PreparedDataLoader,
     XarrayBatch,
 )
 from power_perceiver.load_prepared_batches.data_loader.pv import apply_pv_mask
@@ -32,7 +32,7 @@ class SelectPVSystemsNearCenterOfImage:
         drop_examples: If True then drop examples (from all data sources) which have no PV systems.
     """
 
-    image_data_loader_class: DataLoader = HRVSatellite
+    image_data_loader_class: PreparedDataLoader = HRVSatellite
     geo_border_m: pd.Series = pd.Series(dict(left=8_000, right=8_000, bottom=32_000, top=16_000))
     drop_examples: bool = True
 
