@@ -5,9 +5,14 @@ import pandas as pd
 import pvlib
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader.data_loader import NumpyBatch
-from power_perceiver.data_loader.sun import AZIMUTH_MEAN, AZIMUTH_STD, ELEVATION_MEAN, ELEVATION_STD
 from power_perceiver.geospatial import osgb_to_lat_lon
+from power_perceiver.load_prepared_batches.data_loader.data_loader import NumpyBatch
+from power_perceiver.load_prepared_batches.data_loader.sun import (
+    AZIMUTH_MEAN,
+    AZIMUTH_STD,
+    ELEVATION_MEAN,
+    ELEVATION_STD,
+)
 
 
 @dataclass

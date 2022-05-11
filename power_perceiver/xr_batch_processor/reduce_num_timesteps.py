@@ -4,7 +4,7 @@ from typing import Iterable, Optional
 import numpy as np
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader.data_loader import DataLoader, XarrayBatch
+from power_perceiver.load_prepared_batches.data_loader.data_loader import DataLoader, XarrayBatch
 
 
 @dataclass

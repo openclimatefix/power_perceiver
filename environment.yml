@@ -29,6 +29,7 @@ dependencies:
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
+  # - cpuonly # Enable when installing on a CPU only platform.
   - fastai
   - pytorch-lightning
   - einops

@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 
 from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
-from power_perceiver.data_loader import GSP, PV, DataLoader, HRVSatellite
-from power_perceiver.data_loader.data_loader import NumpyBatch
-from power_perceiver.dataset import NowcastingDataset
+from power_perceiver.load_prepared_batches.data_loader import GSP, PV, DataLoader, HRVSatellite
+from power_perceiver.load_prepared_batches.data_loader.data_loader import NumpyBatch
+from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime
 from power_perceiver.testing import (
     INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING,
@@ -33,7 +33,7 @@ def setup_module():
     argvalues=[(None, len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)), (1, 1)],
 )
 def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[PV()],
         max_n_batches_per_epoch=max_n_batches_per_epoch,
@@ -52,7 +52,7 @@ def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
 def test_dataset_with_single_data_source(
     data_loader: DataLoader, expected_batch_keys: Iterable[BatchKey]
 ):
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[data_loader],
     )
@@ -97,7 +97,7 @@ def _check_pv_batch(
 def test_select_pv_systems_near_center_of_image():
     xr_batch_processors = [SelectPVSystemsNearCenterOfImage()]
 
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[HRVSatellite(), PV()],
         xr_batch_processors=xr_batch_processors,
@@ -114,7 +114,7 @@ def test_select_pv_systems_near_center_of_image():
 @pytest.mark.parametrize(argnames="transforms", argvalues=[None, [PVPowerRollingWindow()]])
 def test_pv(transforms: Iterable[Callable]):
     pv_data_loader = PV(transforms=transforms)
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[pv_data_loader],
     )
@@ -125,7 +125,7 @@ def test_pv(transforms: Iterable[Callable]):
 
 
 def test_all_data_loaders_and_all_transforms():
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[
             HRVSatellite(transforms=[PatchSatellite()]),

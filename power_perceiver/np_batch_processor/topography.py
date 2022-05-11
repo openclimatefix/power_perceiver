@@ -31,7 +31,7 @@ import rioxarray
 import xarray as xr
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader.data_loader import NumpyBatch
+from power_perceiver.load_prepared_batches.data_loader.data_loader import NumpyBatch
 
 
 @dataclass

@@ -1,7 +1,11 @@
 import numpy as np
 import xarray as xr
 
-from power_perceiver.data_loader.data_loader import BatchKey, DataLoader, NumpyBatch
+from power_perceiver.load_prepared_batches.data_loader.data_loader import (
+    BatchKey,
+    DataLoader,
+    NumpyBatch,
+)
 
 ELEVATION_MEAN = 37.4
 ELEVATION_STD = 12.7

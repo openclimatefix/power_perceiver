@@ -5,8 +5,13 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader import GSP, DataLoader, HRVSatellite, XarrayBatch
-from power_perceiver.data_loader.data_loader import NumpyBatch
+from power_perceiver.load_prepared_batches.data_loader import (
+    GSP,
+    DataLoader,
+    HRVSatellite,
+    XarrayBatch,
+)
+from power_perceiver.load_prepared_batches.data_loader.data_loader import NumpyBatch
 from power_perceiver.utils import datetime64_to_float
 
 

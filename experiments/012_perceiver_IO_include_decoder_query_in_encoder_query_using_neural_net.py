@@ -16,8 +16,8 @@ from torch.utils import data
 from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader import PV, HRVSatellite, Sun
-from power_perceiver.dataset import NowcastingDataset
+from power_perceiver.load_prepared_batches.data_loader import PV, HRVSatellite, Sun
+from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime, Topography
 from power_perceiver.pytorch_modules.query_generator import QueryGenerator
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
@@ -52,7 +52,7 @@ def get_dataloader(data_path: Path, tag: str) -> data.DataLoader:
     if tag == "train":
         xr_batch_processors.append(ReduceNumTimesteps(requested_timesteps=4))
 
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=data_path,
         data_loaders=[
             HRVSatellite(transforms=[PatchSatellite()]),

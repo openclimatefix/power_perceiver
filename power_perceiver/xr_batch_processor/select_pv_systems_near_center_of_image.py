@@ -5,8 +5,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from power_perceiver.data_loader import PV, DataLoader, HRVSatellite, XarrayBatch
-from power_perceiver.data_loader.pv import apply_pv_mask
+from power_perceiver.load_prepared_batches.data_loader import (
+    PV,
+    DataLoader,
+    HRVSatellite,
+    XarrayBatch,
+)
+from power_perceiver.load_prepared_batches.data_loader.pv import apply_pv_mask
 
 _log = logging.getLogger(__name__)
 

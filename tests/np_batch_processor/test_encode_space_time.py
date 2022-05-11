@@ -1,8 +1,8 @@
 import numpy as np
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader import PV, HRVSatellite
-from power_perceiver.dataset import NowcastingDataset
+from power_perceiver.load_prepared_batches.data_loader import PV, HRVSatellite
+from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime
 from power_perceiver.np_batch_processor.encode_space_time import compute_fourier_features
 from power_perceiver.testing import get_path_of_local_data_for_testing
@@ -16,7 +16,7 @@ def test_fourier_features():
 
 
 def test_encode_space_time():
-    dataset = NowcastingDataset(
+    dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[HRVSatellite(), PV()],
         np_batch_processors=[EncodeSpaceTime()],

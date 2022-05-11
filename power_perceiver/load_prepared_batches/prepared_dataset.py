@@ -7,14 +7,15 @@ import torch
 import torch.utils.data
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.data_loader import DataLoader, NumpyBatch
+from power_perceiver.load_prepared_batches.data_loader import DataLoader, NumpyBatch
 
 _log = logging.getLogger(__name__)
 
 
 @dataclass
-class NowcastingDataset(torch.utils.data.Dataset):
-    """
+class PreparedDataset(torch.utils.data.Dataset):
+    """Load batches pre-prepared by `nowcasting_dataset`.
+
     Initialisation arguments:
         data_loaders: A list of instantiated data loader objects.
         data_path: Base path to the pre-prepared dataset. e.g. /path/to/v15/train/

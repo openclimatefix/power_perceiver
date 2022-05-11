@@ -14,4 +14,4 @@ The `__call__` method must accept an `XarrayBatch` and return an `XarrayBatch`.
 That is, an `XarrayBatch` is a dictionary containing the unprocessed xarray datasets which hold
 data for every data loader for a given batch index.
 
-A list of xarray batch processors is passed into `NowcastingDataset`.
+A list of xarray batch processors is passed into `PreparedDataset`.
