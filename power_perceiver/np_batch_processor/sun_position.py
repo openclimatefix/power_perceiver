@@ -6,8 +6,8 @@ import pvlib
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.geospatial import osgb_to_lat_lon
-from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import NumpyBatch
-from power_perceiver.load_prepared_batches.data_loader.sun import (
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
+from power_perceiver.load_prepared_batches.data_sources.sun import (
     AZIMUTH_MEAN,
     AZIMUTH_STD,
     ELEVATION_MEAN,

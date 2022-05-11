@@ -6,7 +6,7 @@ from typing import Callable, Iterable, Optional
 import numpy as np
 import torch
 
-from power_perceiver.load_raw.data_loader.raw_data_loader import RawDataLoader
+from power_perceiver.load_raw.data_sources.raw_data_source import RawDataSource
 
 _log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class RawDataset(torch.utils.data.Dataset):
             DataLoader.to_numpy.
     """
 
-    data_loaders: dict[str, Iterable[RawDataLoader]]
+    data_loaders: dict[str, Iterable[RawDataSource]]
     probability_of_each_data_loader: dict[str, Number]
     xr_batch_processors: Optional[Iterable[Callable]] = None
     np_batch_processors: Optional[Iterable[Callable]] = None

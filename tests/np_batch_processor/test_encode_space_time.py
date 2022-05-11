@@ -1,7 +1,7 @@
 import numpy as np
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.load_prepared_batches.data_loader import PV, HRVSatellite
+from power_perceiver.load_prepared_batches.data_sources import PV, HRVSatellite
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime
 from power_perceiver.np_batch_processor.encode_space_time import compute_fourier_features

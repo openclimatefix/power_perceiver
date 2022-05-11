@@ -20,7 +20,7 @@ from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 # power_perceiver imports
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
-from power_perceiver.load_prepared_batches.data_loader import GSP, PV, HRVSatellite, Sun
+from power_perceiver.load_prepared_batches.data_sources import GSP, PV, HRVSatellite, Sun
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime, Topography
 from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator

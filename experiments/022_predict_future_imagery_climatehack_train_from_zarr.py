@@ -19,10 +19,10 @@ from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
 # power_perceiver imports
 from power_perceiver.consts import X_OSGB_MEAN, X_OSGB_STD, Y_OSGB_MEAN, Y_OSGB_STD, BatchKey
-from power_perceiver.load_prepared_batches.data_loader import HRVSatellite
-from power_perceiver.load_prepared_batches.data_loader.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.load_prepared_batches.data_sources import HRVSatellite
+from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
-from power_perceiver.load_raw.data_loader.satellite_zarr_dataset import (
+from power_perceiver.load_raw.data_sources.satellite_zarr_dataset import (
     SatelliteZarrDataset,
     worker_init_fn,
 )

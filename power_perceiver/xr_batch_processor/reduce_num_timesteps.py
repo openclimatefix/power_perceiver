@@ -4,8 +4,8 @@ from typing import Iterable, Optional
 import numpy as np
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import (
-    PreparedDataLoader,
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
+    PreparedDataSource,
     XarrayBatch,
 )
 
@@ -27,7 +27,7 @@ class ReduceNumTimesteps:
     num_history_timesteps_available: int = 7
     num_total_timesteps_available: int = 31
 
-    keys: Optional[Iterable[PreparedDataLoader]] = None
+    keys: Optional[Iterable[PreparedDataSource]] = None
 
     def __post_init__(self):
         # Any xr_batch_processor with an `rng` attribute will have the

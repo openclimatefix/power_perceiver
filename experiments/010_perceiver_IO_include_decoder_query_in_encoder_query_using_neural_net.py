@@ -16,7 +16,7 @@ from torch.utils import data
 from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 from power_perceiver.consts import BatchKey
-from power_perceiver.load_prepared_batches.data_loader import PV, HRVSatellite, Sun
+from power_perceiver.load_prepared_batches.data_sources import PV, HRVSatellite, Sun
 
 # power_perceiver imports
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import xarray as xr
 
-from power_perceiver.load_prepared_batches.data_loader.satellite import _set_sat_coords
+from power_perceiver.load_prepared_batches.data_sources.satellite import _set_sat_coords
 
 
 @dataclass

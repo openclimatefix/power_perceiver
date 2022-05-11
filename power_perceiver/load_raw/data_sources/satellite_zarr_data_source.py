@@ -13,11 +13,11 @@ import torch
 import xarray as xr
 
 from power_perceiver.geospatial import osgb_to_lat_lon
-from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import (
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
     BatchKey,
     NumpyBatch,
 )
-from power_perceiver.load_prepared_batches.data_loader.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.utils import datetime64_to_float
 
 _log = logging.getLogger(__name__)

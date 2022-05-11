@@ -29,11 +29,11 @@ from power_perceiver.consts import (
     Y_OSGB_STD,
     BatchKey,
 )
-from power_perceiver.load_prepared_batches.data_loader import HRVSatellite
-from power_perceiver.load_prepared_batches.data_loader.gsp import GSP
-from power_perceiver.load_prepared_batches.data_loader.pv import PV
-from power_perceiver.load_prepared_batches.data_loader.satellite import SAT_MEAN, SAT_STD
-from power_perceiver.load_prepared_batches.data_loader.sun import Sun
+from power_perceiver.load_prepared_batches.data_sources import HRVSatellite
+from power_perceiver.load_prepared_batches.data_sources.gsp import GSP
+from power_perceiver.load_prepared_batches.data_sources.pv import PV
+from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.load_prepared_batches.data_sources.sun import Sun
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.sun_position import SunPosition

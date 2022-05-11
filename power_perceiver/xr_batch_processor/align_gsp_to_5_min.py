@@ -5,17 +5,17 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.load_prepared_batches.data_loader import (
+from power_perceiver.load_prepared_batches.data_sources import (
     GSP,
     HRVSatellite,
-    PreparedDataLoader,
+    PreparedDataSource,
     XarrayBatch,
 )
-from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import NumpyBatch
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.utils import datetime64_to_float
 
 
-class GSP5Min(PreparedDataLoader):
+class GSP5Min(PreparedDataSource):
     """This doesn't actually 'load' data :)
 
     Instead it's a hack to allow us to insert `gsp_5_min` stuff into the NumpyBatch."""
@@ -46,7 +46,7 @@ class AlignGSPTo5Min:
     the value is the xr.Dataset with 5 minutely GSP data.
     """
 
-    data_loader_class_for_5_min: PreparedDataLoader = HRVSatellite
+    data_loader_class_for_5_min: PreparedDataSource = HRVSatellite
 
     def __call__(self, xr_batch: XarrayBatch) -> XarrayBatch:
         gsp_dataset = xr_batch[GSP]

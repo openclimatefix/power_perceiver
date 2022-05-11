@@ -1,10 +1,10 @@
 import numpy as np
 import xarray as xr
 
-from power_perceiver.load_prepared_batches.data_loader.prepared_data_loader import (
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
     BatchKey,
     NumpyBatch,
-    PreparedDataLoader,
+    PreparedDataSource,
 )
 from power_perceiver.utils import datetime64_to_float
 
@@ -49,7 +49,7 @@ def _set_sat_coords(dataset: xr.Dataset) -> xr.Dataset:
     )
 
 
-class HRVSatellite(PreparedDataLoader):
+class HRVSatellite(PreparedDataSource):
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/629

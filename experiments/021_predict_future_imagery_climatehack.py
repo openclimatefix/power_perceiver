@@ -15,8 +15,8 @@ from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
 # power_perceiver imports
 from power_perceiver.consts import NUM_HIST_SAT_IMAGES, BatchKey
-from power_perceiver.load_prepared_batches.data_loader import HRVSatellite
-from power_perceiver.load_prepared_batches.data_loader.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.load_prepared_batches.data_sources import HRVSatellite
+from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 

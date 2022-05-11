@@ -7,7 +7,7 @@ import torch
 import torch.utils.data
 
 from power_perceiver.consts import BatchKey
-from power_perceiver.load_prepared_batches.data_loader import NumpyBatch, PreparedDataLoader
+from power_perceiver.load_prepared_batches.data_sources import NumpyBatch, PreparedDataSource
 
 _log = logging.getLogger(__name__)
 
@@ -35,7 +35,7 @@ class PreparedDataset(torch.utils.data.Dataset):
         n_batches: int. Set by _set_number_of_batches.
     """
 
-    data_loaders: Iterable[PreparedDataLoader]
+    data_loaders: Iterable[PreparedDataSource]
     data_path: Optional[Path] = None
     max_n_batches_per_epoch: Optional[int] = None
     xr_batch_processors: Optional[Iterable[Callable]] = None
