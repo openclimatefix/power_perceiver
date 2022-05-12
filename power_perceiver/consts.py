@@ -1,6 +1,8 @@
 """Constants and Enums."""
 
 from enum import Enum, auto
+from numbers import Number
+from typing import NamedTuple
 
 from pathy import Pathy
 
@@ -13,6 +15,13 @@ Y_OSGB_MEAN = 357021.38
 Y_OSGB_STD = 612920.2
 X_OSGB_MEAN = 187459.94
 X_OSGB_STD = 622805.44
+
+
+class Location(NamedTuple):
+    """Represent a spatial location."""
+
+    x: Number
+    y: Number
 
 
 class BatchKey(Enum):
