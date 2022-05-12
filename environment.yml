@@ -5,7 +5,10 @@ channels:
   - conda-forge
   - pvlib
 dependencies:
-  - python>=3.9
+  # We need Python 3.10 for `@dataclass(kw_only=True)`. If 3.10 isn't convenient,
+  # then it should be fairly simple to use the `attrs` project, which supports
+  # `kw_only` on Python < 3.10.
+  - python>=3.10
   - pip
 
   # Scientific Python
@@ -29,7 +32,7 @@ dependencies:
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
-  # - cpuonly # Enable when installing on a CPU only platform.
+  # - cpuonly # Enable when installing on a platform without a GPU.
   - fastai
   - pytorch-lightning
   - einops
