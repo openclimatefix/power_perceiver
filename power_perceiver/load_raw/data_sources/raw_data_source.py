@@ -42,11 +42,17 @@ class RawDataSource:
         x_center_osgb: Number,
         y_center_osgb: Number,
     ) -> xr.Dataset:
-        """Must be overridden by child classes.
+        """Can be overridden by child classes.
 
         The returned Dataset must not include an `example` dimension.
         """
-        raise NotImplementedError()
+        xr_dataset = self.data
+        xr_dataset = self._get_time_slice(xr_dataset, t0_datetime_utc=t0_datetime_utc)
+        xr_dataset = self._get_spatial_slice(
+            xr_dataset, x_center_osgb=x_center_osgb, y_center_osgb=y_center_osgb
+        )
+        xr_dataset = self._transform(xr_dataset)
+        return xr_dataset
 
     def open(self):
         """Open the data source, if necessary.
@@ -57,6 +63,18 @@ class RawDataSource:
         Data sources which can be forked safely should call open() from __init__().
         """
         pass
+
+    def _get_time_slice(
+        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
+    ) -> xr.Dataset:
+        """Can be overridden, usually by TimeseriesDataSource."""
+        return xr_dataset
+
+    def _get_spatial_slice(
+        self, xr_dataset: xr.Dataset, x_center_osgb: Number, y_center_osgb: Number
+    ) -> xr.Dataset:
+        """Can be overridden, usually by SpatialDataSource."""
+        return xr_dataset
 
     def _check_input_paths_exist(self) -> None:
         """Check any input paths exist.  Raise FileNotFoundError if not.
@@ -81,7 +99,13 @@ class TimeseriesDataSource:
     start_date: datetime.datetime
     end_date: datetime.datetime
 
-    def get_contiguous_t0_time_periods(self) -> pd.DataFrame:
+    def _get_time_slice(
+        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
+    ) -> xr.Dataset:
+        raise NotImplementedError()  # TODO!
+        return xr_dataset
+
+    def _get_contiguous_t0_time_periods(self) -> pd.DataFrame:
         """Get all time periods which contain valid t0 datetimes.
 
         `t0` is the datetime of the most recent observation.
@@ -93,13 +117,13 @@ class TimeseriesDataSource:
         Raises:
           NotImplementedError if this DataSource has no concept of a datetime index.
         """
-        contiguous_time_periods = self.get_contiguous_time_periods()
+        contiguous_time_periods = self._get_contiguous_time_periods()
         contiguous_time_periods["start_dt"] += self.history_duration
         contiguous_time_periods["end_dt"] -= self.forecast_duration
         assert (contiguous_time_periods["start_dt"] <= contiguous_time_periods["end_dt"]).all()
         return contiguous_time_periods
 
-    def get_contiguous_time_periods(self) -> pd.DataFrame:
+    def _get_contiguous_time_periods(self) -> pd.DataFrame:
         """Get all the time periods for which this DataSource has contiguous data.
 
         Optionally filter out any time periods which don't make sense for this DataSource,
@@ -113,6 +137,7 @@ class TimeseriesDataSource:
           NotImplementedError if this DataSource has no concept of a datetime index.
         """
         datetimes = self.datetime_index()
+        # TODO: Maybe use the new contiguous time code from power_perceiver.
         return nd_time.get_contiguous_time_periods(
             datetimes=datetimes,
             min_seq_length=self.total_seq_length,  # TODO: Use total seq duration?
@@ -131,20 +156,19 @@ class TimeseriesDataSource:
 
 
 @dataclass(kw_only=True)
-class ImageDataSource:
+class SpatialDataSource:
     """Abstract base class for image Data source."""
 
-    image_size_pixels_height: int
-    image_size_pixels_width: int
+    height_in_pixels: int
+    width_in_pixels: int
 
     def _get_spatial_slice(
-        self, x_center_osgb: Number, y_center_osgb: Number, xr_dataset: Optional[xr.Dataset] = None
+        self, xr_dataset: xr.Dataset, x_center_osgb: Number, y_center_osgb: Number
     ) -> xr.Dataset:
-        if xr_dataset is None:
-            xr_dataset = self.data
-
         # TODO:
         # Find pixel index at x_center_osgb, y_center_osgb. Then
         # just add and subtract image_size_pixels_height etc.
         # and use `isel` to grab the data. This should work for
         # satellite, NWP, topo, etc.
+        # I think this is implemented in nowcasting_dataset's Satellite DataSource.
+        raise NotImplementedError()  # TODO!
