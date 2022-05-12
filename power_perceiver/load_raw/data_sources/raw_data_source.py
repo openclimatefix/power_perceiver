@@ -135,7 +135,6 @@ class TimeseriesDataSource:
 
     history_duration: datetime.timedelta
     forecast_duration: datetime.timedelta
-    sample_period_duration: datetime.timedelta
     start_date: datetime.datetime
     end_date: datetime.datetime
 
@@ -173,6 +172,10 @@ class TimeseriesDataSource:
         which don't make sense for this DataSource, e.g. remove nighttime.
         """
         return pd.DatetimeIndex(self.data.time_utc)
+
+    @property
+    def sample_period_duration(self) -> datetime.timedelta:
+        raise NotImplementedError("Must be overridden by child class!")
 
     def _get_time_slice(
         self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime

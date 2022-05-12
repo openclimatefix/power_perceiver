@@ -1,3 +1,4 @@
+import datetime
 import logging
 from dataclasses import dataclass
 
@@ -25,6 +26,10 @@ _log = logging.getLogger(__name__)
 class RawSatelliteDataSource(
     RawDataSource, TimeseriesDataSource, SpatialDataSource, ZarrDatasource
 ):
+    @property
+    def sample_period_duration(self) -> datetime.timedelta:  # noqa: D102
+        return datetime.timedelta(minutes=5)
+
     @property
     def datetime_index(self) -> pd.DatetimeIndex:
         raise NotImplementedError()  # Still TODO! Filter out nighttime.
