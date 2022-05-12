@@ -3,6 +3,7 @@
 import datetime
 import itertools
 from numbers import Number
+from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -66,41 +67,32 @@ def get_contiguous_time_periods(
     return pd.DataFrame(periods)
 
 
-def get_dates(xr_sat_dataset: xr.Dataset) -> np.ndarray:
-    return np.sort(np.unique(pd.DatetimeIndex(xr_sat_dataset.time_utc).date))
+def get_dates(xr_data: Union[xr.Dataset, xr.DataArray]) -> np.ndarray:
+    return np.sort(np.unique(pd.DatetimeIndex(xr_data.time_utc).date))
 
 
-def num_days(xr_sat_dataset: xr.Dataset) -> int:
-    dates = get_dates(xr_sat_dataset)
+def num_days(xr_data: Union[xr.Dataset, xr.DataArray]) -> int:
+    dates = get_dates(xr_data)
     return len(dates)
 
 
-def date_summary_str(xr_sat_dataset: xr.Dataset) -> str:
+def date_summary_str(xr_data: Union[xr.Dataset, xr.DataArray]) -> str:
     """Convert to pd.DatetimeIndex to get prettier date string formatting."""
-    time_index = pd.DatetimeIndex(xr_sat_dataset.time_utc)
+    time_index = pd.DatetimeIndex(xr_data.time_utc)
     return (
-        f"there are {num_days(xr_sat_dataset):,d} days of data"
+        f"there are {num_days(xr_data):,d} days of data"
         f" from {time_index[0]} to {time_index[-1]}."
         f" A total of {len(time_index):,d} timesteps."
     )
 
 
-def _select_timesteps_in_contiguous_periods(
-    xr_sat_dataset: xr.Dataset, min_seq_length: int
-) -> xr.Dataset:
-    dt_index = pd.DatetimeIndex(xr_sat_dataset.time)
-    good_time_idx = get_contiguous_time_periods(dt_index, min_seq_length=min_seq_length)
-    good_time_idx = np.concatenate(good_time_idx)
-    return xr_sat_dataset.isel(time=good_time_idx)
-
-
-def _select_data_in_daylight(
-    xr_sat_dataset: xr.Dataset, solar_elevation_threshold_degrees: Number = 5
-) -> xr.Dataset:
-    """Only select data where, for at least one of the four corners of the satellite imagery,
+def select_data_in_daylight(
+    xr_data: Union[xr.Dataset, xr.DataArray], solar_elevation_threshold_degrees: Number = 5
+) -> Union[xr.Dataset, xr.DataArray]:
+    """Only select data where, for at least one of the four corners of the imagery,
     the Sun is at least `solar_elevation_threshold_degrees` above the horizon."""
-    y_osgb = xr_sat_dataset.y_osgb
-    x_osgb = xr_sat_dataset.x_osgb
+    y_osgb = xr_data.y_osgb
+    x_osgb = xr_data.x_osgb
 
     corners_osgb = [
         (x_osgb.isel(x=x, y=y).values, y_osgb.isel(x=x, y=y).values)
@@ -114,7 +106,7 @@ def _select_data_in_daylight(
     elevation_for_all_corners = []
     for lat, lon in zip(lats, lons):
         solpos = pvlib.solarposition.get_solarposition(
-            time=xr_sat_dataset.time,
+            time=xr_data.time,
             latitude=lat,
             longitude=lon,
         )
@@ -124,4 +116,4 @@ def _select_data_in_daylight(
     elevation_for_all_corners = pd.concat(elevation_for_all_corners, axis="columns")
     max_elevation = elevation_for_all_corners.max(axis="columns")
     daylight_hours_mask = max_elevation >= solar_elevation_threshold_degrees
-    return xr_sat_dataset.isel(time=daylight_hours_mask)
+    return xr_data.isel(time=daylight_hours_mask)

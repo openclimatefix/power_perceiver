@@ -1,16 +1,20 @@
 import datetime
+import logging
 from dataclasses import dataclass
 from numbers import Number
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union
 
+import numpy as np
 import pandas as pd
+import torch
 import xarray as xr
 
 from power_perceiver.consts import Location
 from power_perceiver.time import get_contiguous_time_periods
 from power_perceiver.utils import check_path_exists
 
+_log = logging.getLogger(__name__)
 
 # `kw_only` allows a base class to have fields with default values,
 # and it's still OK for child classes to have fields *without* defaults. See:
@@ -53,17 +57,12 @@ class RawDataSource:
 
     def per_worker_init(self, worker_id: int) -> None:  # noqa: D102
         self.worker_id = worker_id
+        # Each worker must have a different seed for its random number generator.
+        # Otherwise all the workers will output exactly the same data!
+        seed = torch.initial_seed()
+        _log.info(f"{worker_id=} has random number generator {seed=:,d}")
+        self.rng = np.random.default_rng(seed=seed)
         self.open()
-
-    def get_location_osgb(self) -> Location:
-        """Randomly select a valid geographical location for one example.
-
-        Must be overridden if this DataSource is to be used to select geographical locations
-        for examples.
-
-        Returns:  Location(x_center_osgb, y_center_osgb)
-        """
-        raise NotImplementedError()
 
     def get_example(self, t0_datetime_utc: datetime.datetime, center_osgb: Location) -> xr.Dataset:
         """Can be overridden by child classes.
@@ -84,6 +83,10 @@ class RawDataSource:
 
         Data sources which can be forked safely should call open() from __init__().
         """
+        pass
+
+    def maybe_load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
+        """Override in DataSources which can only fit a subset of the dataset into RAM."""
         pass
 
     def _get_time_slice(
@@ -203,6 +206,14 @@ class TimeseriesDataSource:
         assert (contiguous_time_periods["start_dt"] <= contiguous_time_periods["end_dt"]).all()
         return contiguous_time_periods
 
+    def subset_contiguous_time_periods(self, contiguous_time_periods: pd.DataFrame) -> pd.DataFrame:
+        """If necessary, pick a random selection of contiguous time periods for the upcoming epoch.
+
+        The main use-case for this is for SatelliteDataSource which needs to load a subset of data
+        into RAM at the start of each epoch.
+        """
+        return contiguous_time_periods
+
     def _get_contiguous_time_periods(self) -> pd.DataFrame:
         """Get all the time periods for which this DataSource has contiguous data.
 
@@ -241,6 +252,16 @@ class SpatialDataSource:
         assert self.width_in_pixels > 0, f"{self.width_in_pixels=} must be > 0!"
         assert (self.height_in_pixels % 2) == 0, f"{self.height_in_pixels=} must be divisible by 2!"
         assert (self.width_in_pixels % 2) == 0, f"{self.width_in_pixels=} must be divisible by 2!"
+
+    def get_location_osgb_for_example(self) -> Location:
+        """Randomly select a valid geographical location for one example.
+
+        Must be overridden if this DataSource is to be used to select geographical locations
+        for examples.
+
+        Returns:  Location(x_center_osgb, y_center_osgb)
+        """
+        raise NotImplementedError()
 
     def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
         """Slice `xr_dataset` to produce a region of interest, centered on `center_osgb`.

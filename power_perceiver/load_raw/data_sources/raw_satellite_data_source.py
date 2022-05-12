@@ -1,6 +1,8 @@
 import datetime
 import logging
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Union
 
 import dask
 import numpy as np
@@ -9,15 +11,21 @@ import pyproj
 import pyresample
 import xarray as xr
 
-from power_perceiver.consts import Location
+from power_perceiver.consts import BatchKey, Location
 from power_perceiver.geospatial import OSGB
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     SpatialDataSource,
     TimeseriesDataSource,
     ZarrDatasource,
 )
-from power_perceiver.utils import is_sorted
+from power_perceiver.time import (
+    date_summary_str,
+    select_data_in_daylight,
+    select_timesteps_in_contiguous_periods,
+)
+from power_perceiver.utils import datetime64_to_float, is_sorted
 
 _log = logging.getLogger(__name__)
 
@@ -26,6 +34,17 @@ _log = logging.getLogger(__name__)
 class RawSatelliteDataSource(
     RawDataSource, TimeseriesDataSource, SpatialDataSource, ZarrDatasource
 ):
+    """Load satellite data directly from the satellite Zarr store.
+
+    The basic strategy implemented by this class is:
+
+    1. At the start of the epoch, load `n_days_to_load_per_epoch` random days from Zarr into RAM.
+    2. During the epoch, randomly sample from those days of satellite data in RAM.
+    """
+
+    n_days_to_load_per_epoch: int = 64  #: Number of random days to load per epoch.
+    load_once: bool = False  #: Set to True for use as a validation dataset.
+
     @property
     def sample_period_duration(self) -> datetime.timedelta:  # noqa: D102
         return datetime.timedelta(minutes=5)
@@ -50,6 +69,44 @@ class RawSatelliteDataSource(
         # Check the x and y coords are ascending. If they are not then searchsorted won't work!
         assert is_sorted(self.data_on_disk.x_geostationary)
         assert is_sorted(self.data_on_disk.y_geostationary)
+
+        # Sub-select data:
+        _log.info("Before any selection, " + date_summary_str(self._data_on_disk))
+
+        # Select only the timesteps we want:
+        self._data_on_disk = self._data_on_disk.sel(time_utc=slice(self.start_date, self.end_date))
+        self._data_on_disk = select_data_in_daylight(self._data_on_disk)
+        _log.info("After filtering, " + date_summary_str(self._data_on_disk))
+
+    def subset_contiguous_time_periods(self, contiguous_time_periods: pd.DataFrame) -> pd.DataFrame:
+        """If necessary, pick a random selection of contiguous time periods for the upcoming epoch.
+
+        The main use-case for this is for SatelliteDataSource which needs to load a subset of data
+        into RAM at the start of each epoch.
+        """
+        raise NotImplementedError()  # TODO!
+
+    @staticmethod
+    def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
+        example: NumpyBatch = {}
+        # Insert a "channels" dimension:
+        example[BatchKey.hrvsatellite] = xr_data.expand_dims(dim="channel", axis=2).values.copy()
+
+        # Insert example dimensions:
+        example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(
+            xr_data["time"].expand_dims(dim="example", axis=0).values.copy()
+        )
+        for batch_key, dataset_key in (
+            (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
+            (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
+            (BatchKey.hrvsatellite_y_geostationary, "y"),
+            (BatchKey.hrvsatellite_x_geostationary, "x"),
+        ):
+            # HRVSatellite coords are already float32.
+            example[batch_key] = (
+                xr_data[dataset_key].expand_dims(dim="example", axis=0).values.copy()
+            )
+        return example
 
     def _load_geostationary_area_definition_and_transform(self) -> None:
         area_definition_yaml = self._data_on_disk.attrs["area"]
@@ -76,7 +133,7 @@ class RawSatelliteDataSource(
         return Location(x=x_index_at_center, y=y_index_at_center)
 
 
-def open_sat_data(zarr_path: str) -> xr.DataArray:
+def open_sat_data(zarr_path: Union[Path, str]) -> xr.DataArray:
     """Lazily opens the Zarr store.
 
     Rounds the 'time' coordinates, so the timestamps are at 00, 05, ..., 55 past the hour.

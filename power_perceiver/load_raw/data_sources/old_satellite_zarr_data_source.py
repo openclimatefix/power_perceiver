@@ -23,102 +23,31 @@ from power_perceiver.utils import datetime64_to_float
 _log = logging.getLogger(__name__)
 
 
-def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
-    example: NumpyBatch = {}
-    # Insert a "channels" dimension:
-    example[BatchKey.hrvsatellite] = xr_data.expand_dims(dim="channel", axis=2).values.copy()
-
-    # Insert example dimensions:
-    example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(
-        xr_data["time"].expand_dims(dim="example", axis=0).values.copy()
-    )
-    for batch_key, dataset_key in (
-        (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
-        (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
-        (BatchKey.hrvsatellite_y_geostationary, "y"),
-        (BatchKey.hrvsatellite_x_geostationary, "x"),
-    ):
-        # HRVSatellite coords are already float32.
-        example[batch_key] = xr_data[dataset_key].expand_dims(dim="example", axis=0).values.copy()
-    return example
-
-
 @dataclass
-class SatelliteZarrDataset(torch.utils.data.IterableDataset):
-    """Loads data directly from the satellite Zarr store.
+class OLDSatelliteZarrDataset(torch.utils.data.IterableDataset):
 
-    The basic strategy implemented by this class is:
-
-    1. At the start of the epoch, load `n_days_to_load_per_epoch` random days from Zarr into RAM.
-    2. During the epoch, randomly sample from those days of satellite data in RAM.
-    """
-
-    satellite_zarr_path: Union[Path, str]
-    n_days_to_load_per_epoch: int = 64  #: Number of random days to load per epoch.
     n_examples_per_epoch: int = 1024 * 32
-    n_timesteps_per_example: int = 31  #: 31 is what's used in v15 of the pre-prepared dataset.
-    start_date: datetime.datetime = pd.Timestamp("2020-01-01 00:00")
-    end_date: datetime.datetime = pd.Timestamp("2020-12-31 23:59")
-    size_pixels: int = 64
-    np_batch_processors: Optional[list[Callable]] = None
-    load_once: bool = False  #: Set to True for use as validation dataset.
 
     def __post_init__(self):
         super().__init__()
-        assert self.end_date > self.start_date
-
-    def per_worker_init(self, worker_id: int = 0) -> None:
-        """Called by worker_init_fn on each copy of SatelliteDataset after the
-        worker process has been spawned."""
-        self.worker_id = worker_id
-        # Each worker must have a different seed for its random number generator.
-        # Otherwise all the workers will output exactly the same data!
-        seed = torch.initial_seed()
-        _log.info(f"{worker_id=} has random number generator {seed=:,d}")
-        self.rng = np.random.default_rng(seed=seed)
-
-        self.sat_data_in_mem = None
-        self._open_satellite_zarr()
-
-    def _open_satellite_zarr(self):
-        """Sets `xr_sat_dataset` and `available_dates`."""
-        # Get xr.Dataset:
-        xr_sat_dataset = xr.open_dataset(
-            self.satellite_zarr_path,
-            engine="zarr",
-            chunks="auto",  # Load the data as a Dask array.
-        )
-        _log.info("Before any selection, " + date_summary_str(xr_sat_dataset))
-        # Select only the timesteps we want:
-        xr_sat_dataset = xr_sat_dataset.sel(time=slice(self.start_date, self.end_date))
-        xr_sat_dataset = _select_data_in_daylight(xr_sat_dataset)
-        xr_sat_dataset = _select_timesteps_in_contiguous_periods(
-            xr_sat_dataset, min_timesteps=self.n_timesteps_per_example
-        )
-        _log.info("After filtering, " + date_summary_str(xr_sat_dataset))
-
-        # Flip coordinates to top-left first
-        xr_sat_dataset = xr_sat_dataset.reindex(x=xr_sat_dataset.x[::-1])
-
-        self.xr_sat_dataset = xr_sat_dataset
 
     def __iter__(self):
-        if self.sat_data_in_mem is None or not self.load_once:
+        if self.data_in_ram is None or not self.load_once:
             self._load_random_days_from_disk()  # TODO: Could be done asynchronously
         for _ in range(self.n_examples_per_epoch):
             yield self._get_example()
 
     def _load_random_days_from_disk(self) -> None:
         """Sets `sat_data_in_mem` and `available_dates`."""
-        self.sat_data_in_mem = None  # Remove previous data from memory.
+        self.data_in_ram = None  # Remove previous data from memory.
         all_available_dates_on_disk = get_dates(self.xr_sat_dataset)
         days_to_load = self.rng.choice(
             all_available_dates_on_disk, size=self.n_days_to_load_per_epoch, replace=False
         )
         time_index = pd.DatetimeIndex(self.xr_sat_dataset.time)
         mask = np.isin(time_index.date, days_to_load)
-        self.sat_data_in_mem = self.xr_sat_dataset.isel(time=mask).load()
-        self.available_dates = get_dates(self.sat_data_in_mem)
+        self.data_in_ram = self.xr_sat_dataset.isel(time=mask).load()
+        self.available_dates = get_dates(self.data_in_ram)
 
     def _get_example(self) -> NumpyBatch:
         xr_data = self._get_time_slice()
@@ -139,7 +68,7 @@ class SatelliteZarrDataset(torch.utils.data.IterableDataset):
     def _get_time_slice(self) -> xr.Dataset:
         # Select a random date from the in-memory data
         date = self.rng.choice(self.available_dates)
-        sat_data_for_date = self.sat_data_in_mem.sel(
+        sat_data_for_date = self.data_in_ram.sel(
             time=slice(date, date + datetime.timedelta(days=1))
         )
 
