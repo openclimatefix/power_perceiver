@@ -34,16 +34,7 @@ _log = logging.getLogger(__name__)
 class RawSatelliteDataSource(
     RawDataSource, TimeseriesDataSource, SpatialDataSource, ZarrDatasource
 ):
-    """Load satellite data directly from the satellite Zarr store.
-
-    The basic strategy implemented by this class is:
-
-    1. At the start of the epoch, load `n_days_to_load_per_epoch` random days from Zarr into RAM.
-    2. During the epoch, randomly sample from those days of satellite data in RAM.
-    """
-
-    n_days_to_load_per_epoch: int = 64  #: Number of random days to load per epoch.
-    load_once: bool = False  #: Set to True for use as a validation dataset.
+    """Load satellite data directly from the satellite Zarr store."""
 
     @property
     def sample_period_duration(self) -> datetime.timedelta:  # noqa: D102
@@ -52,6 +43,14 @@ class RawSatelliteDataSource(
     @property
     def datetime_index(self) -> pd.DatetimeIndex:
         raise NotImplementedError()  # Still TODO! Filter out nighttime.
+
+    @property
+    def needs_to_load_subset_into_ram(self) -> bool:
+        return True
+
+    def load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
+        """Override in DataSources which can only fit a subset of the dataset into RAM."""
+        raise NotImplementedError()  # TODO!
 
     def open(self) -> None:
         """
@@ -77,14 +76,6 @@ class RawSatelliteDataSource(
         self._data_on_disk = self._data_on_disk.sel(time_utc=slice(self.start_date, self.end_date))
         self._data_on_disk = select_data_in_daylight(self._data_on_disk)
         _log.info("After filtering, " + date_summary_str(self._data_on_disk))
-
-    def subset_contiguous_time_periods(self, contiguous_time_periods: pd.DataFrame) -> pd.DataFrame:
-        """If necessary, pick a random selection of contiguous time periods for the upcoming epoch.
-
-        The main use-case for this is for SatelliteDataSource which needs to load a subset of data
-        into RAM at the start of each epoch.
-        """
-        raise NotImplementedError()  # TODO!
 
     @staticmethod
     def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:

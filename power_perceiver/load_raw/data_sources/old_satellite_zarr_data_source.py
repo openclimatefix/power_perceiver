@@ -25,18 +25,6 @@ _log = logging.getLogger(__name__)
 
 @dataclass
 class OLDSatelliteZarrDataset(torch.utils.data.IterableDataset):
-
-    n_examples_per_epoch: int = 1024 * 32
-
-    def __post_init__(self):
-        super().__init__()
-
-    def __iter__(self):
-        if self.data_in_ram is None or not self.load_once:
-            self._load_random_days_from_disk()  # TODO: Could be done asynchronously
-        for _ in range(self.n_examples_per_epoch):
-            yield self._get_example()
-
     def _load_random_days_from_disk(self) -> None:
         """Sets `sat_data_in_mem` and `available_dates`."""
         self.data_in_ram = None  # Remove previous data from memory.

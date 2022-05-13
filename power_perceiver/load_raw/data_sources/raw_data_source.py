@@ -75,6 +75,13 @@ class RawDataSource:
         xr_dataset = self._transform(xr_dataset)
         return xr_dataset
 
+    def get_empty_example(self) -> xr.Dataset:
+        """Must be overridden by child classes.
+
+        The returned Dataset must not include an `example` dimension.
+        """
+        raise NotImplementedError()
+
     def open(self):
         """Open the data source, if necessary.
 
@@ -83,10 +90,6 @@ class RawDataSource:
 
         Data sources which can be forked safely should call open() from __init__().
         """
-        pass
-
-    def maybe_load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
-        """Override in DataSources which can only fit a subset of the dataset into RAM."""
         pass
 
     def _get_time_slice(
@@ -180,16 +183,17 @@ class TimeseriesDataSource:
     def sample_period_duration(self) -> datetime.timedelta:
         raise NotImplementedError("Must be overridden by child class!")
 
-    def _get_time_slice(
-        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
-    ) -> xr.Dataset:
-        """Select a timeslice from `xr_dataset`.
+    @property
+    def needs_to_load_subset_into_ram(self) -> bool:
+        """Override in subclasses which need to load subset into RAM.
 
-        The returned Dataset does not include an `example` dimension.
+        If this returns True, then you must also implement `load_subset_into_ram`.
         """
-        start_dt = self._get_start_dt(t0_datetime_utc)
-        end_dt = self._get_end_dt(t0_datetime_utc)
-        return xr_dataset.sel(time_utc=slice(start_dt, end_dt))
+        return False
+
+    def load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
+        """Override in DataSources which can only fit a subset of the dataset into RAM."""
+        raise NotImplementedError()
 
     def get_contiguous_t0_time_periods(self) -> pd.DataFrame:
         """Get all time periods which contain valid t0 datetimes.
@@ -206,14 +210,6 @@ class TimeseriesDataSource:
         assert (contiguous_time_periods["start_dt"] <= contiguous_time_periods["end_dt"]).all()
         return contiguous_time_periods
 
-    def subset_contiguous_time_periods(self, contiguous_time_periods: pd.DataFrame) -> pd.DataFrame:
-        """If necessary, pick a random selection of contiguous time periods for the upcoming epoch.
-
-        The main use-case for this is for SatelliteDataSource which needs to load a subset of data
-        into RAM at the start of each epoch.
-        """
-        return contiguous_time_periods
-
     def _get_contiguous_time_periods(self) -> pd.DataFrame:
         """Get all the time periods for which this DataSource has contiguous data.
 
@@ -221,12 +217,22 @@ class TimeseriesDataSource:
           pd.DataFrame where each row represents a single time period.  The pd.DataFrame
           has two columns: `start_dt` and `end_dt` (where 'dt' is short for 'datetime').
         """
-        # TODO: Maybe use the new contiguous time code from power_perceiver.
         return get_contiguous_time_periods(
             datetimes=self.datetime_index,
             min_seq_length=self.total_seq_length,
             max_gap_duration=self.sample_period_duration,
         )
+
+    def _get_time_slice(
+        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
+    ) -> xr.Dataset:
+        """Select a timeslice from `xr_dataset`.
+
+        The returned Dataset does not include an `example` dimension.
+        """
+        start_dt = self._get_start_dt(t0_datetime_utc)
+        end_dt = self._get_end_dt(t0_datetime_utc)
+        return xr_dataset.sel(time_utc=slice(start_dt, end_dt))
 
     def _get_start_dt(self, t0_datetime_utc: datetime.datetime) -> datetime.datetime:
         return t0_datetime_utc - self.history_duration
