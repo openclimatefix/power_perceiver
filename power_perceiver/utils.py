@@ -3,6 +3,7 @@ from typing import Union
 
 import fsspec
 import numpy as np
+import pandas as pd
 from pathy import Pathy
 
 
@@ -51,3 +52,14 @@ def get_filesystem(path: Union[str, Path]) -> fsspec.AbstractFileSystem:
     """
     path = Pathy(path)
     return fsspec.open(path.parent).fs
+
+
+def sample_row_and_drop_row_from_df(
+    df: pd.DataFrame, rng: np.random.Generator
+) -> tuple[pd.Series, pd.DataFrame]:
+    """Return sampled_row, dataframe_with_row_dropped."""
+    assert not df.empty
+    row_idx = rng.integers(low=0, high=len(df))
+    row = df.iloc[row_idx]
+    df = df.drop(row.name)
+    return row, df

@@ -45,7 +45,7 @@ class RawSatelliteDataSource(
         raise NotImplementedError()  # Still TODO! Filter out nighttime.
 
     @property
-    def needs_to_load_subset_into_ram(self) -> bool:
+    def needs_to_load_subset_into_ram(self) -> bool:  # noqa: D102
         return True
 
     def load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:

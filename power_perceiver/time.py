@@ -13,6 +13,59 @@ import xarray as xr
 from power_perceiver.geospatial import osgb_to_lat_lon
 
 
+def get_dates(xr_data: Union[xr.Dataset, xr.DataArray]) -> np.ndarray:  # noqa: D103
+    return np.sort(np.unique(pd.DatetimeIndex(xr_data.time_utc).date))
+
+
+def num_days(xr_data: Union[xr.Dataset, xr.DataArray]) -> int:  # noqa: D103
+    dates = get_dates(xr_data)
+    return len(dates)
+
+
+def date_summary_str(xr_data: Union[xr.Dataset, xr.DataArray]) -> str:
+    """Convert to pd.DatetimeIndex to get prettier date string formatting."""
+    time_index = pd.DatetimeIndex(xr_data.time_utc)
+    return (
+        f"there are {num_days(xr_data):,d} days of data"
+        f" from {time_index[0]} to {time_index[-1]}."
+        f" A total of {len(time_index):,d} timesteps."
+    )
+
+
+def select_data_in_daylight(
+    xr_data: Union[xr.Dataset, xr.DataArray], solar_elevation_threshold_degrees: Number = 5
+) -> Union[xr.Dataset, xr.DataArray]:
+    """Only select data where, for at least one of the four corners of the imagery,
+    the Sun is at least `solar_elevation_threshold_degrees` above the horizon."""
+    y_osgb = xr_data.y_osgb
+    x_osgb = xr_data.x_osgb
+
+    corners_osgb = [
+        (x_osgb.isel(x=x, y=y).values, y_osgb.isel(x=x, y=y).values)
+        for x, y in itertools.product((0, -1), (0, -1))
+    ]
+
+    corners_osgb = pd.DataFrame(corners_osgb, columns=["x", "y"])
+
+    lats, lons = osgb_to_lat_lon(x=corners_osgb.x, y=corners_osgb.y)
+
+    elevation_for_all_corners = []
+    for lat, lon in zip(lats, lons):
+        solpos = pvlib.solarposition.get_solarposition(
+            time=xr_data.time,
+            latitude=lat,
+            longitude=lon,
+        )
+        elevation = solpos["elevation"]
+        elevation_for_all_corners.append(elevation)
+
+    elevation_for_all_corners = pd.concat(elevation_for_all_corners, axis="columns")
+    max_elevation = elevation_for_all_corners.max(axis="columns")
+    daylight_hours_mask = max_elevation >= solar_elevation_threshold_degrees
+    return xr_data.isel(time=daylight_hours_mask)
+
+
+# From nowcasting_dataset.time:
 def get_contiguous_time_periods(
     datetimes: pd.DatetimeIndex,
     min_seq_length: int,
@@ -67,58 +120,7 @@ def get_contiguous_time_periods(
     return pd.DataFrame(periods)
 
 
-def get_dates(xr_data: Union[xr.Dataset, xr.DataArray]) -> np.ndarray:
-    return np.sort(np.unique(pd.DatetimeIndex(xr_data.time_utc).date))
-
-
-def num_days(xr_data: Union[xr.Dataset, xr.DataArray]) -> int:
-    dates = get_dates(xr_data)
-    return len(dates)
-
-
-def date_summary_str(xr_data: Union[xr.Dataset, xr.DataArray]) -> str:
-    """Convert to pd.DatetimeIndex to get prettier date string formatting."""
-    time_index = pd.DatetimeIndex(xr_data.time_utc)
-    return (
-        f"there are {num_days(xr_data):,d} days of data"
-        f" from {time_index[0]} to {time_index[-1]}."
-        f" A total of {len(time_index):,d} timesteps."
-    )
-
-
-def select_data_in_daylight(
-    xr_data: Union[xr.Dataset, xr.DataArray], solar_elevation_threshold_degrees: Number = 5
-) -> Union[xr.Dataset, xr.DataArray]:
-    """Only select data where, for at least one of the four corners of the imagery,
-    the Sun is at least `solar_elevation_threshold_degrees` above the horizon."""
-    y_osgb = xr_data.y_osgb
-    x_osgb = xr_data.x_osgb
-
-    corners_osgb = [
-        (x_osgb.isel(x=x, y=y).values, y_osgb.isel(x=x, y=y).values)
-        for x, y in itertools.product((0, -1), (0, -1))
-    ]
-
-    corners_osgb = pd.DataFrame(corners_osgb, columns=["x", "y"])
-
-    lats, lons = osgb_to_lat_lon(x=corners_osgb.x, y=corners_osgb.y)
-
-    elevation_for_all_corners = []
-    for lat, lon in zip(lats, lons):
-        solpos = pvlib.solarposition.get_solarposition(
-            time=xr_data.time,
-            latitude=lat,
-            longitude=lon,
-        )
-        elevation = solpos["elevation"]
-        elevation_for_all_corners.append(elevation)
-
-    elevation_for_all_corners = pd.concat(elevation_for_all_corners, axis="columns")
-    max_elevation = elevation_for_all_corners.max(axis="columns")
-    daylight_hours_mask = max_elevation >= solar_elevation_threshold_degrees
-    return xr_data.isel(time=daylight_hours_mask)
-
-
+# From nowcasting_dataset.time:
 def intersection_of_multiple_dataframes_of_periods(
     time_periods: list[pd.DataFrame],
 ) -> pd.DataFrame:
@@ -135,6 +137,7 @@ def intersection_of_multiple_dataframes_of_periods(
     return intersection
 
 
+# From nowcasting_dataset.time:
 def intersection_of_2_dataframes_of_periods(a: pd.DataFrame, b: pd.DataFrame) -> pd.DataFrame:
     """Find the intersection of two pd.DataFrames of time periods.
 
@@ -190,3 +193,33 @@ def intersection_of_2_dataframes_of_periods(a: pd.DataFrame, b: pd.DataFrame) ->
 
     all_intersecting_periods = pd.concat(all_intersecting_periods)
     return all_intersecting_periods.sort_values(by="start_dt").reset_index(drop=True)
+
+
+# From nowcasting_dataset.time:
+def single_period_to_datetime_index(period: pd.Series, freq: str) -> pd.DatetimeIndex:
+    """Return a DatetimeIndex from period['start_dt'] to period['end_dt'] at frequency freq.
+
+    Before computing the date_range, this function first takes the ceiling of the
+    start_dt (at frequency `freq`); and takes the floor of end_dt.  For example,
+    if `freq` is '5 minutes' and `start_dt` is 12:03, then the ceiling of `start_dt`
+    will be 12:05.  This is done so that all the returned datetimes are aligned to `freq`
+    (e.g. if `freq` is '5 minutes' then every returned datetime will be at 00, 05, ..., 55
+    minutes past the hour.
+    """
+    start_dt = period["start_dt"].ceil(freq)
+    end_dt = period["end_dt"].floor(freq)
+    return pd.date_range(start_dt, end_dt, freq=freq)
+
+
+# From nowcasting_dataset.time:
+def time_periods_to_datetime_index(time_periods: pd.DataFrame, freq: str) -> pd.DatetimeIndex:
+    """Convert a DataFrame of time periods into a DatetimeIndex at a particular frequency.
+
+    See the docstring of intersection_of_2_dataframes_of_periods() for more details.
+    """
+    assert len(time_periods) > 0
+    dt_index = single_period_to_datetime_index(time_periods.iloc[0], freq=freq)
+    for _, time_period in time_periods.iloc[1:].iterrows():
+        new_dt_index = single_period_to_datetime_index(time_period, freq=freq)
+        dt_index = dt_index.union(new_dt_index)
+    return dt_index

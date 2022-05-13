@@ -1,3 +1,4 @@
+import datetime
 import logging
 from dataclasses import dataclass
 from numbers import Number
@@ -15,7 +16,9 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
 from power_perceiver.time import (
     intersection_of_2_dataframes_of_periods,
     intersection_of_multiple_dataframes_of_periods,
+    time_periods_to_datetime_index,
 )
+from power_perceiver.utils import sample_row_and_drop_row_from_df
 
 _log = logging.getLogger(__name__)
 
@@ -49,15 +52,15 @@ class RawDataset(torch.utils.data.Dataset):
             start of each epoch, we load a random subset of satellite data into RAM. So we'd set
             `ds_combo_for_subsetting='sat_only'`. Set `ds_combo_for_subsetting` to None if
             no DataSources need to load a subset of data into RAM at the start of each epoch.
-            If `ds_combo_for_subsetting` is not None, then `n_hours_to_load_per_epoch` must
+            If `ds_combo_for_subsetting` is not None, then `min_duration_to_load_per_epoch` must
             not be `None`.
-        n_hours_to_load_per_epoch: If this an int, then this will be (roughly) the total
+        min_duration_to_load_per_epoch: If this an int, then this will be (roughly) the total
             number of hours of contiguous time periods that will be loaded into RAM
             at the start of each epoch. Some DataSources (such as PV) can load the entire
             dataset into RAM at initialization. If using only DataSources which can load
-            everything into RAM, then set `n_hours_to_load_per_epoch` to None to avoid
+            everything into RAM, then set `min_duration_to_load_per_epoch` to None to avoid
             computing the subset of data to load into RAM at the start of each epoch.
-            If `n_hours_to_load_per_epoch` is not `None`, then `ds_combo_for_subsetting` must
+            If `min_duration_to_load_per_epoch` is not `None`, then `ds_combo_for_subsetting` must
             not be `None`.
         load_subset_every_epoch: Set to False for use as a validation dataset.
         n_examples_per_epoch:
@@ -81,7 +84,7 @@ class RawDataset(torch.utils.data.Dataset):
     data_source_combos: dict[str, Iterable[RawDataSource]]
     probability_of_each_combo: dict[str, Number]
     ds_combo_for_subsetting: Optional[str] = None
-    n_hours_to_load_per_epoch: Optional[int] = 48 * 12
+    min_duration_to_load_per_epoch: Optional[datetime.timedelta] = pd.Timedelta(hours=48 * 12)
     load_subset_every_epoch: bool = True
     n_examples_per_epoch: int = 1024 * 32
     xr_batch_processors: Optional[Iterable[Callable]] = None
@@ -97,10 +100,10 @@ class RawDataset(torch.utils.data.Dataset):
     def _sanity_check_args(self):  # noqa: D105
         if self.ds_combo_for_subsetting is not None:
             assert self.ds_combo_for_subsetting in self.data_source_combos
-            assert self.n_hours_to_load_per_epoch is not None
+            assert self.min_duration_to_load_per_epoch is not None
         assert self.data_source_combos.keys() == self.probability_of_each_combo.keys()
-        if self.n_hours_to_load_per_epoch is not None:
-            assert self.n_hours_to_load_per_epoch > 0
+        if self.min_duration_to_load_per_epoch is not None:
+            assert self.min_duration_to_load_per_epoch > pd.Timedelta(self.t0_freq)
             assert self.ds_combo_for_subsetting is not None
         assert self.n_examples_per_epoch > 0
 
@@ -144,7 +147,7 @@ class RawDataset(torch.utils.data.Dataset):
         if self.ds_combo_for_subsetting is None:
             _log.info("`ds_combo_for_subsetting` is None, so don't need to load subset into RAM.")
             if not self._t0_datetimes_per_combo_for_epoch:
-                self._t0_datetimes_per_combo_for_epoch = time_periods_to_datetimes_per_combo(
+                self._t0_datetimes_per_combo_for_epoch = _time_periods_to_datetimes_per_combo(
                     self._all_t0_periods_per_combo, freq=self.t0_freq
                 )
             return
@@ -164,12 +167,11 @@ class RawDataset(torch.utils.data.Dataset):
         # between `subset_of_t0_periods_for_epoch` and the total time periods available for that combo.
         subset_of_t0_periods_per_combo_for_epoch: dict[str, pd.DataFrame] = {}
         for combo_name, all_t0_periods_for_combo in self._all_t0_periods_per_combo.items():
-            subset_of_t0_periods_per_combo_for_epoch[
-                combo_name
-            ] = intersection_of_2_dataframes_of_periods(
+            subset_for_combo = intersection_of_2_dataframes_of_periods(
                 all_t0_periods_for_combo, subset_of_t0_periods_for_epoch
             )
-        self._t0_datetimes_per_combo_for_epoch = time_periods_to_datetimes_per_combo(
+            subset_of_t0_periods_per_combo_for_epoch[combo_name] = subset_for_combo
+        self._t0_datetimes_per_combo_for_epoch = _time_periods_to_datetimes_per_combo(
             subset_of_t0_periods_per_combo_for_epoch, freq=self.t0_freq
         )
 
@@ -184,13 +186,28 @@ class RawDataset(torch.utils.data.Dataset):
             " into RAM."
         )
         assert self._all_t0_periods_per_combo
+        assert self.ds_combo_for_subsetting
         all_t0_periods_for_combo = self._all_t0_periods_per_combo[self.ds_combo_for_subsetting]
-        # TODO:
-        # While loop:
-        #   select random time period from all_t0_periods_for_combo
-        #   append that to the list of random time periods
-        #   if the total length of selected time periods > self.n_hours_to_load_per_epoch then break
-        # Turn the list of periods into a DataFrame and return!
+
+        # Select random periods. We use a `while` loop instead of just doing
+        # `rng.choice(all_t0_periods_for_combo, size=n)` because using `rng.choice`
+        # wouldn't take into consideration that some periods are longer than others,
+        # and we want to load roughly the same duration of data per epoch.
+        random_t0_periods: list[pd.Series[str, pd.Timestamp]] = []
+        total_duration_of_periods: pd.Timedelta = pd.Timedelta(0)
+        while total_duration_of_periods < self.min_duration_to_load_per_epoch:
+            period, all_t0_periods_for_combo = sample_row_and_drop_row_from_df(
+                all_t0_periods_for_combo, rng=self.rng
+            )
+            random_t0_periods.append(period)
+            period_duration = period.end_dt - period.start_dt
+            total_duration_of_periods += period_duration
+
+        _log.info(
+            f"Selected {len(random_t0_periods):,d} random periods,"
+            f" with total duration = {total_duration_of_periods}"
+        )
+        return pd.DataFrame(random_t0_periods).sort_values("start_dt")
 
     def _get_example(self) -> NumpyBatch:
         # TODO!
@@ -217,3 +234,26 @@ class RawDataset(torch.utils.data.Dataset):
             for data_source in tuple_of_data_sources:
                 data_sources.append(data_source)
         return np.unique(data_sources)
+
+
+def _time_periods_to_datetimes_per_combo(
+    time_periods_per_combo: dict[str, pd.DataFrame], freq=str
+) -> dict[str, pd.DatetimeIndex]:
+    """Convert a dict of time periods to a dict of pd.DatetimeIndexes.
+
+    See the docstring for `power_perceiver.time.tim_periods_to_datetime_index` for more info.
+
+    Args:
+        time_periods_per_combo: dict where keys are the data source combination name
+            and values are a DataFrame with columns ['start_dt', 'end_dt'].
+        freq: str
+
+    Returns: dict where keys are the same as the keys for `time_periods_per_combo`,
+        and each value is a `pd.DatetimeIndex`.
+    """
+    datetimes_per_combo: dict[str, pd.DatetimeIndex] = {}
+    for combo_name, time_periods in time_periods_per_combo.items():
+        datetimes_per_combo[combo_name] = time_periods_to_datetime_index(
+            time_periods=time_periods, freq=freq
+        )
+    return datetimes_per_combo
