@@ -2,13 +2,17 @@ import datetime
 import logging
 from dataclasses import dataclass
 from numbers import Number
-from typing import Callable, Iterable, Optional
+from typing import Callable, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 import torch
 
-from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
+from power_perceiver.consts import BatchKey, Location
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
+    NumpyBatch,
+    XarrayBatch,
+)
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
@@ -41,6 +45,7 @@ class RawDataset(torch.utils.data.Dataset):
         probability_of_each_combo: A dict where the key is the name of each
             combination of DataSources, and the key is the probability of loading that
             combination of DataSources. Probabilities must sum to 1.
+            Optional. If `None` then will use equal probabilities.
         ds_combo_for_subsetting: The name of the DataSource combination that will provide the
             set of time periods that will be randomly sampled from at the start of each epoch
             when deciding which time periods to load into RAM. For example, let's say we have
@@ -81,14 +86,14 @@ class RawDataset(torch.utils.data.Dataset):
         _t0_datetimes_per_combo_for_epoch: dict[str, pd.DatetimeIndex]
     """
 
-    data_source_combos: dict[str, Iterable[RawDataSource]]
-    probability_of_each_combo: dict[str, Number]
+    data_source_combos: dict[str, Sequence[RawDataSource]]
+    probability_of_each_combo: Optional[dict[str, Number]] = None
     ds_combo_for_subsetting: Optional[str] = None
     min_duration_to_load_per_epoch: Optional[datetime.timedelta] = pd.Timedelta(hours=48 * 12)
     load_subset_every_epoch: bool = True
     n_examples_per_epoch: int = 1024 * 32
-    xr_batch_processors: Optional[Iterable[Callable]] = None
-    np_batch_processors: Optional[Iterable[Callable]] = None
+    xr_batch_processors: Optional[Sequence[Callable]] = None
+    np_batch_processors: Optional[Sequence[Callable]] = None
     t0_freq: str = "5T"
 
     def __post_init__(self):  # noqa: D105
@@ -101,7 +106,8 @@ class RawDataset(torch.utils.data.Dataset):
         if self.ds_combo_for_subsetting is not None:
             assert self.ds_combo_for_subsetting in self.data_source_combos
             assert self.min_duration_to_load_per_epoch is not None
-        assert self.data_source_combos.keys() == self.probability_of_each_combo.keys()
+        if self.probability_of_each_combo is not None:
+            assert self.data_source_combos.keys() == self.probability_of_each_combo.keys()
         if self.min_duration_to_load_per_epoch is not None:
             assert self.min_duration_to_load_per_epoch > pd.Timedelta(self.t0_freq)
             assert self.ds_combo_for_subsetting is not None
@@ -211,22 +217,87 @@ class RawDataset(torch.utils.data.Dataset):
         return pd.DataFrame(random_t0_periods).sort_values("start_dt")
 
     def _get_example(self) -> NumpyBatch:
-        # TODO!
-        # Pick a random ds_combo_name using the probabilities.
-        # Randomly sample t0_dt from self._t0_datetimes_per_combo_for_epoch[data_source_combo]
-        # data_source_combo = self.data_source_combos[ds_combo_name]
-        # data_source_which_selects_location = data_source_combo[0]
-        # location = data_source_which_selects_location.get_location_osgb_for_example()
-        # xr_batch: XarrayBatch = {}
-        # for data_source in data_source_combo:
-        #     example_from_ds = get_example(t0_datetime, location)
-        #     xr_batch[data_source.__class__] = example_from_ds
-        # Loop round the other data sources calling get_empty_example().
-        # xr_batch_processors
-        # to_numpy()
-        # np_batch_processors
-        # Return!
-        pass
+        chosen_combo_name = self._randomly_choose_combo_name()
+
+        # Randomly sample t0 and location:
+        t0_datetime_utc = self.rng.choice(self._t0_datetimes_per_combo_for_epoch[chosen_combo_name])
+        location_osgb = self._randomly_choose_osgb_location(chosen_combo_name)
+
+        xr_example = self._get_xarray_example(
+            chosen_combo_name=chosen_combo_name,
+            t0_datetime_utc=t0_datetime_utc,
+            location_osgb=location_osgb,
+        )
+
+        # TODO: Tell the ML model which type of "combo" this is.
+        xr_example = self._process_xr_example(xr_example)
+        np_example = self._xarray_to_numpy_example(xr_example)
+        del xr_example
+        np_example = self._process_np_example(np_example)
+        return np_example
+
+    def _randomly_choose_combo_name(self) -> str:
+        """Pick a random ds_combo_name using the probabilities."""
+        data_source_combo_names = list(self.data_source_combos.keys())
+        if self.probability_of_each_combo is None:
+            prob_of_each_combo = None
+        else:
+            # Need to ensure the probabilities are in the same order as the combos!
+            prob_of_each_combo = [
+                self.probability_of_each_combo[combo_name] for combo_name in data_source_combo_names
+            ]
+        return self.rng.choice(data_source_combo_names, p=prob_of_each_combo)
+
+    def _randomly_choose_osgb_location(self, chosen_combo_name: str) -> Location:
+        data_source_combo = self.data_source_combos[chosen_combo_name]
+        data_source_which_selects_location = data_source_combo[0]
+        return data_source_which_selects_location.get_osgb_location_for_example()
+
+    def _get_xarray_example(
+        self,
+        chosen_combo_name: str,
+        t0_datetime_utc: datetime.datetime,
+        location_osgb: Location,
+    ) -> XarrayBatch:
+        # Loop through each data source in the combo:
+        data_source_combo = self.data_source_combos[chosen_combo_name]
+        xr_batch: XarrayBatch = {}
+        for data_source in data_source_combo:
+            example_from_ds = data_source.get_example(t0_datetime_utc, location_osgb)
+            xr_batch[data_source.__class__] = example_from_ds
+
+        # TODO: Loop round the other data sources calling get_empty_example().
+        return xr_batch
+
+    def _process_xr_example(self, xr_example: XarrayBatch) -> XarrayBatch:
+        """If necessary, do any processing which needs to be done across modalities,
+        on the xr.Datasets."""
+        if self.xr_batch_processors:
+            for xr_batch_processor in self.xr_batch_processors:
+                xr_example = xr_batch_processor(xr_example)
+        return xr_example
+
+    def _xarray_to_numpy_example(self, xr_example: XarrayBatch) -> NumpyBatch:
+        """Convert from xarray Datasets to numpy."""
+        np_batch: NumpyBatch = {}
+        for data_loader_class, xr_dataset in xr_example.items():
+            if data_loader_class == BatchKey.requested_timesteps:
+                # `ReduceNumTimesteps` introduces a `requested_timesteps` key,
+                # whose value is a np.ndarray.
+                requested_timesteps = xr_dataset
+                np_batch[BatchKey.requested_timesteps] = requested_timesteps
+            else:
+                np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
+                np_batch.update(np_data_for_data_source)
+        return np_batch
+
+    def _process_np_example(self, np_example: NumpyBatch) -> NumpyBatch:
+        """If necessary, do any processing which needs to be done across modalities,
+        on the NumpyBatch."""
+        if self.np_batch_processors:
+            for np_batch_processor in self.np_batch_processors:
+                np_example = np_batch_processor(np_example)
+        return np_example
 
     @property
     def _unique_data_sources(self):

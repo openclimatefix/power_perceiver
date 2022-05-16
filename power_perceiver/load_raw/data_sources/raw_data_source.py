@@ -270,15 +270,12 @@ class SpatialDataSource:
         assert (self.height_in_pixels % 2) == 0, f"{self.height_in_pixels=} must be divisible by 2!"
         assert (self.width_in_pixels % 2) == 0, f"{self.width_in_pixels=} must be divisible by 2!"
 
-    def get_location_osgb_for_example(self) -> Location:
+    def get_osgb_location_for_example(self) -> Location:
         """Randomly select a valid geographical location for one example.
-
-        Must be overridden if this DataSource is to be used to select geographical locations
-        for examples.
 
         Returns:  Location(x_center_osgb, y_center_osgb)
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # TODO!
 
     def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
         """Slice `xr_dataset` to produce a region of interest, centered on `center_osgb`.

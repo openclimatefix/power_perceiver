@@ -8,6 +8,7 @@ import torch.utils.data
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources import NumpyBatch, PreparedDataSource
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import XarrayBatch
 
 _log = logging.getLogger(__name__)
 
@@ -94,7 +95,7 @@ class PreparedDataset(torch.utils.data.Dataset):
             xr_batch[data_loader.__class__] = xr_data_for_data_source
         return xr_batch
 
-    def _process_xr_batch(self, xr_batch: NumpyBatch) -> NumpyBatch:
+    def _process_xr_batch(self, xr_batch: XarrayBatch) -> XarrayBatch:
         """If necessary, do any processing which needs to be done across modalities,
         on the xr.Datasets."""
         if self.xr_batch_processors:
@@ -102,14 +103,15 @@ class PreparedDataset(torch.utils.data.Dataset):
                 xr_batch = xr_batch_processor(xr_batch)
         return xr_batch
 
-    def _xarray_to_numpy_batch(self, xr_batch: NumpyBatch) -> NumpyBatch:
+    def _xarray_to_numpy_batch(self, xr_batch: XarrayBatch) -> NumpyBatch:
         """Convert from xarray Datasets to numpy."""
         np_batch: NumpyBatch = {}
         for data_loader_class, xr_dataset in xr_batch.items():
             if data_loader_class == BatchKey.requested_timesteps:
                 # `ReduceNumTimesteps` introduces a `requested_timesteps` key,
                 # whose value is a np.ndarray.
-                np_batch[data_loader_class] = xr_dataset
+                requested_timesteps = xr_dataset
+                np_batch[BatchKey.requested_timesteps] = requested_timesteps
             else:
                 np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
                 np_batch.update(np_data_for_data_source)

@@ -47,13 +47,13 @@ class RawSatelliteDataSource(
         TimeseriesDataSource.__post_init__(self)
         ZarrDataSource.__post_init__(self)
 
-    @property
+    @property  # TODO: Could this be a class attribute? Like `_y_dim_name?`
     def sample_period_duration(self) -> datetime.timedelta:  # noqa: D102
         # For now, let's assume the satellite imagery is always 5-minutely.
         # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
         return datetime.timedelta(minutes=5)
 
-    @property
+    @property  # TODO: Could this be a class attribute? Like `_y_dim_name?`
     def needs_to_load_subset_into_ram(self) -> bool:  # noqa: D102
         return True
 
@@ -103,7 +103,7 @@ class RawSatelliteDataSource(
         return xr_data
 
     @staticmethod
-    def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
+    def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
         """Convert xarray to numpy batch.
 
         But note that this is actually just returns *one* example (not a whole batch!)
