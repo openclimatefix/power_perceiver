@@ -15,6 +15,7 @@ from power_perceiver.utils import check_path_exists
 
 _log = logging.getLogger(__name__)
 
+
 # `kw_only` allows a base class to have fields with default values,
 # and it's still OK for child classes to have fields *without* defaults. See:
 # https://stackoverflow.com/a/69822584/732596

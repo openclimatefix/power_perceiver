@@ -152,8 +152,8 @@ class RawDataset(torch.utils.data.Dataset):
                 )
             return
 
-        # Compute subset of contiguous t0 time periods for this epoch, and ask each unique data source
-        # that needs to load a subset into RAM to do so:
+        # Compute subset of contiguous t0 time periods for this epoch, and ask each unique
+        # data source that needs to load a subset into RAM to do so:
         subset_of_t0_periods_for_epoch = self._subset_t0_periods()
         for data_source in self._unique_data_sources:
             if data_source.needs_to_load_subset_into_ram:
@@ -164,7 +164,8 @@ class RawDataset(torch.utils.data.Dataset):
                 data_source.load_subset_into_ram(subset_for_ds)
 
         # For each data source combo, we need to find the intersection of time periods
-        # between `subset_of_t0_periods_for_epoch` and the total time periods available for that combo.
+        # between `subset_of_t0_periods_for_epoch` and the total time periods available
+        # for that combo.
         subset_of_t0_periods_per_combo_for_epoch: dict[str, pd.DataFrame] = {}
         for combo_name, all_t0_periods_for_combo in self._all_t0_periods_per_combo.items():
             subset_for_combo = intersection_of_2_dataframes_of_periods(

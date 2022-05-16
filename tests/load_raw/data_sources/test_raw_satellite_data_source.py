@@ -1,15 +1,22 @@
 import datetime
 
+import pandas as pd
 import pytest
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 
+HEIGHT_IN_PIXELS = 128
+WIDTH_IN_PIXELS = 256
+
 
 def _get_sat_data_source(
-    zarr_path="gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr",
-    height_in_pixels=128,
-    width_in_pixels=256,
+    zarr_path=(
+        "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
+        "eumetsat_seviri_hrv_uk.zarr"
+    ),
+    height_in_pixels=HEIGHT_IN_PIXELS,
+    width_in_pixels=WIDTH_IN_PIXELS,
     history_duration=datetime.timedelta(hours=1),
     forecast_duration=datetime.timedelta(hours=2),
     start_date=datetime.datetime(year=2020, month=1, day=1),
@@ -44,6 +51,20 @@ def sat_data_opened() -> RawSatelliteDataSource:
     return sat_data_source
 
 
+@pytest.fixture(scope="module")
+def sat_data_loaded() -> RawSatelliteDataSource:
+    # Don't use `sat_data_source` fixture, because that will run `per_worker_init`
+    # on the "unopened" `sat_data_source` fixture!
+    sat_data_source = _get_sat_data_source()
+    sat_data_source.per_worker_init(worker_id=1)
+
+    periods = sat_data_source.get_contiguous_t0_time_periods()
+    periods = periods.iloc[:3]
+    sat_data_source.load_subset_into_ram(periods)
+
+    return sat_data_source
+
+
 def test_init(sat_data_source):
     assert sat_data_source._data_in_ram is None
     assert sat_data_source._data_on_disk is None
@@ -68,8 +89,30 @@ def test_datetimes(sat_data_opened):
 
 
 def test_get_spatial_slice(sat_data_opened: RawSatelliteDataSource):
+    # Select a location roughly in the middle of the Satellite imagery:
     location_center_osgb = Location(x=66400, y=357563)
     selection = sat_data_opened._get_spatial_slice(
         sat_data_opened._data_on_disk,
         location_center_osgb,
     )
+    assert len(selection.x_geostationary) == WIDTH_IN_PIXELS
+    assert len(selection.y_geostationary) == HEIGHT_IN_PIXELS
+
+    with pytest.raises(AssertionError):
+        selection = sat_data_opened._get_spatial_slice(
+            sat_data_opened._data_on_disk,
+            # Try getting an image centered on the left edge:
+            Location(x=-1371057, y=357563),
+        )
+
+
+def test_load_subset_into_ram(sat_data_loaded: RawSatelliteDataSource):
+    assert sat_data_loaded._data_in_ram is not None
+
+
+def test_get_example(sat_data_loaded: RawSatelliteDataSource):
+    xr_example = sat_data_loaded.get_example(
+        t0_datetime_utc=pd.Timestamp("2020-01-01 12:00"),
+        center_osgb=Location(x=66400, y=357563),
+    )
+    del xr_example  # TODO: Do something with this!

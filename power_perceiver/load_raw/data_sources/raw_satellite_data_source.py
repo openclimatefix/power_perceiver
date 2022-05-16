@@ -59,7 +59,16 @@ class RawSatelliteDataSource(
 
     def load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
         """Override in DataSources which can only fit a subset of the dataset into RAM."""
-        raise NotImplementedError()  # TODO!
+        # Lazily create a new DataArray with just the data we want. Then load that into RAM :)
+        data_to_load = []
+        for _, row in subset_of_contiguous_time_periods.iterrows():
+            start_dt = row["start_dt"]
+            end_dt = row["end_dt"]
+            data_for_period = self._data_on_disk.sel(time_utc=slice(start_dt, end_dt))
+            data_to_load.append(data_for_period)
+
+        data_to_load = xr.concat(data_to_load, dim="time_utc")
+        self._data_in_ram = data_to_load.load()
 
     def open(self) -> None:
         """
@@ -95,22 +104,22 @@ class RawSatelliteDataSource(
 
     @staticmethod
     def to_numpy_batch(xr_data: xr.DataArray) -> NumpyBatch:
+        """Convert xarray to numpy batch.
+
+        But note that this is actually just returns *one* example (not a whole batch!)
+        """
         example: NumpyBatch = {}
 
-        # Insert example dimensions:
-        example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(
-            xr_data["time"].expand_dims(dim="example", axis=0).values.copy()
-        )
+        example[BatchKey.hrvsatellite] = xr_data.values
+        example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(xr_data["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
             (BatchKey.hrvsatellite_x_osgb, "x_osgb"),
-            (BatchKey.hrvsatellite_y_geostationary, self._y_dim_name),
-            (BatchKey.hrvsatellite_x_geostationary, self._x_dim_name),
+            (BatchKey.hrvsatellite_y_geostationary, RawSatelliteDataSource._y_dim_name),
+            (BatchKey.hrvsatellite_x_geostationary, RawSatelliteDataSource._x_dim_name),
         ):
             # HRVSatellite coords are already float32.
-            example[batch_key] = (
-                xr_data[dataset_key].expand_dims(dim="example", axis=0).values.copy()
-            )
+            example[batch_key] = xr_data[dataset_key].values
         return example
 
     def _load_geostationary_area_definition_and_transform(self) -> None:
