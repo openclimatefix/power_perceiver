@@ -33,7 +33,7 @@ def date_summary_str(xr_data: Union[xr.Dataset, xr.DataArray]) -> str:
 
 
 def select_data_in_daylight(
-    xr_data: Union[xr.Dataset, xr.DataArray], solar_elevation_threshold_degrees: Number = 5
+    xr_data: Union[xr.Dataset, xr.DataArray], solar_elevation_threshold_degrees: Number = 10
 ) -> Union[xr.Dataset, xr.DataArray]:
     """Only select data where, for at least one of the four corners of the imagery,
     the Sun is at least `solar_elevation_threshold_degrees` above the horizon."""
@@ -41,7 +41,10 @@ def select_data_in_daylight(
     x_osgb = xr_data.x_osgb
 
     corners_osgb = [
-        (x_osgb.isel(x=x, y=y).values, y_osgb.isel(x=x, y=y).values)
+        (
+            x_osgb.isel(x_geostationary=x, y_geostationary=y).values,
+            y_osgb.isel(x_geostationary=x, y_geostationary=y).values,
+        )
         for x, y in itertools.product((0, -1), (0, -1))
     ]
 
@@ -52,7 +55,7 @@ def select_data_in_daylight(
     elevation_for_all_corners = []
     for lat, lon in zip(lats, lons):
         solpos = pvlib.solarposition.get_solarposition(
-            time=xr_data.time,
+            time=xr_data.time_utc,
             latitude=lat,
             longitude=lon,
         )
@@ -62,7 +65,7 @@ def select_data_in_daylight(
     elevation_for_all_corners = pd.concat(elevation_for_all_corners, axis="columns")
     max_elevation = elevation_for_all_corners.max(axis="columns")
     daylight_hours_mask = max_elevation >= solar_elevation_threshold_degrees
-    return xr_data.isel(time=daylight_hours_mask)
+    return xr_data.isel(time_utc=daylight_hours_mask)
 
 
 # From nowcasting_dataset.time:

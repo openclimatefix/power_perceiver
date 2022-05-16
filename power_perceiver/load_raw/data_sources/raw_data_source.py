@@ -1,7 +1,6 @@
 import datetime
 import logging
 from dataclasses import dataclass
-from numbers import Number
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union
 
@@ -39,7 +38,6 @@ class RawDataSource:
     transforms: Optional[Iterable[Callable]] = None
 
     def __post_init__(self):  # noqa: D105
-        self._check_input_paths_exist()
         self._data_in_ram = None
         self._data_on_disk = None
 
@@ -72,6 +70,7 @@ class RawDataSource:
         xr_dataset = self.data_in_ram
         xr_dataset = self._get_time_slice(xr_dataset, t0_datetime_utc=t0_datetime_utc)
         xr_dataset = self._get_spatial_slice(xr_dataset, center_osgb=center_osgb)
+        xr_dataset = self._post_process(xr_dataset)
         xr_dataset = self._transform(xr_dataset)
         return xr_dataset
 
@@ -103,6 +102,13 @@ class RawDataSource:
 
     def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
         """Can be overridden, usually by SpatialDataSource.
+
+        The returned Dataset does not include an `example` dimension.
+        """
+        return xr_dataset
+
+    def _post_process(self, xr_dataset: xr.Dataset) -> xr.Dataset:
+        """Can be overridden. This is where normalisation should happen.
 
         The returned Dataset does not include an `example` dimension.
         """
@@ -177,7 +183,7 @@ class TimeseriesDataSource:
         Child classes can override this to, for example, filter out any datetimes
         which don't make sense for this DataSource, e.g. remove nighttime.
         """
-        return pd.DatetimeIndex(self.data.time_utc)
+        return pd.DatetimeIndex(self.data_on_disk.time_utc)
 
     @property
     def sample_period_duration(self) -> datetime.timedelta:
@@ -253,6 +259,10 @@ class SpatialDataSource:
     height_in_pixels: int
     width_in_pixels: int
 
+    # Attributes which are intended to be set for the whole class.
+    _y_dim_name: str = "y"
+    _x_dim_name: str = "x"
+
     def __post_init__(self):
         assert self.height_in_pixels > 0, f"{self.height_in_pixels=} must be > 0!"
         assert self.width_in_pixels > 0, f"{self.width_in_pixels=} must be > 0!"
@@ -272,6 +282,8 @@ class SpatialDataSource:
     def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
         """Slice `xr_dataset` to produce a region of interest, centered on `center_osgb`.
 
+        Assume the image data starts top-left.
+
         The returned Dataset does not include an `example` dimension.
         """
         # Find pixel index at `center_osgb`:
@@ -285,22 +297,26 @@ class SpatialDataSource:
 
         left_idx = center_idx.x - half_width
         right_idx = center_idx.x + half_width
-        bottom_idx = center_idx.y - half_height
-        top_idx = center_idx.y + half_height
+        top_idx = center_idx.y - half_height
+        bottom_idx = center_idx.y + half_height
 
         # Sanity check!
         assert left_idx >= 0, f"{left_idx=} must be >= 0!"
-        assert bottom_idx >= 0, f"{bottom_idx=} must be >= 0!"
-        assert right_idx <= len(xr_dataset.x), f"{right_idx=} must be <= {len(xr_dataset.x)=}"
-        assert top_idx <= len(xr_dataset.y), f"{top_idx=} must be <= {len(xr_dataset.y)=}"
+        data_width_pixels = len(xr_dataset[self._x_dim_name])
+        assert right_idx <= data_width_pixels, f"{right_idx=} must be <= {data_width_pixels=}"
+        assert top_idx >= 0, f"{top_idx=} must be >= 0!"
+        data_height_pixels = len(xr_dataset[self._y_dim_name])
+        assert bottom_idx <= data_height_pixels, f"{bottom_idx=} must be <= {data_height_pixels=}"
 
-        xr_dataset = xr_dataset.isel(x=slice(left_idx, right_idx), y=slice(bottom_idx, top_idx))
+        selected = xr_dataset.isel(
+            x_geostationary=slice(left_idx, right_idx), y_geostationary=slice(top_idx, bottom_idx)
+        )
 
         # Sanity check:
-        assert len(xr_dataset.x) == self.width_in_pixels
-        assert len(xr_dataset.y) == self.height_in_pixels
+        assert len(selected[self._x_dim_name]) == self.width_in_pixels
+        assert len(selected[self._y_dim_name]) == self.height_in_pixels
 
-        return xr_dataset
+        return selected
 
     def _get_idx_of_pixel_at_center_of_roi(
         self, xr_dataset: xr.Dataset, center_osgb: Location
@@ -310,11 +326,10 @@ class SpatialDataSource:
 
 
 @dataclass(kw_only=True)
-class ZarrDatasource:
+class ZarrDataSource:
     """Abstract base class for Zarr stores."""
 
     zarr_path: Union[Path, str]
 
-    def check_input_paths_exist(self) -> None:
-        """Check input paths exist.  If not, raise a FileNotFoundError."""
+    def __post_init__(self):
         check_path_exists(self.zarr_path)
