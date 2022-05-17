@@ -250,7 +250,10 @@ class TimeseriesDataSource:
 
 @dataclass(kw_only=True)
 class SpatialDataSource:
-    """Abstract base class for image Data source.
+    """Abstract base class for dense spatial image data sources (like NWP and satellite).
+
+    Sparse spatial data (such as PV data) is covered by the `SparseSpatialDataSource`
+    abstract base class.
 
     Args:
         height_in_pixels: Must be divisible by 2.
@@ -275,7 +278,39 @@ class SpatialDataSource:
 
         Returns:  Location(x_center_osgb, y_center_osgb)
         """
-        raise NotImplementedError()  # TODO!
+        # Find the minimum and maximum legal values for the randomly sampled x and y positions:
+        half_height_of_crop = self.height_in_pixels // 2
+        half_width_of_crop = self.width_in_pixels // 2
+
+        source_image_height = len(self._data_in_ram[self._y_dim_name])
+        source_image_width = len(self._data_in_ram[self._x_dim_name])
+
+        min_y = half_height_of_crop
+        max_y = source_image_height - half_height_of_crop
+        min_x = half_width_of_crop
+        max_x = source_image_width - half_width_of_crop
+
+        # Sanity check!
+        assert 0 < min_x < source_image_width
+        assert 0 < max_x < source_image_width
+        assert 0 < min_y < source_image_height
+        assert 0 < max_y < source_image_height
+
+        # Randomly pick y and x indexes.
+        y_idx = self.rng.integers(low=min_y, high=max_y)
+        x_idx = self.rng.integers(low=min_x, high=max_x)
+
+        # Get the OSGB coords for those indexes:
+        selected_pixel = self._data_in_ram.isel(
+            {
+                self._y_dim_name: y_idx,
+                self._x_dim_name: x_idx,
+            }
+        )
+        y_osgb = selected_pixel.y_osgb.item()
+        x_osgb = selected_pixel.x_osgb.item()
+
+        return Location(x=x_osgb, y=y_osgb)
 
     def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
         """Slice `xr_dataset` to produce a region of interest, centered on `center_osgb`.

@@ -116,3 +116,12 @@ def test_get_example(sat_data_loaded: RawSatelliteDataSource):
         center_osgb=Location(x=66400, y=357563),
     )
     del xr_example  # TODO: Do something with this!
+
+
+def test_get_osgb_location_for_example(sat_data_loaded: RawSatelliteDataSource):
+    location = sat_data_loaded.get_osgb_location_for_example()
+    print("LOCATION!")
+    print(location)
+    for coord in location:
+        assert isinstance(coord, float), f"{type(coord)=}"
+    # TODO: Check the OSGB coords are sane!
