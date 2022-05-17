@@ -2,7 +2,7 @@ import datetime
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import ClassVar, Union
 
 import dask
 import numpy as np
@@ -38,24 +38,18 @@ class RawSatelliteDataSource(
 ):
     """Load satellite data directly from the satellite Zarr store."""
 
-    _y_dim_name: str = "y_geostationary"
-    _x_dim_name: str = "x_geostationary"
+    _y_dim_name: ClassVar[str] = "y_geostationary"
+    _x_dim_name: ClassVar[str] = "x_geostationary"
+    # For now, let's assume the satellite imagery is always 5-minutely.
+    # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
+    sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=5)
+    needs_to_load_subset_into_ram: ClassVar[bool] = True
 
     def __post_init__(self):
         RawDataSource.__post_init__(self)
         SpatialDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
         ZarrDataSource.__post_init__(self)
-
-    @property  # TODO: Could this be a class attribute? Like `_y_dim_name?`
-    def sample_period_duration(self) -> datetime.timedelta:  # noqa: D102
-        # For now, let's assume the satellite imagery is always 5-minutely.
-        # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
-        return datetime.timedelta(minutes=5)
-
-    @property  # TODO: Could this be a class attribute? Like `_y_dim_name?`
-    def needs_to_load_subset_into_ram(self) -> bool:  # noqa: D102
-        return True
 
     def open(self) -> None:
         """

@@ -3,7 +3,7 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Optional, Union
+from typing import Callable, ClassVar, Iterable, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -307,20 +307,19 @@ class TimeseriesDataSource:
 class SpatialDataSource:
     """Abstract base class for dense spatial image data sources (like NWP and satellite).
 
-    Sparse spatial data (such as PV data) is covered by the `SparseSpatialDataSource`
-    abstract base class.
+    Sparse spatial data (such as PV data) doesn't inherit from `SpatialDataSource`.
 
     Args:
-        height_in_pixels: Must be divisible by 2.
-        width_in_pixels: Must be divisible by 2.
+        height_in_pixels: Height of the image in each example. Must be divisible by 2.
+        width_in_pixels: Width of the image in each example. Must be divisible by 2.
     """
 
     height_in_pixels: int
     width_in_pixels: int
 
     # Attributes which are intended to be set for the whole class.
-    _y_dim_name: str = "y"
-    _x_dim_name: str = "x"
+    _y_dim_name: ClassVar[str] = "y"
+    _x_dim_name: ClassVar[str] = "x"
 
     def __post_init__(self):
         assert self.height_in_pixels > 0, f"{self.height_in_pixels=} must be > 0!"
