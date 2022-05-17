@@ -41,22 +41,22 @@ class RawGSPDataSource(
         """Get a single random geographical location."""
         raise NotImplementedError("TODO!")
 
-    def get_empty_example(self) -> xr.Dataset:
+    def get_empty_example(self) -> xr.DataArray:
         """Get an empty example.
 
-        The returned Dataset does not include an `example` dimension.
+        The returned DataArray does not include an `example` dimension.
         """
         raise NotImplementedError("TODO!")
 
     def _get_time_slice(
-        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
-    ) -> xr.Dataset:
+        self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime
+    ) -> xr.DataArray:
         raise NotImplementedError("TODO!")
 
-    def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
+    def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
         raise NotImplementedError("TODO!")
 
-    def _post_process(self, xr_dataset: xr.Dataset) -> xr.Dataset:
+    def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         # TODO: Normalise
         raise NotImplementedError("TODO!")
 

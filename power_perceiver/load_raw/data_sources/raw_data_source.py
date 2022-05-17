@@ -26,15 +26,15 @@ class RawDataSource:
     """Abstract base class for loading data directly from the raw or intermediate files.
 
     Attributes:
-        data_in_ram: xr.Dataset. Uses standard names for dimensions and coordinates. If the data
+        data_in_ram: xr.DataArray. Uses standard names for dimensions and coordinates. If the data
             does not conform to these standard names, then the subclass must change the names
-            as soon as the Dataset is opened. The standard names are:
-                Dimension names: time, channel, y, x
-                Coordinate names: time_utc, y_osbg, x_osgb
-        data_on_disk: xr.Dataset.
-            If this DataSource loads a subset of the full dataset at the start of each epoch,
+            as soon as the DataArray is opened. The standard names are:
+                Dimension names: time_utc, channel
+                Coordinate names: time_utc, y_osbg, x_osgb, y_geostationary, x_geostationary
+        data_on_disk: xr.DataArray.
+            If this DataSource loads a subset of the full DataArray at the start of each epoch,
             then `data_in_ram` holds the in-memory data, and `data_on_disk` holds
-            the un-loaded `xr.Dataset`. If this DataSource can load the entire dataset into RAM,
+            the un-loaded `xr.DataArray`. If this DataSource can load the entire DataArray into RAM,
             then `data_on_disk` will be `None`.
     """
 
@@ -70,19 +70,21 @@ class RawDataSource:
         # Optionally, override `per_worker_init` in child class to call super().per_worker_init()
         # and to `open()` the data, if opening doesn't happen in `__post_init__().`
 
-    def get_example(self, t0_datetime_utc: datetime.datetime, center_osgb: Location) -> xr.Dataset:
+    def get_example(
+        self, t0_datetime_utc: datetime.datetime, center_osgb: Location
+    ) -> xr.DataArray:
         """Can be overridden by child classes.
 
         The returned Dataset must not include an `example` dimension.
         """
-        xr_dataset = self.data_in_ram
-        xr_dataset = self._get_time_slice(xr_dataset, t0_datetime_utc=t0_datetime_utc)
-        xr_dataset = self._get_spatial_slice(xr_dataset, center_osgb=center_osgb)
-        xr_dataset = self._post_process(xr_dataset)
-        xr_dataset = self._transform(xr_dataset)
-        return xr_dataset
+        xr_data = self.data_in_ram
+        xr_data = self._get_time_slice(xr_data, t0_datetime_utc=t0_datetime_utc)
+        xr_data = self._get_spatial_slice(xr_data, center_osgb=center_osgb)
+        xr_data = self._post_process(xr_data)
+        xr_data = self._transform(xr_data)
+        return xr_data
 
-    def get_empty_example(self) -> xr.Dataset:
+    def get_empty_example(self) -> xr.DataArray:
         """Must be overridden by child classes.
 
         The returned Dataset must not include an `example` dimension.
@@ -98,33 +100,33 @@ class RawDataSource:
         raise NotImplementedError("Must be implemented by subclass!")
 
     def _get_time_slice(
-        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
-    ) -> xr.Dataset:
+        self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime
+    ) -> xr.DataArray:
         """Can be overridden, usually by TimeseriesDataSource.
 
         The returned Dataset does not include an `example` dimension.
         """
-        return xr_dataset
+        return xr_data
 
-    def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
+    def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
         """Can be overridden, usually by SpatialDataSource.
 
         The returned Dataset does not include an `example` dimension.
         """
-        return xr_dataset
+        return xr_data
 
-    def _post_process(self, xr_dataset: xr.Dataset) -> xr.Dataset:
+    def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         """Can be overridden. This is where normalisation should happen.
 
         The returned Dataset does not include an `example` dimension.
         """
-        return xr_dataset
+        return xr_data
 
-    def _transform(self, xr_dataset: xr.Dataset) -> xr.Dataset:
+    def _transform(self, xr_data: xr.DataArray) -> xr.DataArray:
         if self.transforms:
             for transform in self.transforms:
-                xr_dataset = transform(xr_dataset)
-        return xr_dataset
+                xr_data = transform(xr_data)
+        return xr_data
 
 
 @dataclass(kw_only=True)
@@ -241,25 +243,25 @@ class TimeseriesDataSource:
         )
 
     def _get_time_slice(
-        self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
-    ) -> xr.Dataset:
-        """Select a timeslice from `xr_dataset`.
+        self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime
+    ) -> xr.DataArray:
+        """Select a timeslice from `xr_data`.
 
-        The returned Dataset does not include an `example` dimension.
+        The returned data does not include an `example` dimension.
         """
         start_dt = self._get_start_dt(t0_datetime_utc)
         end_dt = self._get_end_dt(t0_datetime_utc)
 
         # Sanity check!
         assert (
-            start_dt in xr_dataset.time_utc
+            start_dt in xr_data.time_utc
         ), f"{start_dt=} not in xr_dataset.time_utc! {t0_datetime_utc=}"
         assert (
-            end_dt in xr_dataset.time_utc
+            end_dt in xr_data.time_utc
         ), f"{end_dt=} not in xr_dataset.time_utc! {t0_datetime_utc=}"
 
         # Get time slice:
-        time_slice = xr_dataset.sel(time_utc=slice(start_dt, end_dt))
+        time_slice = xr_data.sel(time_utc=slice(start_dt, end_dt))
 
         # More sanity checks!
         assert (
@@ -350,16 +352,16 @@ class SpatialDataSource:
 
         return Location(x=x_osgb, y=y_osgb)
 
-    def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
-        """Slice `xr_dataset` to produce a region of interest, centered on `center_osgb`.
+    def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
+        """Slice `xr_data` to produce a region of interest, centered on `center_osgb`.
 
         Assume the image data starts top-left.
 
-        The returned Dataset does not include an `example` dimension.
+        The returned data does not include an `example` dimension.
         """
         # Find pixel index at `center_osgb`:
         center_idx = self._get_idx_of_pixel_at_center_of_roi(
-            xr_dataset=xr_dataset, center_osgb=center_osgb
+            xr_data=xr_data, center_osgb=center_osgb
         )
 
         # Compute the index for left and right:
@@ -373,13 +375,13 @@ class SpatialDataSource:
 
         # Sanity check!
         assert left_idx >= 0, f"{left_idx=} must be >= 0!"
-        data_width_pixels = len(xr_dataset[self._x_dim_name])
+        data_width_pixels = len(xr_data[self._x_dim_name])
         assert right_idx <= data_width_pixels, f"{right_idx=} must be <= {data_width_pixels=}"
         assert top_idx >= 0, f"{top_idx=} must be >= 0!"
-        data_height_pixels = len(xr_dataset[self._y_dim_name])
+        data_height_pixels = len(xr_data[self._y_dim_name])
         assert bottom_idx <= data_height_pixels, f"{bottom_idx=} must be <= {data_height_pixels=}"
 
-        selected = xr_dataset.isel(
+        selected = xr_data.isel(
             x_geostationary=slice(left_idx, right_idx), y_geostationary=slice(top_idx, bottom_idx)
         )
 
@@ -390,7 +392,7 @@ class SpatialDataSource:
         return selected
 
     def _get_idx_of_pixel_at_center_of_roi(
-        self, xr_dataset: xr.Dataset, center_osgb: Location
+        self, xr_data: xr.DataArray, center_osgb: Location
     ) -> Location:
         """Return x and y index location of pixel at center of region of interest."""
         raise NotImplementedError("Must be implemented by child class!")

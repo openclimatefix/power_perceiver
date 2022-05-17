@@ -118,7 +118,7 @@ class RawSatelliteDataSource(
         ).transform
 
     def _get_idx_of_pixel_at_center_of_roi(
-        self, xr_dataset: xr.Dataset, center_osgb: Location
+        self, xr_data: xr.DataArray, center_osgb: Location
     ) -> Location:
         """Return x and y index location of pixel at center of region of interest."""
         center_geostationary_tuple = self._osgb_to_geostationary(xx=center_osgb.x, yy=center_osgb.y)
@@ -128,11 +128,11 @@ class RawSatelliteDataSource(
 
         # Get the index into x and y nearest to x_center_geostationary and y_center_geostationary:
         x_index_at_center = (
-            np.searchsorted(xr_dataset[self._x_dim_name].values, center_geostationary.x) - 1
+            np.searchsorted(xr_data[self._x_dim_name].values, center_geostationary.x) - 1
         )
         # y_geostationary is in descending order:
-        y_index_at_center = len(xr_dataset[self._y_dim_name]) - (
-            np.searchsorted(xr_dataset[self._y_dim_name].values[::-1], center_geostationary.y) - 1
+        y_index_at_center = len(xr_data[self._y_dim_name]) - (
+            np.searchsorted(xr_data[self._y_dim_name].values[::-1], center_geostationary.y) - 1
         )
         return Location(x=x_index_at_center, y=y_index_at_center)
 

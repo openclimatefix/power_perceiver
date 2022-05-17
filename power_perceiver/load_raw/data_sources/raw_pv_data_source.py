@@ -79,19 +79,18 @@ class RawPVDataSource(
             " `RawSatelliteDataSource` and/or `RawGSPDataSource` to generate locations."
         )
 
-    def get_empty_example(self) -> xr.Dataset:
+    def get_empty_example(self) -> xr.DataArray:
         """Get an empty example.
 
-        The returned Dataset does not include an `example` dimension.
+        The returned DataArray does not include an `example` dimension.
         """
         raise NotImplementedError("TODO!")
 
-    def _get_spatial_slice(self, xr_dataset: xr.Dataset, center_osgb: Location) -> xr.Dataset:
+    def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
         raise NotImplementedError("TODO!")
 
-    def _post_process(self, xr_dataset: xr.Dataset) -> xr.Dataset:
-        # TODO: Normalise
-        raise NotImplementedError("TODO!")
+    def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
+        return xr_data / xr_data.capacity_wp
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
