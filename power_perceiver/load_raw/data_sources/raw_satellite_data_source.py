@@ -36,7 +36,7 @@ class RawSatelliteDataSource(
     SpatialDataSource,
     RawDataSource,
 ):
-    """Load satellite data directly from the satellite Zarr store."""
+    """Load satellite data directly from the intermediate satellite Zarr store."""
 
     _y_dim_name: ClassVar[str] = "y_geostationary"
     _x_dim_name: ClassVar[str] = "x_geostationary"
@@ -45,15 +45,19 @@ class RawSatelliteDataSource(
     sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=5)
     needs_to_load_subset_into_ram: ClassVar[bool] = True
 
-    def __post_init__(self):
+    def __post_init__(self):  # noqa: D105
         RawDataSource.__post_init__(self)
         SpatialDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
         ZarrDataSource.__post_init__(self)
 
+    def per_worker_init(self, worker_id: int) -> None:  # noqa: D105
+        super().per_worker_init(worker_id)
+        self.open()
+
     def open(self) -> None:
         """
-        Open Satellite data.
+        Lazily open Satellite data (this only loads metadata. It doesn't load all the data!)
 
         We don't want to call `open_sat_data` in __init__.
         If we did that, then we couldn't copy RawSatelliteDataSource

@@ -14,18 +14,16 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
 
 
 @dataclass(kw_only=True)
-class RawPVDataSource(
+class RawGSPDataSource(
     # Surprisingly, Python's class hierarchy is defined right-to-left.
     # So the base class must go on the right.
     ZarrDataSource,
     TimeseriesDataSource,
     RawDataSource,
 ):
-    """Load PV data directly from the intermediate PV Zarr store."""
+    """Load GSP data directly from the intermediate GSP Zarr store."""
 
-    # For now, let's assume the PV data is always 5-minutely.
-    # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
-    sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=5)
+    sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=30)
 
     def __post_init__(self):  # noqa: D105
         RawDataSource.__post_init__(self)
@@ -36,13 +34,11 @@ class RawPVDataSource(
         self.load_everything_into_ram()
 
     def load_everything_into_ram(self) -> None:
-        """Open AND load PV data into RAM."""
+        """Open AND load GSP data into RAM."""
         raise NotImplementedError("TODO!")
 
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
-        # Not planning to implement this just yet. To start with, let's just use `RawGSPDataSource`
-        # to generate locations.
         raise NotImplementedError("TODO!")
 
     def get_empty_example(self) -> xr.Dataset:

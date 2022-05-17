@@ -11,6 +11,7 @@ import torch
 import xarray as xr
 
 from power_perceiver.consts import Location
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.time import get_contiguous_time_periods
 from power_perceiver.utils import check_path_exists
 
@@ -38,11 +39,14 @@ class RawDataSource:
     """
 
     transforms: Optional[Iterable[Callable]] = None
-    needs_to_load_subset_into_ram: ClassVar[bool] = True
+    needs_to_load_subset_into_ram: ClassVar[bool] = False
 
     def __post_init__(self):  # noqa: D105
         self._data_in_ram = None
         self._data_on_disk = None
+        # For data sources that can load everything into RAM,
+        # override `__post_init__` to load everything into RAM here.
+        # Otherwise, override `per_worker_init` to load everything into RAM there.
 
     @property
     def data_in_ram(self):  # noqa: D102
@@ -65,7 +69,8 @@ class RawDataSource:
         seed = torch.initial_seed()
         _log.info(f"{worker_id=} has random number generator {seed=:,d}")
         self.rng = np.random.default_rng(seed=seed)
-        self.open()
+        # Optionally, override `per_worker_init` in child class to call super().per_worker_init()
+        # and to `open()` the data, if opening doesn't happen in `__post_init__().`
 
     def get_example(self, t0_datetime_utc: datetime.datetime, center_osgb: Location) -> xr.Dataset:
         """Can be overridden by child classes.
@@ -86,15 +91,13 @@ class RawDataSource:
         """
         raise NotImplementedError()
 
-    def open(self):
-        """Open the data source, if necessary.
+    @staticmethod
+    def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
+        """Convert xarray to numpy batch.
 
-        Called from each worker process. Useful for data sources where the
-        underlying data source cannot be forked (like Zarr).
-
-        Data sources which can be forked safely should call open() from __init__().
+        But note that this is actually just returns *one* example (not a whole batch!)
         """
-        pass
+        raise NotImplementedError("Must be implemented by subclass!")
 
     def _get_time_slice(
         self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
