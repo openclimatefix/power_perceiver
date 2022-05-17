@@ -57,19 +57,6 @@ class RawSatelliteDataSource(
     def needs_to_load_subset_into_ram(self) -> bool:  # noqa: D102
         return True
 
-    def load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
-        """Override in DataSources which can only fit a subset of the dataset into RAM."""
-        # Lazily create a new DataArray with just the data we want. Then load that into RAM :)
-        data_to_load = []
-        for _, row in subset_of_contiguous_time_periods.iterrows():
-            start_dt = row["start_dt"]
-            end_dt = row["end_dt"]
-            data_for_period = self._data_on_disk.sel(time_utc=slice(start_dt, end_dt))
-            data_to_load.append(data_for_period)
-
-        data_to_load = xr.concat(data_to_load, dim="time_utc")
-        self._data_in_ram = data_to_load.load()
-
     def open(self) -> None:
         """
         Open Satellite data.

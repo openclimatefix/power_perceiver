@@ -1,5 +1,6 @@
 import datetime
 import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, Optional, Union
@@ -44,6 +45,8 @@ class RawDataSource:
 
     @property
     def data_in_ram(self):  # noqa: D102
+        if not self.needs_to_load_subset_into_ram:
+            return self.data_on_disk
         if self._data_in_ram is None:
             raise RuntimeError("Please load the data into RAM before accessing `data_in_ram`!")
         return self._data_in_ram
@@ -91,6 +94,14 @@ class RawDataSource:
         Data sources which can be forked safely should call open() from __init__().
         """
         pass
+
+    @property
+    def needs_to_load_subset_into_ram(self) -> bool:
+        """Override in subclasses which need to load subset into RAM.
+
+        If this returns True, then `load_subset_into_ram` must be implemented.
+        """
+        return False
 
     def _get_time_slice(
         self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
@@ -190,17 +201,32 @@ class TimeseriesDataSource:
     def sample_period_duration(self) -> datetime.timedelta:
         raise NotImplementedError("Must be overridden by child class!")
 
-    @property
-    def needs_to_load_subset_into_ram(self) -> bool:
-        """Override in subclasses which need to load subset into RAM.
+    def load_subset_into_ram(self, subset_of_contiguous_t0_time_periods: pd.DataFrame) -> None:
+        """Load a subset of `data_on_disk` into `data_in_ram`.
 
-        If this returns True, then you must also implement `load_subset_into_ram`.
-        """
-        return False
+        Args:
+            subset_of_contiguous_t0_time_periods: DataFrame with columns 'start_dt' and 'end_dt'
+                specifying the start and end of value t0 periods.
 
-    def load_subset_into_ram(self, subset_of_contiguous_time_periods: pd.DataFrame) -> None:
-        """Override in DataSources which can only fit a subset of the dataset into RAM."""
-        raise NotImplementedError()
+        Override in DataSources which can only fit a subset of the dataset into RAM."""
+        # Convert t0_time_periods back into the complete time periods we want to load:
+        time_periods = deepcopy(subset_of_contiguous_t0_time_periods)
+        del subset_of_contiguous_t0_time_periods
+        time_periods["start_dt"] -= self.history_duration
+        time_periods["end_dt"] += self.forecast_duration
+        assert (time_periods["start_dt"] < time_periods["end_dt"]).all()
+
+        # Lazily create a new DataArray with just the data we want.
+        data_to_load = []
+        for _, row in time_periods.iterrows():
+            start_dt = row["start_dt"]
+            end_dt = row["end_dt"]
+            data_for_period = self._data_on_disk.sel(time_utc=slice(start_dt, end_dt))
+            data_to_load.append(data_for_period)
+        data_to_load = xr.concat(data_to_load, dim="time_utc")
+
+        # Load into RAM :)
+        self._data_in_ram = data_to_load.load()
 
     def get_contiguous_t0_time_periods(self) -> pd.DataFrame:
         """Get all time periods which contain valid t0 datetimes.
@@ -214,7 +240,7 @@ class TimeseriesDataSource:
         contiguous_time_periods = self._get_contiguous_time_periods()
         contiguous_time_periods["start_dt"] += self.history_duration
         contiguous_time_periods["end_dt"] -= self.forecast_duration
-        assert (contiguous_time_periods["start_dt"] <= contiguous_time_periods["end_dt"]).all()
+        assert (contiguous_time_periods["start_dt"] < contiguous_time_periods["end_dt"]).all()
         return contiguous_time_periods
 
     def _get_contiguous_time_periods(self) -> pd.DataFrame:
@@ -239,13 +265,42 @@ class TimeseriesDataSource:
         """
         start_dt = self._get_start_dt(t0_datetime_utc)
         end_dt = self._get_end_dt(t0_datetime_utc)
-        return xr_dataset.sel(time_utc=slice(start_dt, end_dt))
 
-    def _get_start_dt(self, t0_datetime_utc: datetime.datetime) -> datetime.datetime:
-        return t0_datetime_utc - self.history_duration
+        # Sanity check!
+        assert (
+            start_dt in xr_dataset.time_utc
+        ), f"{start_dt=} not in xr_dataset.time_utc! {t0_datetime_utc=}"
+        assert (
+            end_dt in xr_dataset.time_utc
+        ), f"{end_dt=} not in xr_dataset.time_utc! {t0_datetime_utc=}"
 
-    def _get_end_dt(self, t0_datetime_utc: datetime.datetime) -> datetime.datetime:
-        return t0_datetime_utc + self.forecast_duration
+        # Get time slice:
+        time_slice = xr_dataset.sel(time_utc=slice(start_dt, end_dt))
+
+        # More sanity checks!
+        assert (
+            time_slice.shape[0] == self.total_seq_length
+        ), f"{time_slice.shape[0]=} != {self.total_seq_length=} at {t0_datetime_utc=}"
+        time_slice_duration = np.timedelta64(
+            time_slice.time_utc[-1].values - time_slice.time_utc[0].values
+        )
+        expected_duration = np.timedelta64(self.total_duration)
+        assert (
+            time_slice_duration == expected_duration
+        ), f"{time_slice_duration=} != {expected_duration=} at {t0_datetime_utc=}"
+        assert np.isfinite(time_slice).all(), f"non-finite data at {t0_datetime_utc=}"
+
+        return time_slice
+
+    def _get_start_dt(
+        self, t0_datetime_utc: Union[datetime.datetime, np.datetime64]
+    ) -> np.datetime64:
+        return np.datetime64(t0_datetime_utc) - np.timedelta64(self.history_duration)
+
+    def _get_end_dt(
+        self, t0_datetime_utc: Union[datetime.datetime, np.datetime64]
+    ) -> np.datetime64:
+        return np.datetime64(t0_datetime_utc) + np.timedelta64(self.forecast_duration)
 
 
 @dataclass(kw_only=True)

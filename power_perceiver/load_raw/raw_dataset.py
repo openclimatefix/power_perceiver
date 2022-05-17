@@ -2,7 +2,7 @@ import datetime
 import logging
 from dataclasses import dataclass
 from numbers import Number
-from typing import Callable, Optional, Sequence
+from typing import Callable, Iterator, Optional, Sequence
 
 import numpy as np
 import pandas as pd
@@ -89,7 +89,7 @@ class RawDataset(torch.utils.data.Dataset):
     data_source_combos: dict[str, Sequence[RawDataSource]]
     probability_of_each_combo: Optional[dict[str, Number]] = None
     ds_combo_for_subsetting: Optional[str] = None
-    min_duration_to_load_per_epoch: Optional[datetime.timedelta] = pd.Timedelta(hours=48 * 12)
+    min_duration_to_load_per_epoch: Optional[datetime.timedelta] = datetime.timedelta(hours=48 * 12)
     load_subset_every_epoch: bool = True
     n_examples_per_epoch: int = 1024 * 32
     xr_batch_processors: Optional[Sequence[Callable]] = None
@@ -143,7 +143,7 @@ class RawDataset(torch.utils.data.Dataset):
                 combo_name
             ] = intersection_of_multiple_dataframes_of_periods(t0_periods_for_combo)
 
-    def __iter__(self):  # noqa: D105
+    def __iter__(self) -> Iterator[NumpyBatch]:  # noqa: D105
         if self.load_subset_every_epoch or not self._t0_datetimes_per_combo_for_epoch:
             self._set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram()
         for _ in range(self.n_examples_per_epoch):
