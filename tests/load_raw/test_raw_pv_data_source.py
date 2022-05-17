@@ -1,5 +1,8 @@
 import datetime
 
+import pytest
+
+from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
     RawPVDataSource,
     _load_pv_metadata,
@@ -24,18 +27,33 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
     assert len(pv_power_watts.columns) == 956
 
 
-def test_init():  # noqa: D103
-    pv = RawPVDataSource(
+@pytest.fixture(scope="module")
+def pv_data_source() -> RawPVDataSource:
+    return RawPVDataSource(
         pv_power_filename=PV_POWER_FILENAME,
         pv_metadata_filename=PV_METADATA_FILENAME,
         start_date="2020-01-01",
         end_date="2020-01-03",
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
-        roi_height_meters=48_000,
-        roi_width_meters=48_000,
+        roi_height_meters=64_000,
+        roi_width_meters=64_000,
     )
-    print(pv._data_in_ram)
 
-    pv_power_normalised = pv._data_in_ram / pv._data_in_ram.capacity_wp
+
+def test_init(pv_data_source: RawPVDataSource):  # noqa: D103
+    pv_power_normalised = pv_data_source._data_in_ram / pv_data_source._data_in_ram.capacity_wp
     assert pv_power_normalised.max().max() <= 1
+
+
+def test_get_spatial_slice(pv_data_source: RawPVDataSource):  # noqa: D103
+    xr_data = pv_data_source._data_in_ram
+    print(xr_data)
+    pv_system = xr_data.isel(pv_system_id=100)
+    location = Location(x=pv_system.x_osgb, y=pv_system.y_osgb)
+    spatial_slice = pv_data_source._get_spatial_slice(
+        xr_data=xr_data,
+        center_osgb=location,
+    )
+    assert len(spatial_slice.pv_system_id) == 7
+    assert len(spatial_slice.time_utc) == len(xr_data.time_utc)

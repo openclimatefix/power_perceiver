@@ -99,7 +99,34 @@ class RawPVDataSource(
         raise NotImplementedError("TODO!")
 
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
-        raise NotImplementedError("TODO!")
+
+        half_roi_width_meters = self.roi_width_meters // 2
+        half_roi_height_meters = self.roi_height_meters // 2
+
+        left = center_osgb.x - half_roi_width_meters
+        right = center_osgb.x + half_roi_width_meters
+        top = center_osgb.y + half_roi_height_meters
+        bottom = center_osgb.y - half_roi_height_meters
+
+        # Sanity check!
+        min_x_osgb = xr_data.x_osgb.min()
+        max_x_osgb = xr_data.x_osgb.max()
+        min_y_osgb = xr_data.y_osgb.min()
+        max_y_osgb = xr_data.y_osgb.max()
+        assert left >= min_x_osgb, f"{left=} must be >= {min_x_osgb=}"
+        assert right <= max_x_osgb, f"{right=} must be <= {max_x_osgb=}"
+        assert top <= max_y_osgb, f"{top=} must be <= {max_y_osgb=}"
+        assert bottom >= min_y_osgb, f"{bottom=} must be >= {min_y_osgb=}"
+
+        # Select data in the region of interest:
+        pv_system_id_mask = (
+            (left <= xr_data.x_osgb)
+            & (xr_data.x_osgb <= right)
+            & (xr_data.y_osgb <= top)
+            & (bottom <= xr_data.y_osgb)
+        )
+
+        return xr_data.isel(pv_system_id=pv_system_id_mask)
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         return xr_data / xr_data.capacity_wp
