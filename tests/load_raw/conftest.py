@@ -24,8 +24,8 @@ def _get_sat_data_source(
 ) -> RawSatelliteDataSource:
     return RawSatelliteDataSource(
         zarr_path=zarr_path,
-        height_in_pixels=height_in_pixels,
-        width_in_pixels=width_in_pixels,
+        roi_height_pixels=height_in_pixels,
+        roi_width_pixels=width_in_pixels,
         history_duration=history_duration,
         forecast_duration=forecast_duration,
         start_date=start_date,

@@ -194,7 +194,8 @@ class TimeseriesDataSource:
             subset_of_contiguous_t0_time_periods: DataFrame with columns 'start_dt' and 'end_dt'
                 specifying the start and end of value t0 periods.
 
-        Override in DataSources which can only fit a subset of the dataset into RAM."""
+        Override in DataSources which can only fit a subset of the dataset into RAM.
+        """
         # Convert t0_time_periods back into the complete time periods we want to load:
         time_periods = deepcopy(subset_of_contiguous_t0_time_periods)
         del subset_of_contiguous_t0_time_periods
@@ -296,22 +297,25 @@ class SpatialDataSource:
     Sparse spatial data (such as PV data) doesn't inherit from `SpatialDataSource`.
 
     Args:
-        height_in_pixels: Height of the image in each example. Must be divisible by 2.
-        width_in_pixels: Width of the image in each example. Must be divisible by 2.
+        roi_height_pixels: Height of the image in each example. Must be divisible by 2.
+            ROI stands for region of interest.
+        roi_width_pixels: Width of the image in each example. Must be divisible by 2.
     """
 
-    height_in_pixels: int
-    width_in_pixels: int
+    roi_height_pixels: int
+    roi_width_pixels: int
 
     # Attributes which are intended to be set for the whole class.
     _y_dim_name: ClassVar[str] = "y"
     _x_dim_name: ClassVar[str] = "x"
 
     def __post_init__(self):
-        assert self.height_in_pixels > 0, f"{self.height_in_pixels=} must be > 0!"
-        assert self.width_in_pixels > 0, f"{self.width_in_pixels=} must be > 0!"
-        assert (self.height_in_pixels % 2) == 0, f"{self.height_in_pixels=} must be divisible by 2!"
-        assert (self.width_in_pixels % 2) == 0, f"{self.width_in_pixels=} must be divisible by 2!"
+        assert self.roi_height_pixels > 0, f"{self.roi_height_pixels=} must be > 0!"
+        assert self.roi_width_pixels > 0, f"{self.roi_width_pixels=} must be > 0!"
+        assert (
+            self.roi_height_pixels % 2
+        ) == 0, f"{self.roi_height_pixels=} must be divisible by 2!"
+        assert (self.roi_width_pixels % 2) == 0, f"{self.roi_width_pixels=} must be divisible by 2!"
 
     def get_osgb_location_for_example(self) -> Location:
         """Randomly select a valid geographical location for one example.
@@ -319,8 +323,8 @@ class SpatialDataSource:
         Returns:  Location(x_center_osgb, y_center_osgb)
         """
         # Find the minimum and maximum legal values for the randomly sampled x and y positions:
-        half_height_of_crop = self.height_in_pixels // 2
-        half_width_of_crop = self.width_in_pixels // 2
+        half_height_of_crop = self.roi_height_pixels // 2
+        half_width_of_crop = self.roi_width_pixels // 2
 
         source_image_height = len(self._data_in_ram[self._y_dim_name])
         source_image_width = len(self._data_in_ram[self._x_dim_name])
@@ -365,8 +369,8 @@ class SpatialDataSource:
         )
 
         # Compute the index for left and right:
-        half_height = self.height_in_pixels // 2
-        half_width = self.width_in_pixels // 2
+        half_height = self.roi_height_pixels // 2
+        half_width = self.roi_width_pixels // 2
 
         left_idx = center_idx.x - half_width
         right_idx = center_idx.x + half_width
@@ -386,8 +390,8 @@ class SpatialDataSource:
         )
 
         # Sanity check:
-        assert len(selected[self._x_dim_name]) == self.width_in_pixels
-        assert len(selected[self._y_dim_name]) == self.height_in_pixels
+        assert len(selected[self._x_dim_name]) == self.roi_width_pixels
+        assert len(selected[self._y_dim_name]) == self.roi_height_pixels
 
         return selected
 

@@ -51,6 +51,8 @@ class RawGSPDataSource(
     def _get_time_slice(
         self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime
     ) -> xr.DataArray:
+        # TODO: This may not be necessary if we put the GSP data into
+        # a "standard" DataArray, as per RawPVDataSource.
         raise NotImplementedError("TODO!")
 
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:

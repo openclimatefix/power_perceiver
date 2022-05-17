@@ -32,6 +32,8 @@ def test_init():  # noqa: D103
         end_date="2020-01-03",
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
+        roi_height_meters=48_000,
+        roi_width_meters=48_000,
     )
     print(pv._data_in_ram)
 

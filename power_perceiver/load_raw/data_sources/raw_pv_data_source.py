@@ -29,6 +29,13 @@ class RawPVDataSource(
 ):
     """Load PV data directly from the intermediate PV Zarr store.
 
+    Args:
+        pv_power_filename:
+        pv_metadata_filename:
+        roi_height_meters: The height of the region of interest (ROI) when creating examples.
+            For PV, we use meters (not pixels) because PV isn't an image.
+        roi_width_meters:
+
     Attributes:
         _data_in_ram: xr.DataArray
             The data is the 5-minutely PV power in Watts.
@@ -38,6 +45,8 @@ class RawPVDataSource(
 
     pv_power_filename: str
     pv_metadata_filename: str
+    roi_height_meters: int
+    roi_width_meters: int
 
     # For now, let's assume the PV data is always 5-minutely.
     # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
@@ -80,10 +89,13 @@ class RawPVDataSource(
         )
 
     def get_empty_example(self) -> xr.DataArray:
-        """Get an empty example.
+        """Get an empty example, as if we went through _get_spatial_slice
+        and _get_spatial_slice.
 
         The returned DataArray does not include an `example` dimension.
         """
+        # Maybe the easiest thing to do is to pick a "real" example (which will give)
+        # use the correct shape. And then set all the values to zero?
         raise NotImplementedError("TODO!")
 
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
