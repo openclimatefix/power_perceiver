@@ -62,5 +62,5 @@ class RawGSPDataSource(
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
-        """Return a single example, represented in a `NumpyBatch`."""
+        """Return a single example in a `NumpyBatch`."""
         raise NotImplementedError("TODO!")

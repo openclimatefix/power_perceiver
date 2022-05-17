@@ -12,7 +12,7 @@ import pyresample
 import xarray as xr
 
 from power_perceiver.consts import BatchKey, Location
-from power_perceiver.geospatial import OSGB
+from power_perceiver.geospatial import OSGB36
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.load_raw.data_sources.raw_data_source import (
@@ -114,7 +114,7 @@ class RawSatelliteDataSource(
         )
         geostationary_crs = geostationary_area_definition.crs
         self._osgb_to_geostationary = pyproj.Transformer.from_crs(
-            crs_from=OSGB, crs_to=geostationary_crs
+            crs_from=OSGB36, crs_to=geostationary_crs
         ).transform
 
     def _get_idx_of_pixel_at_center_of_roi(
