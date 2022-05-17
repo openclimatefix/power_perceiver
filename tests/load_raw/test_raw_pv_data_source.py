@@ -3,7 +3,7 @@ import datetime
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
     RawPVDataSource,
     _load_pv_metadata,
-    _load_pv_power_watts,
+    _load_pv_power_watts_and_capacity_wp,
 )
 
 # TODO: Use public data :)
@@ -16,8 +16,8 @@ def test_load_pv_metadata():  # noqa: D103
     assert len(pv_metadata) > 1000
 
 
-def test_load_pv_power():  # noqa: D103
-    pv_power_watts, pv_capacity_wp = _load_pv_power_watts(
+def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
+    pv_power_watts, pv_capacity_wp = _load_pv_power_watts_and_capacity_wp(
         PV_POWER_FILENAME, start_date="2020-01-01", end_date="2020-01-03"
     )
     assert len(pv_power_watts) == 863

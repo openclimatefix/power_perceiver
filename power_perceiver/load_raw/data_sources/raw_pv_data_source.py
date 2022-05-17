@@ -52,8 +52,8 @@ class RawPVDataSource(
 
     def load_everything_into_ram(self) -> None:
         """Open AND load PV data into RAM."""
-        pv_power_watts, pv_capacity_wp = _load_pv_power_watts(
-            self.pv_power_filename, start_date=self.start_date, end_dt=self.end_date
+        pv_power_watts, pv_capacity_wp = _load_pv_power_watts_and_capacity_wp(
+            self.pv_power_filename, start_date=self.start_date, end_date=self.end_date
         )
         pv_metadata = _load_pv_metadata(self.pv_metadata_filename)
         pv_metadata, pv_power_watts = _align_pv_system_ids(pv_metadata, pv_power_watts)
@@ -100,20 +100,20 @@ class RawPVDataSource(
 
 
 # Adapted from nowcasting_dataset.data_sources.pv.pv_data_source
-def _load_pv_power_watts(
+def _load_pv_power_watts_and_capacity_wp(
     filename: Union[str, Path],
     start_date: Optional[datetime.datetime] = None,
-    end_dt: Optional[datetime.datetime] = None,
+    end_date: Optional[datetime.datetime] = None,
 ) -> tuple[pd.DataFrame, pd.Series]:
     """Return pv_power_watts, pv_capacity_wp."""
-    _log.info(f"Loading solar PV power data from {filename} from {start_date=} to {end_dt=}.")
+    _log.info(f"Loading solar PV power data from {filename} from {start_date=} to {end_date=}.")
 
     # Load data in a way that will work in the cloud and locally:
     with fsspec.open(filename, mode="rb") as file:
         pv_power_ds = xr.open_dataset(file, engine="h5netcdf")
         pv_capacity_wp = pv_power_ds.max()
         pv_capacity_wp = pv_capacity_wp.to_pandas().astype(np.float32)
-        pv_power_ds = pv_power_ds.sel(datetime=slice(start_date, end_dt))
+        pv_power_ds = pv_power_ds.sel(datetime=slice(start_date, end_date))
         pv_power_watts = pv_power_ds.to_dataframe().astype(np.float32)
 
     pv_capacity_wp.index = [np.int32(col) for col in pv_capacity_wp.index]
