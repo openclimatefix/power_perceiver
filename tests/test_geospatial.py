@@ -3,7 +3,7 @@ import numpy as np
 from power_perceiver.geospatial import lat_lon_to_osgb, osgb_to_lat_lon
 
 
-def test_lat_lon_to_osgb_and_visa_versa():
+def test_lat_lon_to_osgb_and_visa_versa():  # noqa: D103
     lat = 50
     lon = 0
 

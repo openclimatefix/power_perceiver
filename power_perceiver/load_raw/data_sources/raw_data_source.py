@@ -50,8 +50,6 @@ class RawDataSource:
 
     @property
     def data_in_ram(self):  # noqa: D102
-        if not self.needs_to_load_subset_into_ram:
-            return self.data_on_disk
         if self._data_in_ram is None:
             raise RuntimeError("Please load the data into RAM before accessing `data_in_ram`!")
         return self._data_in_ram
