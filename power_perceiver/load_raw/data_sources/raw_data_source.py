@@ -38,6 +38,7 @@ class RawDataSource:
     """
 
     transforms: Optional[Iterable[Callable]] = None
+    needs_to_load_subset_into_ram: ClassVar[bool] = True
 
     def __post_init__(self):  # noqa: D105
         self._data_in_ram = None
@@ -95,14 +96,6 @@ class RawDataSource:
         """
         pass
 
-    @property
-    def needs_to_load_subset_into_ram(self) -> bool:
-        """Override in subclasses which need to load subset into RAM.
-
-        If this returns True, then `load_subset_into_ram` must be implemented.
-        """
-        return False
-
     def _get_time_slice(
         self, xr_dataset: xr.Dataset, t0_datetime_utc: datetime.datetime
     ) -> xr.Dataset:
@@ -125,13 +118,6 @@ class RawDataSource:
         The returned Dataset does not include an `example` dimension.
         """
         return xr_dataset
-
-    def _check_input_paths_exist(self) -> None:
-        """Check any input paths exist.  Raise FileNotFoundError if not.
-
-        Must be overridden by child classes.
-        """
-        raise NotImplementedError()
 
     def _transform(self, xr_dataset: xr.Dataset) -> xr.Dataset:
         if self.transforms:
@@ -161,6 +147,7 @@ class TimeseriesDataSource:
     forecast_duration: datetime.timedelta
     start_date: datetime.datetime
     end_date: datetime.datetime
+    sample_period_duration: ClassVar[datetime.timedelta]
 
     def __post_init__(self):  # noqa: D105
         # Sanity checks.
@@ -196,10 +183,6 @@ class TimeseriesDataSource:
         which don't make sense for this DataSource, e.g. remove nighttime.
         """
         return pd.DatetimeIndex(self.data_on_disk.time_utc)
-
-    @property
-    def sample_period_duration(self) -> datetime.timedelta:
-        raise NotImplementedError("Must be overridden by child class!")
 
     def load_subset_into_ram(self, subset_of_contiguous_t0_time_periods: pd.DataFrame) -> None:
         """Load a subset of `data_on_disk` into `data_in_ram`.
