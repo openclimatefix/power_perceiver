@@ -1,5 +1,7 @@
 import datetime
+from copy import copy
 
+import numpy as np
 import pytest
 
 from power_perceiver.consts import Location
@@ -12,6 +14,8 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
 # TODO: Use public data :)
 PV_METADATA_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv"
 PV_POWER_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf"
+
+N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 
 def test_load_pv_metadata():  # noqa: D103
@@ -29,7 +33,7 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
 
 @pytest.fixture(scope="module")
 def pv_data_source() -> RawPVDataSource:
-    return RawPVDataSource(
+    pv = RawPVDataSource(
         pv_power_filename=PV_POWER_FILENAME,
         pv_metadata_filename=PV_METADATA_FILENAME,
         start_date="2020-01-01",
@@ -38,7 +42,10 @@ def pv_data_source() -> RawPVDataSource:
         forecast_duration=datetime.timedelta(hours=2),
         roi_height_meters=64_000,
         roi_width_meters=64_000,
+        n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
     )
+    pv.per_worker_init(worker_id=0)
+    return pv
 
 
 def test_init(pv_data_source: RawPVDataSource):  # noqa: D103
@@ -46,14 +53,26 @@ def test_init(pv_data_source: RawPVDataSource):  # noqa: D103
     assert pv_power_normalised.max().max() <= 1
 
 
-def test_get_spatial_slice(pv_data_source: RawPVDataSource):  # noqa: D103
+@pytest.mark.parametrize("n_pv_systems_per_example", [4, 7, 8, 16])
+def test_get_spatial_slice(
+    pv_data_source: RawPVDataSource, n_pv_systems_per_example: int
+):  # noqa: D103
+    pv_data_source = copy(pv_data_source)  # Don't modify the common pv_data_source.
+    pv_data_source.n_pv_systems_per_example = n_pv_systems_per_example
     xr_data = pv_data_source._data_in_ram
-    print(xr_data)
     pv_system = xr_data.isel(pv_system_id=100)
     location = Location(x=pv_system.x_osgb, y=pv_system.y_osgb)
     spatial_slice = pv_data_source._get_spatial_slice(
         xr_data=xr_data,
         center_osgb=location,
     )
-    assert len(spatial_slice.pv_system_id) == 7
+    print()
+    print(spatial_slice)
+    assert len(spatial_slice.pv_system_id) == n_pv_systems_per_example
     assert len(spatial_slice.time_utc) == len(xr_data.time_utc)
+    N_PV_SYSTEMS_AVAILABLE_IN_THIS_EXAMPLE = 7
+    if n_pv_systems_per_example <= N_PV_SYSTEMS_AVAILABLE_IN_THIS_EXAMPLE:
+        # There are 7 PV systems available. So assert there are no duplicates
+        assert len(np.unique(spatial_slice.pv_system_id)) == len(spatial_slice.pv_system_id)
+    else:
+        assert len(np.unique(spatial_slice.pv_system_id)) == N_PV_SYSTEMS_AVAILABLE_IN_THIS_EXAMPLE

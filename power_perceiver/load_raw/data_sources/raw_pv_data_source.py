@@ -16,6 +16,7 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
 )
+from power_perceiver.utils import check_path_exists
 
 _log = logging.getLogger(__name__)
 
@@ -34,9 +35,16 @@ class RawPVDataSource(
         pv_metadata_filename:
         roi_height_meters: The height of the region of interest (ROI) when creating examples.
             For PV, we use meters (not pixels) because PV isn't an image.
+            Must be at least 1,000 meters.
         roi_width_meters:
+        n_pv_systems_per_example: Each example will have exactly this number of PV systems.
+            Randomly select PV systems for each example. If there are less PV systems available
+            than requested, then randomly sample with duplicates allowed, whilst ensuring all
+            available PV systems are used.
 
     Attributes:
+        empty_example: xr.DataArray: An example of the correct shape, but where data and coords
+            are all NaNs!
         _data_in_ram: xr.DataArray
             The data is the 5-minutely PV power in Watts.
             Dimension coordinates: time_utc, pv_system_id
@@ -47,17 +55,27 @@ class RawPVDataSource(
     pv_metadata_filename: str
     roi_height_meters: int
     roi_width_meters: int
+    n_pv_systems_per_example: int
 
     # For now, let's assume the PV data is always 5-minutely.
     # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
     sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=5)
 
     def __post_init__(self):  # noqa: D105
+        self._sanity_check_args()
         RawDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
         # Load everything into RAM once (at init) rather than in each worker process.
-        # This should be faster!
+        # This should be faster than loading from disk in every worker!
         self.load_everything_into_ram()
+        self.empty_example = self._get_empty_example()
+
+    def _sanity_check_args(self) -> None:
+        check_path_exists(self.pv_power_filename)
+        check_path_exists(self.pv_metadata_filename)
+        assert self.roi_height_meters > 1_000
+        assert self.roi_width_meters > 1_000
+        assert self.n_pv_systems_per_example > 0
 
     def load_everything_into_ram(self) -> None:
         """Open AND load PV data into RAM."""
@@ -88,16 +106,6 @@ class RawPVDataSource(
             " `RawSatelliteDataSource` and/or `RawGSPDataSource` to generate locations."
         )
 
-    def get_empty_example(self) -> xr.DataArray:
-        """Get an empty example, as if we went through _get_spatial_slice
-        and _get_spatial_slice.
-
-        The returned DataArray does not include an `example` dimension.
-        """
-        # Maybe the easiest thing to do is to pick a "real" example (which will give)
-        # use the correct shape. And then set all the values to zero?
-        raise NotImplementedError("TODO!")
-
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
 
         half_roi_width_meters = self.roi_width_meters // 2
@@ -126,10 +134,45 @@ class RawPVDataSource(
             & (bottom <= xr_data.y_osgb)
         )
 
-        return xr_data.isel(pv_system_id=pv_system_id_mask)
+        selected_data = xr_data.isel(pv_system_id=pv_system_id_mask)
+        return self._ensure_n_pv_systems_per_example(selected_data)
+
+    def _ensure_n_pv_systems_per_example(self, selected_data: xr.DataArray) -> xr.DataArray:
+        """Ensure there are always `self.n_pv_systems_per_example` PV systems."""
+        if len(selected_data.pv_system_id) > self.n_pv_systems_per_example:
+            # More PV systems are available than we need. Reduce by randomly sampling:
+            subset_of_pv_system_ids = self.rng.choice(
+                selected_data.pv_system_id,
+                size=self.n_pv_systems_per_example,
+                replace=False,
+            )
+            selected_data = selected_data.sel(pv_system_id=subset_of_pv_system_ids)
+        elif len(selected_data.pv_system_id) < self.n_pv_systems_per_example:
+            # If we just used `choice(replace=True)` then there's a high chance
+            # that the output won't include every available PV system but instead
+            # will repeat some PV systems at the expense of leaving some on the table.
+            # TODO: Don't repeat PV systems. Instead, pad with NaNs and mask the loss. Issue #73.
+            n_random_pv_systems = self.n_pv_systems_per_example - len(selected_data.pv_system_id)
+            allow_replacement = n_random_pv_systems > len(selected_data.pv_system_id)
+            random_pv_system_ids = self.rng.choice(
+                selected_data.pv_system_id,
+                size=n_random_pv_systems,
+                replace=allow_replacement,
+            )
+            selected_data = xr.concat(
+                (selected_data, selected_data.sel(pv_system_id=random_pv_system_ids)),
+                dim="pv_system_id",
+            )
+        return selected_data
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
-        return xr_data / xr_data.capacity_wp
+        xr_data = xr_data / xr_data.capacity_wp
+        assert np.isfinite(xr_data).all()
+        return xr_data
+
+    def _get_empty_example(self) -> xr.DataArray:
+        """Return a single example of the correct shape but where data & coords are all NaN."""
+        pass  # TODO!
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:

@@ -84,13 +84,6 @@ class RawDataSource:
         xr_data = self._transform(xr_data)
         return xr_data
 
-    def get_empty_example(self) -> xr.DataArray:
-        """Must be overridden by child classes.
-
-        The returned Dataset must not include an `example` dimension.
-        """
-        raise NotImplementedError()
-
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
         """Convert xarray to numpy batch.
@@ -98,6 +91,12 @@ class RawDataSource:
         But note that this is actually just returns *one* example (not a whole batch!)
         """
         raise NotImplementedError("Must be implemented by subclass!")
+
+    @staticmethod
+    def check_numpy_data(np_example: NumpyBatch) -> None:
+        """Check that the numpy "batch" is sane."""
+        for batch_key, array in np_example.items():
+            assert np.isfinite(array).all(), f"{batch_key.name} has NaNs and/or infinities!"
 
     def _get_time_slice(
         self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime

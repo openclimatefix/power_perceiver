@@ -231,7 +231,7 @@ class RawDataset(torch.utils.data.Dataset):
 
         # TODO: Tell the ML model which type of "combo" this is.
         xr_example = self._process_xr_example(xr_example)
-        np_example = self._xarray_to_numpy_example(xr_example)
+        np_example = self._xarray_to_numpy_example_and_sanity_check(xr_example)
         del xr_example
         np_example = self._process_np_example(np_example)
         return np_example
@@ -277,7 +277,7 @@ class RawDataset(torch.utils.data.Dataset):
                 xr_example = xr_batch_processor(xr_example)
         return xr_example
 
-    def _xarray_to_numpy_example(self, xr_example: XarrayBatch) -> NumpyBatch:
+    def _xarray_to_numpy_example_and_sanity_check(self, xr_example: XarrayBatch) -> NumpyBatch:
         """Convert from xarray Datasets to numpy."""
         np_batch: NumpyBatch = {}
         for data_loader_class, xr_dataset in xr_example.items():
@@ -288,6 +288,7 @@ class RawDataset(torch.utils.data.Dataset):
                 np_batch[BatchKey.requested_timesteps] = requested_timesteps
             else:
                 np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
+                data_loader_class.check_numpy_data(np_data_for_data_source)
                 np_batch.update(np_data_for_data_source)
         return np_batch
 

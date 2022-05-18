@@ -105,6 +105,7 @@ class RawSatelliteDataSource(
         ):
             # HRVSatellite coords are already float32.
             example[batch_key] = xr_data[dataset_key].values
+
         return example
 
     def _load_geostationary_area_definition_and_transform(self) -> None:
