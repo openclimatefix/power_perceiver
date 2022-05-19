@@ -57,8 +57,10 @@ class RawPVDataSource(
     roi_width_meters: int
     n_pv_systems_per_example: int
 
-    # For now, let's assume the PV data is always 5-minutely.
-    # Later (WP3?), we'll want to experiment with lower temporal resolution satellite imagery.
+    # For now, let's assume the PV data is always 5-minutely, even though some PVOutput.org
+    # PV systems report data at 15-minutely intervals. For now, let's just interpolate
+    # 15-minutely data to 5-minutely. Later (WP3?) we could experiment with giving the model
+    # the "raw" (un-interpolated) 15-minutely PV data.
     sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=5)
 
     def __post_init__(self):  # noqa: D105
@@ -79,25 +81,22 @@ class RawPVDataSource(
 
     def load_everything_into_ram(self) -> None:
         """Open AND load PV data into RAM."""
+        # Load pd.DataFrame of power and pd.Series of capacities:
         pv_power_watts, pv_capacity_wp = _load_pv_power_watts_and_capacity_wp(
             self.pv_power_filename, start_date=self.start_date, end_date=self.end_date
         )
         pv_metadata = _load_pv_metadata(self.pv_metadata_filename)
-        pv_metadata, pv_power_watts = _align_pv_system_ids(pv_metadata, pv_power_watts)
+        # Ensure pv_metadata, pv_power_watts, and pv_capacity_wp all have the same set of
+        # PV system IDs, in the same order:
+        pv_metadata, pv_power_watts = _intersection_of_pv_system_ids(pv_metadata, pv_power_watts)
         pv_capacity_wp = pv_capacity_wp.loc[pv_power_watts.columns]
 
-        # Convert to an xarray DataArray, which gets saved to `self._data_in_ram`
-        data_array = xr.DataArray(
-            data=pv_power_watts.values,
-            coords=(("time_utc", pv_power_watts.index), ("pv_system_id", pv_power_watts.columns)),
-            name="pv_power_watts",
+        self._data_in_ram = _put_pv_data_into_an_xr_dataarray(
+            pv_power_watts=pv_power_watts,
+            y_osgb=pv_metadata.y_osgb.astype(np.float32),
+            x_osgb=pv_metadata.x_osgb.astype(np.float32),
+            capacity_wp=pv_capacity_wp.values,
         )
-        data_array = data_array.assign_coords(
-            x_osgb=("pv_system_id", pv_metadata.x_osgb.astype(np.float32)),
-            y_osgb=("pv_system_id", pv_metadata.y_osgb.astype(np.float32)),
-            capacity_wp=("pv_system_id", pv_capacity_wp),
-        )
-        self._data_in_ram = data_array
 
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
@@ -186,7 +185,13 @@ def _load_pv_power_watts_and_capacity_wp(
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
 ) -> tuple[pd.DataFrame, pd.Series]:
-    """Return pv_power_watts, pv_capacity_wp."""
+    """Return pv_power_watts, pv_capacity_wp.
+
+    The capacities are the max across the *entire* dataset, and so is independent of the
+    `start_date` and `end_date`. This is important so we always normalise PV data
+    in the same way for training and testing sets!
+    """
+
     _log.info(f"Loading solar PV power data from {filename} from {start_date=} to {end_date=}.")
 
     # Load data in a way that will work in the cloud and locally:
@@ -302,7 +307,7 @@ def _drop_pv_systems_which_produce_overnight(pv_power_watts: pd.DataFrame) -> pd
 
 
 # From nowcasting_dataset.data_sources.pv.pv_data_source
-def _align_pv_system_ids(
+def _intersection_of_pv_system_ids(
     pv_metadata: pd.DataFrame, pv_power: pd.DataFrame
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Only pick PV systems for which we have metadata."""
@@ -311,3 +316,23 @@ def _align_pv_system_ids(
     pv_power = pv_power[pv_system_ids]
     pv_metadata = pv_metadata.loc[pv_system_ids]
     return pv_metadata, pv_power
+
+
+def _put_pv_data_into_an_xr_dataarray(
+    pv_power_watts: pd.DataFrame,
+    y_osgb: pd.Series,
+    x_osgb: pd.Series,
+    capacity_wp: pd.Series,
+) -> xr.DataArray:
+    """Convert to an xarray DataArray."""
+    data_array = xr.DataArray(
+        data=pv_power_watts.values,
+        coords=(("time_utc", pv_power_watts.index), ("pv_system_id", pv_power_watts.columns)),
+        name="pv_power_watts",
+    )
+    data_array = data_array.assign_coords(
+        x_osgb=("pv_system_id", x_osgb),
+        y_osgb=("pv_system_id", y_osgb),
+        capacity_wp=("pv_system_id", capacity_wp),
+    )
+    return data_array
