@@ -1,6 +1,5 @@
 from copy import deepcopy
 
-import numpy as np
 import pytest
 from conftest import SAT_HEIGHT_IN_PIXELS, SAT_N_EXPECTED_TIMESTEPS, SAT_WIDTH_IN_PIXELS
 
@@ -28,10 +27,6 @@ def test_iter(raw_dataset_str: str, request):
     dataset.per_worker_init(worker_id=1)
     for np_example in dataset:
         break
-    for key, value in np_example.items():
-        assert value.dtype.type == np.float32, f"{key.name=} has {value.dtype=}, not float32!"
-        assert np.isfinite(value).all(), f"{key.name=} has non-finite values!"
-        print(key, value.shape)
 
     for key, expected_shape in (
         (

@@ -18,7 +18,6 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     TimeseriesDataSource,
 )
 from power_perceiver.time import (
-    intersection_of_2_dataframes_of_periods,
     intersection_of_multiple_dataframes_of_periods,
     time_periods_to_datetime_index,
 )
@@ -35,30 +34,24 @@ class RawDataset(torch.utils.data.Dataset):
         data_source_combos: A dict where the keys are strings (short, arbitrary names
             identifying each combination of DataSources), and the values are tuples or lists of
             instantiated `DataSource` objects. The first data source
-            will randomly select the geographical location of each example. Note that,
-            if a DataSource appears more than once, then please use the same instance
-            multiple times: For example:
+            will randomly select the geographical location of each example.
+
+            If a DataSource appears more than once, then you must use different instances for each
+            combo (e.g. by using `deepcopy`). Using different instances
+            allows each data source combo to load time periods appropriate for that combo.
+
+            For example:
                 data_source_kwargs = dict(start_date=start_date, end_date=end_date)
                 sat = RawSatelliteDataSource(**data_source_kwargs)
-                pv = RawPVDataSource(**data_source_kwargs)
-                data_source_combos = dict(sat_only=(sat,), sat_and_pv=(sat, pv))
+                gsp = RawGSPDataSource(**data_source_kwargs)
+                data_source_combos = dict(
+                     sat_only=(sat,),
+                     gsp_and_sat=(gsp, deepcopy(sat)))
+
         probability_of_each_combo: A dict where the key is the name of each
             combination of DataSources, and the key is the probability of loading that
             combination of DataSources. Probabilities must sum to 1.
             Optional. If `None` then will use equal probabilities.
-        ds_combo_for_subsetting: The name of the DataSource combination that will provide the
-            set of time periods that will be randomly sampled from at the start of each epoch
-            when deciding which time periods to load into RAM. For example, let's say we have
-            two DataSource combinations: 'sat_only' and 'sat_and_pv'. Let's say we have more
-            years of satellite data than PV data. When creating 'sat_only' examples, we
-            want to sample from *all* the satellite data. We don't want to limit ourselves to only
-            sampling from the intersection between the time periods available for satellite and PV.
-            But the satellite data is too large to load into RAM at initialization. So, at the
-            start of each epoch, we load a random subset of satellite data into RAM. So we'd set
-            `ds_combo_for_subsetting='sat_only'`. Set `ds_combo_for_subsetting` to None if
-            no DataSources need to load a subset of data into RAM at the start of each epoch.
-            If `ds_combo_for_subsetting` is not None, then `min_duration_to_load_per_epoch` must
-            not be `None`.
         min_duration_to_load_per_epoch: If this an int, then this will be (roughly) the total
             number of hours of contiguous time periods that will be loaded into RAM
             at the start of each epoch. Some DataSources (such as PV) can load the entire
@@ -88,7 +81,6 @@ class RawDataset(torch.utils.data.Dataset):
 
     data_source_combos: dict[str, Sequence[RawDataSource]]
     probability_of_each_combo: Optional[dict[str, Number]] = None
-    ds_combo_for_subsetting: Optional[str] = None
     min_duration_to_load_per_epoch: Optional[datetime.timedelta] = datetime.timedelta(hours=48 * 12)
     load_subset_every_epoch: bool = True
     n_examples_per_epoch: int = 1024 * 32
@@ -103,14 +95,10 @@ class RawDataset(torch.utils.data.Dataset):
         self._t0_datetimes_per_combo_for_epoch: dict[str, pd.DatetimeIndex] = {}
 
     def _sanity_check_args(self):  # noqa: D105
-        if self.ds_combo_for_subsetting is not None:
-            assert self.ds_combo_for_subsetting in self.data_source_combos
-            assert self.min_duration_to_load_per_epoch is not None
         if self.probability_of_each_combo is not None:
             assert self.data_source_combos.keys() == self.probability_of_each_combo.keys()
         if self.min_duration_to_load_per_epoch is not None:
             assert self.min_duration_to_load_per_epoch > pd.Timedelta(self.t0_freq)
-            assert self.ds_combo_for_subsetting is not None
         assert self.n_examples_per_epoch > 0
 
     def per_worker_init(self, worker_id: int = 0) -> None:
@@ -150,58 +138,44 @@ class RawDataset(torch.utils.data.Dataset):
             yield self._get_example()
 
     def _set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram(self):
-        if self.ds_combo_for_subsetting is None:
-            _log.info("`ds_combo_for_subsetting` is None, so don't need to load subset into RAM.")
-            if not self._t0_datetimes_per_combo_for_epoch:
-                self._t0_datetimes_per_combo_for_epoch = _time_periods_to_datetimes_per_combo(
-                    self._all_t0_periods_per_combo, freq=self.t0_freq
-                )
-            return
-
         # Compute subset of contiguous t0 time periods for this epoch, and ask each unique
         # data source that needs to load a subset into RAM to do so:
-        subset_of_t0_periods_for_epoch = self._subset_t0_periods()
-        for data_source in self._unique_data_sources:
-            if data_source.needs_to_load_subset_into_ram:
-                # Ensure we only ask this data_source to load into RAM data that it has available:
-                subset_for_ds = intersection_of_2_dataframes_of_periods(
-                    subset_of_t0_periods_for_epoch, data_source.get_contiguous_t0_time_periods()
-                )
-                data_source.load_subset_into_ram(subset_for_ds)
+        data_sources_which_have_loaded = []
+        for combo_name, data_sources in self.data_source_combos.items():
+            data_sources_which_need_to_load = [
+                ds for ds in data_sources if ds.needs_to_load_subset_into_ram
+            ]
+            if data_sources_which_need_to_load:
+                t0_periods_for_combo_for_epoch = self._subset_t0_periods(combo_name)
 
-        # For each data source combo, we need to find the intersection of time periods
-        # between `subset_of_t0_periods_for_epoch` and the total time periods available
-        # for that combo.
-        subset_of_t0_periods_per_combo_for_epoch: dict[str, pd.DataFrame] = {}
-        for combo_name, all_t0_periods_for_combo in self._all_t0_periods_per_combo.items():
-            subset_for_combo = intersection_of_2_dataframes_of_periods(
-                all_t0_periods_for_combo, subset_of_t0_periods_for_epoch
+                # Load into RAM, if necessary:
+                for data_source in data_sources_which_need_to_load:
+                    # Check we haven't already loaded this data_source in another combo:
+                    if not any([data_source is ds for ds in data_sources_which_have_loaded]):
+                        data_source.load_subset_into_ram(t0_periods_for_combo_for_epoch)
+            else:
+                t0_periods_for_combo_for_epoch = self._all_t0_periods_per_combo[combo_name]
+
+            self._t0_datetimes_per_combo_for_epoch[combo_name] = time_periods_to_datetime_index(
+                time_periods=t0_periods_for_combo_for_epoch, freq=self.t0_freq
             )
-            subset_of_t0_periods_per_combo_for_epoch[combo_name] = subset_for_combo
-        self._t0_datetimes_per_combo_for_epoch = _time_periods_to_datetimes_per_combo(
-            subset_of_t0_periods_per_combo_for_epoch, freq=self.t0_freq
-        )
 
-    def _subset_t0_periods(self) -> pd.DataFrame:
+    def _subset_t0_periods(self, combo_name: str) -> pd.DataFrame:
         """Pick a random selection of contiguous time periods for the upcoming epoch.
 
         The main use-case for this is for `RawSatelliteDataSource` which needs to load a subset of
         data into RAM at the start of each epoch.
         """
-        _log.info(
-            f"Using {self.ds_combo_for_subsetting=} to select a subset of time periods to load"
-            " into RAM."
-        )
+        _log.info(f"Selecting a subset of time periods to load into RAM for {combo_name=}.")
         assert self._all_t0_periods_per_combo
-        assert self.ds_combo_for_subsetting
-        all_t0_periods_for_combo = self._all_t0_periods_per_combo[self.ds_combo_for_subsetting]
+        all_t0_periods_for_combo = self._all_t0_periods_per_combo[combo_name]
 
         # Select random periods. We use a `while` loop instead of just doing
         # `rng.choice(all_t0_periods_for_combo, size=n)` because using `rng.choice`
         # wouldn't take into consideration that some periods are longer than others,
         # and we want to load roughly the same duration of data per epoch.
         random_t0_periods: list[pd.Series[str, pd.Timestamp]] = []
-        total_duration_of_periods: pd.Timedelta = pd.Timedelta(0)
+        total_duration_of_periods = pd.Timedelta(0)
         while total_duration_of_periods < self.min_duration_to_load_per_epoch:
             period, all_t0_periods_for_combo = sample_row_and_drop_row_from_df(
                 all_t0_periods_for_combo, rng=self.rng
@@ -209,6 +183,8 @@ class RawDataset(torch.utils.data.Dataset):
             random_t0_periods.append(period)
             period_duration = period.end_dt - period.start_dt
             total_duration_of_periods += period_duration
+            if all_t0_periods_for_combo.empty:
+                break
 
         _log.info(
             f"Selected {len(random_t0_periods):,d} random periods,"
@@ -262,11 +238,16 @@ class RawDataset(torch.utils.data.Dataset):
         chosen_data_source_combo = self.data_source_combos[chosen_combo_name]
         xr_batch: XarrayBatch = {}
         for data_source in self._unique_data_sources:
-            if data_source in chosen_data_source_combo:
-                example_from_ds = data_source.get_example(t0_datetime_utc, location_osgb)
+            if any([data_source is ds for ds in chosen_data_source_combo]):
+                xr_batch[data_source.__class__] = data_source.get_example(
+                    t0_datetime_utc, location_osgb
+                )
             else:
-                example_from_ds = data_source.empty_example
-            xr_batch[data_source.__class__] = example_from_ds
+                try:
+                    xr_batch[data_source.__class__] = data_source.empty_example
+                except AttributeError:
+                    # This is probably a duplicate data_source. Ignore.
+                    pass
 
         return xr_batch
 
@@ -315,26 +296,3 @@ class RawDataset(torch.utils.data.Dataset):
                 if not any([data_source is ds for ds in unique_data_sources]):
                     unique_data_sources.append(data_source)
         return unique_data_sources
-
-
-def _time_periods_to_datetimes_per_combo(
-    time_periods_per_combo: dict[str, pd.DataFrame], freq=str
-) -> dict[str, pd.DatetimeIndex]:
-    """Convert a dict of time periods to a dict of pd.DatetimeIndexes.
-
-    See the docstring for `power_perceiver.time.tim_periods_to_datetime_index` for more info.
-
-    Args:
-        time_periods_per_combo: dict where keys are the data source combination name
-            and values are a DataFrame with columns ['start_dt', 'end_dt'].
-        freq: str
-
-    Returns: dict where keys are the same as the keys for `time_periods_per_combo`,
-        and each value is a `pd.DatetimeIndex`.
-    """
-    datetimes_per_combo: dict[str, pd.DatetimeIndex] = {}
-    for combo_name, time_periods in time_periods_per_combo.items():
-        datetimes_per_combo[combo_name] = time_periods_to_datetime_index(
-            time_periods=time_periods, freq=freq
-        )
-    return datetimes_per_combo
