@@ -29,6 +29,7 @@ dependencies:
   - pyproj # for topographical data & coordinate transforms
   - zarr # For training the U-Net directly from satellite data
   - dask # For training the U-Net directly from satellite data
+  - geopandas # For loading GSP shape files
 
   # Machine learning
   - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.

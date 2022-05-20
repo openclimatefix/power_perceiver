@@ -1,7 +1,11 @@
 import datetime
+import logging
 from dataclasses import dataclass
 from typing import ClassVar
 
+import geopandas as gpd
+import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import Location
@@ -9,39 +13,102 @@ from power_perceiver.load_prepared_batches.data_sources.prepared_data_source imp
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
-    ZarrDataSource,
 )
+from power_perceiver.utils import check_path_exists
+
+_log = logging.getLogger(__name__)
 
 
 @dataclass(kw_only=True)
 class RawGSPDataSource(
     # Surprisingly, Python's class hierarchy is defined right-to-left.
     # So the base class must go on the right.
-    ZarrDataSource,
     TimeseriesDataSource,
     RawDataSource,
 ):
-    """Load GSP data directly from the intermediate GSP Zarr store."""
+    """
+    Data source for GSP (Grid Supply Point) PV Data.
+
+    Load GSP data directly from the intermediate GSP Zarr store.
+
+    30 mins data is taken from 'PV Live' from https://www.solar.sheffield.ac.uk/pvlive/
+    meta data is taken from ESO.  PV Live estimates the total PV power generation for each
+    Grid Supply Point region.
+    """
+
+    gsp_pv_power_zarr_path: str
+    gsp_id_to_region_id_filename: str
+    sheffield_solar_region_path: str
+    threshold_mw: int = 0
 
     sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=30)
 
     def __post_init__(self):  # noqa: D105
+        self._sanity_check_args()
         RawDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
-        ZarrDataSource.__post_init__(self)
         # Load everything into RAM once (at init) rather than in each worker process.
-        # This should be faster!
+        # This should be faster than loading from disk in every worker!
         self.load_everything_into_ram()
+        # self.empty_example = self._get_empty_example()
+
+    def _sanity_check_args(self):  # noqa: D105
+        check_path_exists(self.gsp_pv_power_zarr_path)
+        check_path_exists(self.gsp_id_to_region_id_filename)
+        check_path_exists(self.sheffield_solar_region_path)
+        assert self.threshold_mw >= 0
 
     def load_everything_into_ram(self) -> None:
         """Open AND load GSP data into RAM."""
-        raise NotImplementedError("TODO!")
+        gsp_id_to_shape = _get_gsp_id_to_shape(
+            self.gsp_id_to_region_id_filename, self.sheffield_solar_region_path
+        )
+        self._gsp_id_to_shape = gsp_id_to_shape  # Save, mostly for plotting to check all is fine!
+
+        # Load GSP generation xr.Dataset:
+        gsp_pv_power_mw_ds = xr.open_dataset(self.gsp_pv_power_zarr_path, engine="zarr")
+        gsp_pv_power_mw_ds = gsp_pv_power_mw_ds.sel(
+            datetime_gmt=slice(self.start_date, self.end_date)
+        )
+        gsp_pv_power_mw_ds = gsp_pv_power_mw_ds.load()
+
+        # Ensure the centroids have the same GSP ID index as the GSP PV power:
+        gsp_id_to_shape = gsp_id_to_shape.loc[gsp_pv_power_mw_ds.gsp_id]
+
+        data_array = _put_gsp_data_into_an_xr_dataarray(
+            gsp_pv_power_mw=gsp_pv_power_mw_ds.generation_mw.data,
+            time_utc=gsp_pv_power_mw_ds.datetime_gmt.data,
+            gsp_id=gsp_pv_power_mw_ds.gsp_id.data,
+            # TODO: Try using `gsp_id_to_shape.geometry.envelope.centroid`. See issue #76.
+            x_osgb=gsp_id_to_shape.geometry.centroid.x,
+            y_osgb=gsp_id_to_shape.geometry.centroid.y,
+            capacity_mwp=gsp_pv_power_mw_ds.installedcapacity_mwp.data,
+        )
+
+        del gsp_id_to_shape, gsp_pv_power_mw_ds
+
+        # Select GSPs with sufficient installed PV capacity.
+        # We take the `max` across time, because we don't want to drop GSPs which
+        # do have installed PV capacity now, but didn't have PV power a while ago:
+        gsp_id_mask = data_array.capacity_mwp.max(dim="time_utc") > self.threshold_mw
+        data_array = data_array.isel(gsp_id=gsp_id_mask)
+        data_array = data_array.dropna(dim="time_utc", how="all")
+
+        _log.debug(
+            f"There are {len(data_array.gsp_id)} GSPs left after we dropped"
+            f" {(~gsp_id_mask).sum().data} GSPs because they had less than"
+            f" {self.threshold_mw} MW of installed PV capacity."
+            f" Total number of timesteps: {len(data_array.time_utc)}"
+        )
+
+        self._data_in_ram = data_array
 
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
+        # TODO: Randomly sample a GSP and return gsp.x_osgb and gsp.y_osgb :)
         raise NotImplementedError("TODO!")
 
-    def get_empty_example(self) -> xr.DataArray:
+    def _get_empty_example(self) -> xr.DataArray:
         """Get an empty example.
 
         The returned DataArray does not include an `example` dimension.
@@ -53,16 +120,67 @@ class RawGSPDataSource(
     ) -> xr.DataArray:
         # TODO: This may not be necessary if we put the GSP data into
         # a "standard" DataArray, as per RawPVDataSource.
+        # Probably need to check that TimeseriesDataSource._get_time_slice
+        # behaves correctly with GSP's half-hourly data.
         raise NotImplementedError("TODO!")
 
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
+        # Just return data for 1 GSP: The GSP whose centroid is (almost) equal to center_osgb.
         raise NotImplementedError("TODO!")
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
-        # TODO: Normalise
-        raise NotImplementedError("TODO!")
+        return xr_data / xr_data.capacity_mwp
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
         """Return a single example in a `NumpyBatch`."""
         raise NotImplementedError("TODO!")
+
+
+def _get_gsp_id_to_shape(
+    gsp_id_to_region_id_filename: str, sheffield_solar_region_path: str
+) -> gpd.GeoDataFrame:
+    # Load mapping from GSP ID to Sheffield Solar region ID:
+    gsp_id_to_region_id = pd.read_csv(
+        gsp_id_to_region_id_filename,
+        usecols=["gsp_id", "region_id"],
+        dtype={"gsp_id": np.int64, "region_id": np.int64},
+    )
+
+    # Load Sheffield Solar region shapes (which are already in OSGB36 CRS).
+    ss_regions = gpd.read_file(sheffield_solar_region_path)
+
+    # Merge, so we have a mapping from GSP ID to SS region shape:
+    gsp_id_to_shape = (
+        ss_regions.merge(gsp_id_to_region_id, left_on="RegionID", right_on="region_id")
+        .set_index("gsp_id")[["geometry"]]
+        .sort_index()
+    )
+
+    # Some GSPs are represented by multiple shapes. To find the correct centroid,
+    # we need to find the spatial union of those regions, and then find the centroid
+    # of those spatial unions. `dissolve(by="gsp_id")` groups by "gsp_id" and gets
+    # the spatial union.
+    return gsp_id_to_shape.dissolve(by="gsp_id")
+
+
+def _put_gsp_data_into_an_xr_dataarray(
+    gsp_pv_power_mw: np.ndarray,
+    time_utc: np.ndarray,
+    gsp_id: np.ndarray,
+    x_osgb: np.ndarray,
+    y_osgb: np.ndarray,
+    capacity_mwp: np.ndarray,
+) -> xr.DataArray:
+    # Convert to xr.DataArray:
+    data_array = xr.DataArray(
+        gsp_pv_power_mw,
+        coords=(("time_utc", time_utc), ("gsp_id", gsp_id)),
+        name="gsp_pv_power_mw",
+    )
+    data_array = data_array.assign_coords(
+        x_osgb=("gsp_id", x_osgb),
+        y_osgb=("gsp_id", y_osgb),
+        capacity_mwp=(("time_utc", "gsp_id"), capacity_mwp),
+    )
+    return data_array

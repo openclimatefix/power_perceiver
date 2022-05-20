@@ -238,15 +238,17 @@ def _load_pv_power_watts_and_capacity_wp(
 
     # Load data in a way that will work in the cloud and locally:
     with fsspec.open(filename, mode="rb") as file:
-        pv_power_ds = xr.open_dataset(file, engine="h5netcdf")
-        pv_capacity_wp = pv_power_ds.max()
-        pv_capacity_wp = pv_capacity_wp.to_pandas().astype(np.float32)
-        pv_power_ds = pv_power_ds.sel(datetime=slice(start_date, end_date))
-        pv_power_watts = pv_power_ds.to_dataframe().astype(np.float32)
+        pv_power_ds = xr.open_dataset(file, engine="h5netcdf").astype(np.float32)
+        pv_capacity_wp = pv_power_ds.max().to_pandas()
+        pv_power_watts = pv_power_ds.sel(datetime=slice(start_date, end_date)).to_dataframe()
+        del pv_power_ds
 
     pv_capacity_wp.index = [np.int32(col) for col in pv_capacity_wp.index]
-    pv_system_row_number = np.arange(start=0, stop=len(pv_capacity_wp), dtype=np.float32)
-    pv_system_row_number = pd.Series(pv_system_row_number, index=pv_capacity_wp.index)
+
+    # Create pv_system_row_number
+    all_pv_system_ids = pv_capacity_wp.index
+    pv_system_row_number = np.arange(start=0, stop=len(all_pv_system_ids), dtype=np.float32)
+    pv_system_row_number = pd.Series(pv_system_row_number, index=all_pv_system_ids)
 
     _log.info(
         "Before filtering:"
