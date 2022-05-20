@@ -89,7 +89,9 @@ class RawGSPDataSource(
 
         # Select GSPs with sufficient installed PV capacity.
         # We take the `max` across time, because we don't want to drop GSPs which
-        # do have installed PV capacity now, but didn't have PV power a while ago:
+        # do have installed PV capacity now, but didn't have PV power a while ago.
+        # Although, in practice, swapping between `min` and `max` doesn't actually
+        # seem to make any difference to the number of GSPs dropped :)
         gsp_id_mask = data_array.capacity_mwp.max(dim="time_utc") > self.threshold_mw
         data_array = data_array.isel(gsp_id=gsp_id_mask)
         data_array = data_array.dropna(dim="time_utc", how="all")
@@ -105,8 +107,10 @@ class RawGSPDataSource(
 
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
-        # TODO: Randomly sample a GSP and return gsp.x_osgb and gsp.y_osgb :)
-        raise NotImplementedError("TODO!")
+        # Randomly sample a GSP and return gsp.x_osgb and gsp.y_osgb :)
+        random_gsp_idx = self.rng.integers(low=0, high=len(self.data_in_ram.gsp_id))
+        random_gsp = self.data_in_ram.isel(gsp_id=random_gsp_idx)
+        return Location(x=random_gsp.x_osgb.item(), y=random_gsp.y_osgb.item())
 
     def _get_empty_example(self) -> xr.DataArray:
         """Get an empty example.

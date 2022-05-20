@@ -3,6 +3,7 @@ import datetime
 import numpy as np
 import pytest
 
+from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
 
 
@@ -23,3 +24,10 @@ def gsp_data_source() -> RawGSPDataSource:
 
 def test_init(gsp_data_source: RawGSPDataSource):
     assert np.isfinite(gsp_data_source._data_in_ram.data).all()
+
+
+def test_get_osgb_location_for_example(gsp_data_source: RawGSPDataSource):
+    location = gsp_data_source.get_osgb_location_for_example()
+    assert isinstance(location, Location)
+    assert isinstance(location.x, float)
+    assert isinstance(location.y, float)
