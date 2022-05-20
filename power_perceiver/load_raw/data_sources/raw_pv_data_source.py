@@ -239,7 +239,7 @@ def _load_pv_power_watts_and_capacity_wp(
     # Load data in a way that will work in the cloud and locally:
     with fsspec.open(filename, mode="rb") as file:
         pv_power_ds = xr.open_dataset(file, engine="h5netcdf").astype(np.float32)
-        pv_capacity_wp = pv_power_ds.max().to_pandas()
+        pv_capacity_wp = pv_power_ds.max().to_pandas().astype(np.float32)
         pv_power_watts = pv_power_ds.sel(datetime=slice(start_date, end_date)).to_dataframe()
         del pv_power_ds
 

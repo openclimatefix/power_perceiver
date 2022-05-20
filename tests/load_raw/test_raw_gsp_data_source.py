@@ -1,6 +1,7 @@
 import datetime
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from power_perceiver.consts import Location
@@ -43,8 +44,14 @@ def test_get_spatial_slice(gsp_data_source: RawGSPDataSource):
 
 
 def test_get_example_and_empty_example(gsp_data_source: RawGSPDataSource):
-    location = gsp_data_source.get_osgb_location_for_example()
-    t0 = "2020-01-01T12:00"
-    example = gsp_data_source.get_example(t0_datetime_utc=t0, center_osgb=location)
-    print(example)
-    np.testing.assert_array_equal(example.shape, gsp_data_source.empty_example.shape)
+    periods = gsp_data_source.get_contiguous_t0_time_periods()
+    period = periods.iloc[0]
+    date_range = pd.date_range(period.start_dt, period.end_dt, freq="5T")
+    rng = np.random.default_rng(seed=42)
+    for t0 in rng.choice(date_range, size=288):
+        location = gsp_data_source.get_osgb_location_for_example()
+        xr_example = gsp_data_source.get_example(t0_datetime_utc=t0, center_osgb=location)
+        gsp_data_source.check_xarray_data(xr_example)
+        np.testing.assert_array_equal(xr_example.shape, gsp_data_source.empty_example.shape)
+        np_example = RawGSPDataSource.to_numpy(xr_example)
+        RawGSPDataSource.check_numpy_data(np_example)

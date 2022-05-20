@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from power_perceiver.consts import Location
+from power_perceiver.consts import BatchKey, Location
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
 )
-from power_perceiver.utils import check_path_exists
+from power_perceiver.utils import check_path_exists, datetime64_to_float
 
 _log = logging.getLogger(__name__)
 
@@ -143,7 +143,22 @@ class RawGSPDataSource(
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
         """Return a single example in a `NumpyBatch`."""
-        raise NotImplementedError("TODO!")
+        example: NumpyBatch = {}
+
+        example[BatchKey.gsp] = xr_data.values
+        example[BatchKey.gsp_id] = xr_data.gsp_id.values
+
+        # Coordinates
+        example[BatchKey.gsp_time_utc] = datetime64_to_float(xr_data["time_utc"].values)
+        for batch_key, dataset_key in (
+            (BatchKey.gsp_y_osgb, "y_osgb"),
+            (BatchKey.gsp_x_osgb, "x_osgb"),
+        ):
+            values = xr_data[dataset_key].values
+            # Expand dims so EncodeSpaceTime works!
+            example[batch_key] = np.expand_dims(values, axis=1)
+
+        return example
 
 
 def _get_gsp_id_to_shape(

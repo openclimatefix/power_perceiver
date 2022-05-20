@@ -270,24 +270,24 @@ class TimeseriesDataSource:
 
         The returned data does not include an `example` dimension.
         """
-        start_dt = self._get_start_dt(t0_datetime_utc)
-        end_dt = self._get_end_dt(t0_datetime_utc)
+        start_dt_rounded = self._get_start_dt_rounded(t0_datetime_utc)
+        end_dt_rounded = self._get_end_dt_rounded(t0_datetime_utc)
 
         # Sanity check!
         assert (
-            start_dt in xr_data.time_utc
-        ), f"{start_dt=} not in xr_dataset.time_utc! {t0_datetime_utc=}"
+            start_dt_rounded in xr_data.time_utc
+        ), f"{start_dt_rounded=} not in xr_data.time_utc! {t0_datetime_utc=}"
         assert (
-            end_dt in xr_data.time_utc
-        ), f"{end_dt=} not in xr_dataset.time_utc! {t0_datetime_utc=}"
+            end_dt_rounded in xr_data.time_utc
+        ), f"{end_dt_rounded=} not in xr_data.time_utc! {t0_datetime_utc=}"
 
         # Get time slice:
-        time_slice = xr_data.sel(time_utc=slice(start_dt, end_dt))
+        time_slice = xr_data.sel(time_utc=slice(start_dt_rounded, end_dt_rounded))
 
         # More sanity checks!
         assert (
-            time_slice.shape[0] == self.total_seq_length
-        ), f"{time_slice.shape[0]=} != {self.total_seq_length=} at {t0_datetime_utc=}"
+            len(time_slice.time_utc) == self.total_seq_length
+        ), f"{len(time_slice.time_utc)=} != {self.total_seq_length=} at {t0_datetime_utc=}"
         time_slice_duration = np.timedelta64(
             time_slice.time_utc[-1].values - time_slice.time_utc[0].values
         )
@@ -298,15 +298,17 @@ class TimeseriesDataSource:
 
         return time_slice
 
-    def _get_start_dt(
-        self, t0_datetime_utc: Union[datetime.datetime, np.datetime64]
-    ) -> np.datetime64:
-        return np.datetime64(t0_datetime_utc) - np.timedelta64(self.history_duration)
+    def _get_start_dt_rounded(
+        self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
+    ) -> pd.Timestamp:
+        start_dt = pd.Timestamp(t0_datetime_utc) - np.timedelta64(self.history_duration)
+        return start_dt.floor(self.sample_period_duration)
 
-    def _get_end_dt(
-        self, t0_datetime_utc: Union[datetime.datetime, np.datetime64]
-    ) -> np.datetime64:
-        return np.datetime64(t0_datetime_utc) + np.timedelta64(self.forecast_duration)
+    def _get_end_dt_rounded(
+        self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
+    ) -> pd.Timestamp:
+        end_dt = pd.Timestamp(t0_datetime_utc) + np.timedelta64(self.forecast_duration)
+        return end_dt.floor(self.sample_period_duration)
 
 
 @dataclass(kw_only=True)
