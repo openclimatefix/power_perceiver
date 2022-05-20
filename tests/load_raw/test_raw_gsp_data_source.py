@@ -40,3 +40,11 @@ def test_get_spatial_slice(gsp_data_source: RawGSPDataSource):
         spatial_slice = gsp_data_source._get_spatial_slice(gsp_data_source.data_in_ram, location)
         assert spatial_slice.gsp_id.item() == gsp.gsp_id.item()
         assert len(spatial_slice.gsp_id) == 1
+
+
+def test_get_example_and_empty_example(gsp_data_source: RawGSPDataSource):
+    location = gsp_data_source.get_osgb_location_for_example()
+    t0 = "2020-01-01T12:00"
+    example = gsp_data_source.get_example(t0_datetime_utc=t0, center_osgb=location)
+    print(example)
+    np.testing.assert_array_equal(example.shape, gsp_data_source.empty_example.shape)
