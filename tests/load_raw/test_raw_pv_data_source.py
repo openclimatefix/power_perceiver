@@ -30,7 +30,7 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
     )
     assert len(pv_power_watts) == 863
     pv_system_ids = pv_power_watts.columns
-    assert len(pv_system_ids) == 956
+    assert len(pv_system_ids) == 955
     assert np.array_equal(pv_capacity_wp.index, pv_system_ids)
     assert np.array_equal(pv_system_row_number.index, pv_system_ids)
     assert not pv_system_row_number.duplicated().any()

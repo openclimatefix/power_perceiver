@@ -277,6 +277,10 @@ def _load_pv_power_watts_and_capacity_wp(
     PV_CAPACITY_THRESHOLD_W = 100
     pv_systems_to_drop = pv_capacity_wp.index[pv_capacity_wp <= PV_CAPACITY_THRESHOLD_W]
     pv_systems_to_drop = pv_systems_to_drop.intersection(pv_power_watts.columns)
+    _log.info(
+        f"Dropping {len(pv_systems_to_drop)} PV systems because their max power is less than"
+        f" {PV_CAPACITY_THRESHOLD_W}"
+    )
     pv_power_watts.drop(columns=pv_systems_to_drop, inplace=True)
 
     # Ensure that capacity and pv_system_row_num use the same PV system IDs as the power DF:
