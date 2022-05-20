@@ -95,7 +95,7 @@ class RawPVDataSource(
             pv_power_watts=pv_power_watts,
             y_osgb=pv_metadata.y_osgb.astype(np.float32),
             x_osgb=pv_metadata.x_osgb.astype(np.float32),
-            capacity_wp=pv_capacity_wp.values,
+            capacity_wp=pv_capacity_wp,
         )
 
     def get_osgb_location_for_example(self) -> Location:
@@ -134,6 +134,15 @@ class RawPVDataSource(
         )
 
         selected_data = xr_data.isel(pv_system_id=pv_system_id_mask)
+
+        # Drop any PV systems which have NaN readings at every timestep in the example:
+        selected_data = selected_data.dropna(dim="pv_system_id", how="all")
+        # Interpolate forwards to fill NaNs which follow finite data:
+        selected_data = selected_data.interpolate_na(dim="time_utc")
+        # Finally, fill any remaining NaNs with zeros. This assumes - probably incorrectly -
+        # that any NaNs remaining at this point are at nighttime, and so *should* be zero.
+        # TODO: Don't `interpolate_na` or `fillna(0)`. See issue #74.
+        selected_data = selected_data.fillna(0)
         return self._ensure_n_pv_systems_per_example(selected_data)
 
     def _ensure_n_pv_systems_per_example(self, selected_data: xr.DataArray) -> xr.DataArray:
@@ -171,7 +180,19 @@ class RawPVDataSource(
 
     def _get_empty_example(self) -> xr.DataArray:
         """Return a single example of the correct shape but where data & coords are all NaN."""
-        pass  # TODO!
+        empty_pv_system_ids = np.full(shape=self.n_pv_systems_per_example, fill_value=np.NaN)
+        empty_dt_index = np.full(shape=self.total_seq_length, fill_value=np.NaN)
+        empty_dt_index = pd.DatetimeIndex(empty_dt_index)
+        empty_pv_power = pd.DataFrame(np.NaN, index=empty_dt_index, columns=empty_pv_system_ids)
+        empty_metadata = pd.Series(np.NaN, index=empty_pv_system_ids)
+
+        data_array = _put_pv_data_into_an_xr_dataarray(
+            pv_power_watts=empty_pv_power,
+            y_osgb=empty_metadata,
+            x_osgb=empty_metadata,
+            capacity_wp=empty_metadata,
+        )
+        return data_array
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
@@ -210,9 +231,6 @@ def _load_pv_power_watts_and_capacity_wp(
         f" Found {len(pv_power_watts.columns)} PV power PV system IDs."
     )
 
-    # Drop columns and rows with all NaNs.
-    pv_power_watts.dropna(axis="columns", how="all", inplace=True)
-    pv_power_watts.dropna(axis="index", how="all", inplace=True)
     pv_power_watts = pv_power_watts.clip(lower=0, upper=5e7)
     # Convert the pv_system_id column names from strings to ints:
     pv_power_watts.columns = [np.int32(col) for col in pv_power_watts.columns]
@@ -226,10 +244,15 @@ def _load_pv_power_watts_and_capacity_wp(
     pv_power_watts = _drop_pv_systems_which_produce_overnight(pv_power_watts)
 
     # Resample to 5-minutely and interpolate up to 15 minutes ahead.
-    # TODO: Issue #301: Give users the option to NOT resample (because Perceiver IO
+    # TODO: Issue #74: Give users the option to NOT resample (because Perceiver IO
     # doesn't need all the data to be perfectly aligned).
     pv_power_watts = pv_power_watts.resample("5T").interpolate(method="time", limit=3)
     pv_power_watts.dropna(axis="index", how="all", inplace=True)
+    pv_power_watts.dropna(axis="columns", how="all", inplace=True)
+
+    # Ensure that capacity uses the same PV system IDs as the power DF:
+    pv_capacity_wp = pv_capacity_wp.loc[pv_power_watts.columns]
+
     _log.info(f"pv_power = {pv_power_watts.values.nbytes / 1e6:,.1f} MBytes.")
     _log.info(f"After resampling to 5 mins, there are now {len(pv_power_watts)} pv power datetimes")
 
@@ -242,6 +265,7 @@ def _load_pv_power_watts_and_capacity_wp(
     # Sanity checks:
     assert not pv_power_watts.columns.duplicated().any()
     assert not pv_power_watts.index.duplicated().any()
+    assert np.array_equal(pv_power_watts.columns, pv_capacity_wp.index)
     return pv_power_watts, pv_capacity_wp
 
 
@@ -324,7 +348,20 @@ def _put_pv_data_into_an_xr_dataarray(
     x_osgb: pd.Series,
     capacity_wp: pd.Series,
 ) -> xr.DataArray:
-    """Convert to an xarray DataArray."""
+    """Convert to an xarray DataArray.
+
+    Args:
+        pv_power_watts: pd.DataFrame where the columns are PV systems (and the column names are
+            ints), and the index is UTC datetime.
+        x_osgb: The x location. Index = PV system ID ints.
+        y_osgb: The y location. Index = PV system ID ints.
+        capacity_wp: The max power output of each PV system in Watts. Index = PV system ID ints.
+    """
+    # Sanity check!
+    pv_system_ids = pv_power_watts.columns
+    for series in (x_osgb, y_osgb, capacity_wp):
+        assert np.array_equal(series.index, pv_system_ids, equal_nan=True)
+
     data_array = xr.DataArray(
         data=pv_power_watts.values,
         coords=(("time_utc", pv_power_watts.index), ("pv_system_id", pv_power_watts.columns)),

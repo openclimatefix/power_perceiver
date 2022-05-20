@@ -66,8 +66,6 @@ def test_get_spatial_slice(
         xr_data=xr_data,
         center_osgb=location,
     )
-    print()
-    print(spatial_slice)
     assert len(spatial_slice.pv_system_id) == n_pv_systems_per_example
     assert len(spatial_slice.time_utc) == len(xr_data.time_utc)
     N_PV_SYSTEMS_AVAILABLE_IN_THIS_EXAMPLE = 7
@@ -76,3 +74,15 @@ def test_get_spatial_slice(
         assert len(np.unique(spatial_slice.pv_system_id)) == len(spatial_slice.pv_system_id)
     else:
         assert len(np.unique(spatial_slice.pv_system_id)) == N_PV_SYSTEMS_AVAILABLE_IN_THIS_EXAMPLE
+
+
+def test_get_example_and_empty_example(pv_data_source: RawPVDataSource) -> None:
+    pv_data_source = copy(pv_data_source)  # Don't modify the common pv_data_source.
+    # Get valid location and t0_datetime for example:
+    xr_data = pv_data_source._data_in_ram
+    pv_system = xr_data.isel(pv_system_id=100)
+    location = Location(x=pv_system.x_osgb, y=pv_system.y_osgb)
+    contig_t0_periods = pv_data_source.get_contiguous_t0_time_periods()
+    t0_dt = contig_t0_periods.iloc[0]["start_dt"]
+    example = pv_data_source.get_example(t0_datetime_utc=t0_dt, center_osgb=location)
+    assert example.shape == pv_data_source.empty_example.shape

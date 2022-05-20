@@ -184,7 +184,11 @@ class TimeseriesDataSource:
         Child classes can override this to, for example, filter out any datetimes
         which don't make sense for this DataSource, e.g. remove nighttime.
         """
-        return pd.DatetimeIndex(self.data_on_disk.time_utc)
+        if self.needs_to_load_subset_into_ram:
+            data = self.data_on_disk
+        else:
+            data = self.data_in_ram
+        return pd.DatetimeIndex(data.time_utc)
 
     def load_subset_into_ram(self, subset_of_contiguous_t0_time_periods: pd.DataFrame) -> None:
         """Load a subset of `data_on_disk` into `data_in_ram`.
@@ -274,7 +278,6 @@ class TimeseriesDataSource:
         assert (
             time_slice_duration == expected_duration
         ), f"{time_slice_duration=} != {expected_duration=} at {t0_datetime_utc=}"
-        assert np.isfinite(time_slice).all(), f"non-finite data at {t0_datetime_utc=}"
 
         return time_slice
 
