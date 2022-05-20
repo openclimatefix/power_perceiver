@@ -83,14 +83,14 @@ class RawDataSource:
         xr_data = self._post_process(xr_data)
         xr_data = self._transform(xr_data)
         try:
-            self.check_xr_data(xr_data)
+            self.check_xarray_data(xr_data)
         except Exception as e:
             raise e.__class__(
                 f"Exception raised when checking xr data! {t0_datetime_utc=} {center_osgb=}"
             ) from e
         return xr_data
 
-    def check_xr_data(self, xr_data: xr.DataArray):
+    def check_xarray_data(self, xr_data: xr.DataArray):  # noqa: D102
         assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
 
     @staticmethod
@@ -113,6 +113,10 @@ class RawDataSource:
         """Can be overridden, usually by TimeseriesDataSource.
 
         The returned Dataset does not include an `example` dimension.
+
+        This method should sanity check that the example is the correct duration. But shouldn't
+        check for NaNs (because subsequent processing might remove NaNs. `check_xarray_data` and
+        `check_numpy_data` should both check for NaNs.
         """
         return xr_data
 
@@ -120,6 +124,10 @@ class RawDataSource:
         """Can be overridden, usually by SpatialDataSource.
 
         The returned Dataset does not include an `example` dimension.
+
+        This method should sanity check that the example is the correct spatial shape. But shouldn't
+        check for NaNs (because subsequent processing might remove NaNs. `check_xarray_data` and
+        `check_numpy_data` should both check for NaNs.
         """
         return xr_data
 
