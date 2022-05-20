@@ -50,7 +50,7 @@ class RawGSPDataSource(
         # Load everything into RAM once (at init) rather than in each worker process.
         # This should be faster than loading from disk in every worker!
         self.load_everything_into_ram()
-        # self.empty_example = self._get_empty_example()
+        self.empty_example = self._get_empty_example()
 
     def _sanity_check_args(self):  # noqa: D105
         check_path_exists(self.gsp_pv_power_zarr_path)
@@ -116,13 +116,26 @@ class RawGSPDataSource(
 
         The returned DataArray does not include an `example` dimension.
         """
-        raise NotImplementedError("TODO!")
+        gsp_pv_power_mw = np.full(
+            shape=(self.total_seq_length, 1), fill_value=np.NaN, dtype=np.float32
+        )
+        time_utc = np.full(shape=self.total_seq_length, fill_value=np.NaN, dtype=np.float32)
+        time_utc = pd.DatetimeIndex(time_utc)
+        gsp_meta = np.full(shape=1, fill_value=np.NaN, dtype=np.float32)
+
+        return _put_gsp_data_into_an_xr_dataarray(
+            gsp_pv_power_mw=gsp_pv_power_mw,
+            time_utc=time_utc,
+            gsp_id=gsp_meta,
+            x_osgb=gsp_meta,
+            y_osgb=gsp_meta,
+            capacity_mwp=gsp_pv_power_mw,
+        )
 
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
         """Just return data for 1 GSP: The GSP whose centroid is (almost) equal to center_osgb."""
         mask = np.isclose(xr_data.x_osgb, center_osgb.x) & np.isclose(xr_data.y_osgb, center_osgb.y)
-        gsp_idx = np.nonzero(mask)[0]
-        return xr_data.isel(gsp_id=gsp_idx)
+        return xr_data.isel(gsp_id=mask)
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         return xr_data / xr_data.capacity_mwp

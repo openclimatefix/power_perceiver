@@ -39,3 +39,4 @@ def test_get_spatial_slice(gsp_data_source: RawGSPDataSource):
         location = Location(x=gsp.x_osgb.item(), y=gsp.y_osgb.item())
         spatial_slice = gsp_data_source._get_spatial_slice(gsp_data_source.data_in_ram, location)
         assert spatial_slice.gsp_id.item() == gsp.gsp_id.item()
+        assert len(spatial_slice.gsp_id) == 1
