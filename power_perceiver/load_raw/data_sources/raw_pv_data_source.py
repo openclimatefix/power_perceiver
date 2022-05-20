@@ -60,7 +60,7 @@ class RawPVDataSource(
     # For now, let's assume the PV data is always 5-minutely, even though some PVOutput.org
     # PV systems report data at 15-minutely intervals. For now, let's just interpolate
     # 15-minutely data to 5-minutely. Later (WP3?) we could experiment with giving the model
-    # the "raw" (un-interpolated) 15-minutely PV data.
+    # the "raw" (un-interpolated) 15-minutely PV data. See issue #74.
     sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(minutes=5)
 
     def __post_init__(self):  # noqa: D105
@@ -174,9 +174,7 @@ class RawPVDataSource(
         return selected_data
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
-        xr_data = xr_data / xr_data.capacity_wp
-        assert np.isfinite(xr_data).all()
-        return xr_data
+        return xr_data / xr_data.capacity_wp
 
     def _get_empty_example(self) -> xr.DataArray:
         """Return a single example of the correct shape but where data & coords are all NaN."""

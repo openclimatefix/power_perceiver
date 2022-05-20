@@ -61,7 +61,7 @@ def test_get_spatial_slice(
     pv_data_source.n_pv_systems_per_example = n_pv_systems_per_example
     xr_data = pv_data_source._data_in_ram
     pv_system = xr_data.isel(pv_system_id=100)
-    location = Location(x=pv_system.x_osgb, y=pv_system.y_osgb)
+    location = Location(x=pv_system.x_osgb.values, y=pv_system.y_osgb.values)
     spatial_slice = pv_data_source._get_spatial_slice(
         xr_data=xr_data,
         center_osgb=location,
@@ -81,7 +81,7 @@ def test_get_example_and_empty_example(pv_data_source: RawPVDataSource) -> None:
     # Get valid location and t0_datetime for example:
     xr_data = pv_data_source._data_in_ram
     pv_system = xr_data.isel(pv_system_id=100)
-    location = Location(x=pv_system.x_osgb, y=pv_system.y_osgb)
+    location = Location(x=pv_system.x_osgb.values, y=pv_system.y_osgb.values)
     contig_t0_periods = pv_data_source.get_contiguous_t0_time_periods()
     t0_dt = contig_t0_periods.iloc[0]["start_dt"]
     example = pv_data_source.get_example(t0_datetime_utc=t0_dt, center_osgb=location)

@@ -82,7 +82,16 @@ class RawDataSource:
         xr_data = self._get_spatial_slice(xr_data, center_osgb=center_osgb)
         xr_data = self._post_process(xr_data)
         xr_data = self._transform(xr_data)
+        try:
+            self.check_xr_data(xr_data)
+        except Exception as e:
+            raise e.__class__(
+                f"Exception raised when checking xr data! {t0_datetime_utc=} {center_osgb=}"
+            ) from e
         return xr_data
+
+    def check_xr_data(self, xr_data: xr.DataArray):
+        assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
