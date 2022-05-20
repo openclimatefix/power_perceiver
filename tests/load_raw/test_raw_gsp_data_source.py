@@ -31,3 +31,11 @@ def test_get_osgb_location_for_example(gsp_data_source: RawGSPDataSource):
     assert isinstance(location, Location)
     assert isinstance(location.x, float)
     assert isinstance(location.y, float)
+
+
+def test_get_spatial_slice(gsp_data_source: RawGSPDataSource):
+    for gsp_id in gsp_data_source.data_in_ram.gsp_id:
+        gsp = gsp_data_source.data_in_ram.sel(gsp_id=gsp_id)
+        location = Location(x=gsp.x_osgb.item(), y=gsp.y_osgb.item())
+        spatial_slice = gsp_data_source._get_spatial_slice(gsp_data_source.data_in_ram, location)
+        assert spatial_slice.gsp_id.item() == gsp.gsp_id.item()

@@ -107,7 +107,6 @@ class RawGSPDataSource(
 
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
-        # Randomly sample a GSP and return gsp.x_osgb and gsp.y_osgb :)
         random_gsp_idx = self.rng.integers(low=0, high=len(self.data_in_ram.gsp_id))
         random_gsp = self.data_in_ram.isel(gsp_id=random_gsp_idx)
         return Location(x=random_gsp.x_osgb.item(), y=random_gsp.y_osgb.item())
@@ -119,18 +118,11 @@ class RawGSPDataSource(
         """
         raise NotImplementedError("TODO!")
 
-    def _get_time_slice(
-        self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime
-    ) -> xr.DataArray:
-        # TODO: This may not be necessary if we put the GSP data into
-        # a "standard" DataArray, as per RawPVDataSource.
-        # Probably need to check that TimeseriesDataSource._get_time_slice
-        # behaves correctly with GSP's half-hourly data.
-        raise NotImplementedError("TODO!")
-
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
-        # Just return data for 1 GSP: The GSP whose centroid is (almost) equal to center_osgb.
-        raise NotImplementedError("TODO!")
+        """Just return data for 1 GSP: The GSP whose centroid is (almost) equal to center_osgb."""
+        mask = np.isclose(xr_data.x_osgb, center_osgb.x) & np.isclose(xr_data.y_osgb, center_osgb.y)
+        gsp_idx = np.nonzero(mask)[0]
+        return xr_data.isel(gsp_id=gsp_idx)
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         return xr_data / xr_data.capacity_mwp
