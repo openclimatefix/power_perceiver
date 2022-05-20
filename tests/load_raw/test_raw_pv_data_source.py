@@ -1,9 +1,9 @@
-import datetime
 from copy import copy
 
 import numpy as np
 import pytest
 import xarray as xr
+from conftest import PV_METADATA_FILENAME, PV_POWER_FILENAME
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
@@ -11,12 +11,6 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
     _load_pv_metadata,
     _load_pv_power_watts_and_capacity_wp,
 )
-
-# TODO: Use public data :)
-PV_METADATA_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv"
-PV_POWER_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf"
-
-N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 
 def test_load_pv_metadata():  # noqa: D103
@@ -42,23 +36,6 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
     assert pv_capacity_wp.dtype.type == np.float32
     assert pv_system_ids.dtype.type == np.int64
     assert pv_system_row_number.dtype.type == np.float32
-
-
-@pytest.fixture(scope="module")
-def pv_data_source() -> RawPVDataSource:
-    pv = RawPVDataSource(
-        pv_power_filename=PV_POWER_FILENAME,
-        pv_metadata_filename=PV_METADATA_FILENAME,
-        start_date="2020-01-01",
-        end_date="2020-01-03",
-        history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
-        roi_height_meters=64_000,
-        roi_width_meters=64_000,
-        n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
-    )
-    pv.per_worker_init(worker_id=0)
-    return pv
 
 
 def test_init(pv_data_source: RawPVDataSource):  # noqa: D103

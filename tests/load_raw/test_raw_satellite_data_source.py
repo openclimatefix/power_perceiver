@@ -2,7 +2,7 @@ import datetime
 
 import pandas as pd
 import pytest
-from conftest import HEIGHT_IN_PIXELS, WIDTH_IN_PIXELS, _get_sat_data_source
+from conftest import SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS, _get_sat_data_source
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
@@ -38,8 +38,8 @@ def test_get_spatial_slice(sat_data_opened: RawSatelliteDataSource):
         sat_data_opened._data_on_disk,
         location_center_osgb,
     )
-    assert len(selection.x_geostationary) == WIDTH_IN_PIXELS
-    assert len(selection.y_geostationary) == HEIGHT_IN_PIXELS
+    assert len(selection.x_geostationary) == SAT_WIDTH_IN_PIXELS
+    assert len(selection.y_geostationary) == SAT_HEIGHT_IN_PIXELS
 
     with pytest.raises(AssertionError):
         selection = sat_data_opened._get_spatial_slice(

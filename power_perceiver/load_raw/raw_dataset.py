@@ -185,8 +185,8 @@ class RawDataset(torch.utils.data.Dataset):
     def _subset_t0_periods(self) -> pd.DataFrame:
         """Pick a random selection of contiguous time periods for the upcoming epoch.
 
-        The main use-case for this is for SatelliteDataSource which needs to load a subset of data
-        into RAM at the start of each epoch.
+        The main use-case for this is for `RawSatelliteDataSource` which needs to load a subset of
+        data into RAM at the start of each epoch.
         """
         _log.info(
             f"Using {self.ds_combo_for_subsetting=} to select a subset of time periods to load"
@@ -229,7 +229,6 @@ class RawDataset(torch.utils.data.Dataset):
             location_osgb=location_osgb,
         )
 
-        # TODO: Tell the ML model which type of "combo" this is.
         xr_example = self._process_xr_example(xr_example)
         np_example = self._xarray_to_numpy_example_and_sanity_check(xr_example)
         del xr_example
@@ -260,13 +259,15 @@ class RawDataset(torch.utils.data.Dataset):
         location_osgb: Location,
     ) -> XarrayBatch:
         # Loop through each data source in the combo:
-        data_source_combo = self.data_source_combos[chosen_combo_name]
+        chosen_data_source_combo = self.data_source_combos[chosen_combo_name]
         xr_batch: XarrayBatch = {}
-        for data_source in data_source_combo:
-            example_from_ds = data_source.get_example(t0_datetime_utc, location_osgb)
+        for data_source in self._unique_data_sources:
+            if data_source in chosen_data_source_combo:
+                example_from_ds = data_source.get_example(t0_datetime_utc, location_osgb)
+            else:
+                example_from_ds = data_source.empty_example
             xr_batch[data_source.__class__] = example_from_ds
 
-        # TODO: Loop round the other data sources calling get_empty_example().
         return xr_batch
 
     def _process_xr_example(self, xr_example: XarrayBatch) -> XarrayBatch:
@@ -301,12 +302,19 @@ class RawDataset(torch.utils.data.Dataset):
         return np_example
 
     @property
-    def _unique_data_sources(self):
-        data_sources = []
+    def _unique_data_sources(self) -> list[RawDataSource]:
+        # We can't use `set()` or `np.unique()` on a list of `RawDataSource` objects.
+        unique_data_sources: list[RawDataSource] = []
         for tuple_of_data_sources in self.data_source_combos.values():
             for data_source in tuple_of_data_sources:
-                data_sources.append(data_source)
-        return np.unique(data_sources)
+                # We need to use `is` to check if data_source *is* the exact same instance
+                # as a RawDataSource already in `unique_data_sources`.
+                # Using `if data_source in unique_data_sources` doesn't work because
+                # that just uses the equality operator, which returns True if two
+                # objects are identical but not necessarily the same instance.
+                if not any([data_source is ds for ds in unique_data_sources]):
+                    unique_data_sources.append(data_source)
+        return unique_data_sources
 
 
 def _time_periods_to_datetimes_per_combo(

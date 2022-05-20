@@ -1,7 +1,8 @@
 from copy import deepcopy
 
 import numpy as np
-from conftest import HEIGHT_IN_PIXELS, N_EXPECTED_TIMESTEPS, WIDTH_IN_PIXELS
+import pytest
+from conftest import SAT_HEIGHT_IN_PIXELS, SAT_N_EXPECTED_TIMESTEPS, SAT_WIDTH_IN_PIXELS
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_raw.raw_dataset import RawDataset
@@ -17,8 +18,13 @@ def test_per_worker_init(raw_dataset_with_sat_only: RawDataset):
     dataset.per_worker_init(worker_id=1)
 
 
-def test_iter(raw_dataset_with_sat_only: RawDataset):
-    dataset = deepcopy(raw_dataset_with_sat_only)
+@pytest.mark.parametrize(
+    "raw_dataset_str", ["raw_dataset_with_sat_only", "raw_dataset_with_sat_only_and_gsp_pv_sat"]
+)
+def test_iter(raw_dataset_str: str, request):
+    # `getfixturevalue` trick from https://stackoverflow.com/a/64348247/732596
+    raw_dataset: RawDataset = request.getfixturevalue(raw_dataset_str)
+    dataset = deepcopy(raw_dataset)
     dataset.per_worker_init(worker_id=1)
     for np_example in dataset:
         break
@@ -28,14 +34,21 @@ def test_iter(raw_dataset_with_sat_only: RawDataset):
         print(key, value.shape)
 
     for key, expected_shape in (
-        (BatchKey.hrvsatellite, (N_EXPECTED_TIMESTEPS, 1, HEIGHT_IN_PIXELS, WIDTH_IN_PIXELS)),
-        (BatchKey.hrvsatellite_time_utc, (N_EXPECTED_TIMESTEPS,)),
-        (BatchKey.hrvsatellite_y_osgb, (HEIGHT_IN_PIXELS, WIDTH_IN_PIXELS)),
-        (BatchKey.hrvsatellite_x_osgb, (HEIGHT_IN_PIXELS, WIDTH_IN_PIXELS)),
-        (BatchKey.hrvsatellite_y_geostationary, (HEIGHT_IN_PIXELS,)),
-        (BatchKey.hrvsatellite_x_geostationary, (WIDTH_IN_PIXELS,)),
+        (
+            BatchKey.hrvsatellite,
+            (SAT_N_EXPECTED_TIMESTEPS, 1, SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS),
+        ),
+        (BatchKey.hrvsatellite_time_utc, (SAT_N_EXPECTED_TIMESTEPS,)),
+        (BatchKey.hrvsatellite_y_osgb, (SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS)),
+        (BatchKey.hrvsatellite_x_osgb, (SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS)),
+        (BatchKey.hrvsatellite_y_geostationary, (SAT_HEIGHT_IN_PIXELS,)),
+        (BatchKey.hrvsatellite_x_geostationary, (SAT_WIDTH_IN_PIXELS,)),
     ):
         value = np_example[key]
         assert (
             value.shape == expected_shape
         ), f"{key.name=} has shape {value.shape}, not {expected_shape}"
+
+
+def test_dataset_with_sat_only_and_gsp_pv_sat(raw_dataset_with_sat_only_and_gsp_pv_sat: RawDataset):
+    pass
