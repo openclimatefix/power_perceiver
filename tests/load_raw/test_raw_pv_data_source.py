@@ -32,6 +32,11 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
     assert len(pv_system_ids) == 956
     assert np.array_equal(pv_capacity_wp.index, pv_system_ids)
     assert np.array_equal(pv_system_row_number.index, pv_system_ids)
+    assert not pv_system_row_number.duplicated().any()
+    assert not pv_system_ids.duplicated().any()
+    assert np.isfinite(pv_system_row_number).all()
+    assert np.isfinite(pv_system_ids).all()
+    assert np.isfinite(pv_capacity_wp).all()
 
 
 @pytest.fixture(scope="module")
