@@ -82,7 +82,7 @@ class RawPVDataSource(
     def load_everything_into_ram(self) -> None:
         """Open AND load PV data into RAM."""
         # Load pd.DataFrame of power and pd.Series of capacities:
-        pv_power_watts, pv_capacity_wp = _load_pv_power_watts_and_capacity_wp(
+        pv_power_watts, pv_capacity_wp, pv_system_row_number = _load_pv_power_watts_and_capacity_wp(
             self.pv_power_filename, start_date=self.start_date, end_date=self.end_date
         )
         pv_metadata = _load_pv_metadata(self.pv_metadata_filename)
@@ -90,12 +90,14 @@ class RawPVDataSource(
         # PV system IDs, in the same order:
         pv_metadata, pv_power_watts = _intersection_of_pv_system_ids(pv_metadata, pv_power_watts)
         pv_capacity_wp = pv_capacity_wp.loc[pv_power_watts.columns]
+        pv_system_row_number = pv_system_row_number.loc[pv_power_watts.columns]
 
         self._data_in_ram = _put_pv_data_into_an_xr_dataarray(
             pv_power_watts=pv_power_watts,
             y_osgb=pv_metadata.y_osgb.astype(np.float32),
             x_osgb=pv_metadata.x_osgb.astype(np.float32),
             capacity_wp=pv_capacity_wp,
+            pv_system_row_number=pv_system_row_number,
         )
 
     def get_osgb_location_for_example(self) -> Location:
@@ -141,7 +143,7 @@ class RawPVDataSource(
         selected_data = selected_data.interpolate_na(dim="time_utc")
         # Finally, fill any remaining NaNs with zeros. This assumes - probably incorrectly -
         # that any NaNs remaining at this point are at nighttime, and so *should* be zero.
-        # TODO: Don't `interpolate_na` or `fillna(0)`. See issue #74.
+        # TODO: Give the model the "raw" data: Don't `interpolate_na` or `fillna(0)`. See issue #74
         selected_data = selected_data.fillna(0)
         return self._ensure_n_pv_systems_per_example(selected_data)
 
@@ -183,12 +185,17 @@ class RawPVDataSource(
         empty_dt_index = pd.DatetimeIndex(empty_dt_index)
         empty_pv_power = pd.DataFrame(np.NaN, index=empty_dt_index, columns=empty_pv_system_ids)
         empty_metadata = pd.Series(np.NaN, index=empty_pv_system_ids)
+        pv_system_row_number = np.full(
+            shape=self.n_pv_systems_per_example, fill_value=np.NaN, dtype=np.float32
+        )
+        pv_system_row_number = pd.Series(pv_system_row_number, index=empty_pv_system_ids)
 
         data_array = _put_pv_data_into_an_xr_dataarray(
             pv_power_watts=empty_pv_power,
             y_osgb=empty_metadata,
             x_osgb=empty_metadata,
             capacity_wp=empty_metadata,
+            pv_system_row_number=pv_system_row_number,
         )
         return data_array
 
@@ -203,12 +210,12 @@ def _load_pv_power_watts_and_capacity_wp(
     filename: Union[str, Path],
     start_date: Optional[datetime.datetime] = None,
     end_date: Optional[datetime.datetime] = None,
-) -> tuple[pd.DataFrame, pd.Series]:
-    """Return pv_power_watts, pv_capacity_wp.
+) -> tuple[pd.DataFrame, pd.Series, pd.Series]:
+    """Return pv_power_watts, pv_capacity_wp, pv_system_row_number.
 
-    The capacities are the max across the *entire* dataset, and so is independent of the
-    `start_date` and `end_date`. This is important so we always normalise PV data
-    in the same way for training and testing sets!
+    The capacities and pv_system_row_number are computed across the *entire* dataset,
+    and so is independent of the `start_date` and `end_date`. This ensures the PV system
+    row number and capacities stay constant across training and validation.
     """
 
     _log.info(f"Loading solar PV power data from {filename} from {start_date=} to {end_date=}.")
@@ -222,11 +229,13 @@ def _load_pv_power_watts_and_capacity_wp(
         pv_power_watts = pv_power_ds.to_dataframe().astype(np.float32)
 
     pv_capacity_wp.index = [np.int32(col) for col in pv_capacity_wp.index]
+    pv_system_row_number = np.arange(start=0, stop=len(pv_capacity_wp), dtype=np.float32)
+    pv_system_row_number = pd.Series(pv_system_row_number, index=pv_capacity_wp.index)
 
     _log.info(
         "Before filtering:"
-        f" Found {len(pv_power_watts)} PV power datetimes."
-        f" Found {len(pv_power_watts.columns)} PV power PV system IDs."
+        f" {len(pv_power_watts)} PV power datetimes."
+        f" {len(pv_power_watts.columns)} PV power PV system IDs."
     )
 
     pv_power_watts = pv_power_watts.clip(lower=0, upper=5e7)
@@ -249,22 +258,22 @@ def _load_pv_power_watts_and_capacity_wp(
     pv_power_watts.dropna(axis="columns", how="all", inplace=True)
 
     # Ensure that capacity uses the same PV system IDs as the power DF:
-    pv_capacity_wp = pv_capacity_wp.loc[pv_power_watts.columns]
-
-    _log.info(f"pv_power = {pv_power_watts.values.nbytes / 1e6:,.1f} MBytes.")
-    _log.info(f"After resampling to 5 mins, there are now {len(pv_power_watts)} pv power datetimes")
+    pv_system_ids = pv_power_watts.columns
+    pv_capacity_wp = pv_capacity_wp.loc[pv_system_ids]
+    pv_system_row_number = pv_system_row_number.loc[pv_system_ids]
 
     _log.info(
-        "After filtering:"
-        f" Found {len(pv_power_watts)} PV power datetimes."
-        f" Found {len(pv_power_watts.columns)} PV power PV system IDs."
+        "After filtering & resampling to 5 minutes:"
+        f" pv_power = {pv_power_watts.values.nbytes / 1e6:,.1f} MBytes."
+        f" {len(pv_power_watts)} PV power datetimes."
+        f" {len(pv_power_watts.columns)} PV power PV system IDs."
     )
 
     # Sanity checks:
     assert not pv_power_watts.columns.duplicated().any()
     assert not pv_power_watts.index.duplicated().any()
     assert np.array_equal(pv_power_watts.columns, pv_capacity_wp.index)
-    return pv_power_watts, pv_capacity_wp
+    return pv_power_watts, pv_capacity_wp, pv_system_row_number
 
 
 # Adapted from nowcasting_dataset.data_sources.pv.pv_data_source
@@ -345,6 +354,7 @@ def _put_pv_data_into_an_xr_dataarray(
     y_osgb: pd.Series,
     x_osgb: pd.Series,
     capacity_wp: pd.Series,
+    pv_system_row_number: pd.Series,
 ) -> xr.DataArray:
     """Convert to an xarray DataArray.
 
@@ -354,10 +364,12 @@ def _put_pv_data_into_an_xr_dataarray(
         x_osgb: The x location. Index = PV system ID ints.
         y_osgb: The y location. Index = PV system ID ints.
         capacity_wp: The max power output of each PV system in Watts. Index = PV system ID ints.
+        pv_system_row_number: The integer position of the PV system in the metadata.
+            Used to create the PV system ID embedding.
     """
     # Sanity check!
     pv_system_ids = pv_power_watts.columns
-    for series in (x_osgb, y_osgb, capacity_wp):
+    for series in (x_osgb, y_osgb, capacity_wp, pv_system_row_number):
         assert np.array_equal(series.index, pv_system_ids, equal_nan=True)
 
     data_array = xr.DataArray(
@@ -365,9 +377,11 @@ def _put_pv_data_into_an_xr_dataarray(
         coords=(("time_utc", pv_power_watts.index), ("pv_system_id", pv_power_watts.columns)),
         name="pv_power_watts",
     )
+
     data_array = data_array.assign_coords(
         x_osgb=("pv_system_id", x_osgb),
         y_osgb=("pv_system_id", y_osgb),
         capacity_wp=("pv_system_id", capacity_wp),
+        pv_system_row_number=("pv_system_id", pv_system_row_number),
     )
     return data_array

@@ -24,11 +24,14 @@ def test_load_pv_metadata():  # noqa: D103
 
 
 def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
-    pv_power_watts, pv_capacity_wp = _load_pv_power_watts_and_capacity_wp(
+    pv_power_watts, pv_capacity_wp, pv_system_row_number = _load_pv_power_watts_and_capacity_wp(
         PV_POWER_FILENAME, start_date="2020-01-01", end_date="2020-01-03"
     )
     assert len(pv_power_watts) == 863
-    assert len(pv_power_watts.columns) == 956
+    pv_system_ids = pv_power_watts.columns
+    assert len(pv_system_ids) == 956
+    assert np.array_equal(pv_capacity_wp.index, pv_system_ids)
+    assert np.array_equal(pv_system_row_number.index, pv_system_ids)
 
 
 @pytest.fixture(scope="module")
