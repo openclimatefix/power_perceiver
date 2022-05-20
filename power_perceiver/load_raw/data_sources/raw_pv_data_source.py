@@ -9,14 +9,14 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
-from power_perceiver.consts import Location
+from power_perceiver.consts import BatchKey, Location
 from power_perceiver.geospatial import lat_lon_to_osgb
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
 )
-from power_perceiver.utils import check_path_exists
+from power_perceiver.utils import check_path_exists, datetime64_to_float
 
 _log = logging.getLogger(__name__)
 
@@ -180,7 +180,9 @@ class RawPVDataSource(
 
     def _get_empty_example(self) -> xr.DataArray:
         """Return a single example of the correct shape but where data & coords are all NaN."""
-        empty_pv_system_ids = np.full(shape=self.n_pv_systems_per_example, fill_value=np.NaN)
+        empty_pv_system_ids = np.full(
+            shape=self.n_pv_systems_per_example, fill_value=np.NaN, dtype=np.float32
+        )
         empty_dt_index = np.full(shape=self.total_seq_length, fill_value=np.NaN)
         empty_dt_index = pd.DatetimeIndex(empty_dt_index)
         empty_pv_power = pd.DataFrame(np.NaN, index=empty_dt_index, columns=empty_pv_system_ids)
@@ -201,8 +203,22 @@ class RawPVDataSource(
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
-        """Return a single example in a `NumpyBatch`."""
-        raise NotImplementedError("TODO!")
+        """Return a single example in a `NumpyBatch`.
+
+        We don't bother with the pv_mask in RawPVDataSource. Instead as use the
+        rule that PV systems to be ignored will have NaN `pv_id`.
+        """
+        example: NumpyBatch = {}
+
+        example[BatchKey.pv] = xr_data.values  # PV is normalised in RawPVDataSource._post_process
+        example[BatchKey.pv_system_row_number] = xr_data["pv_system_row_number"].values
+        example[BatchKey.pv_id] = xr_data["pv_system_id"].values.astype(np.float32)
+        example[BatchKey.pv_capacity_wp] = xr_data["capacity_wp"].values
+        example[BatchKey.pv_time_utc] = datetime64_to_float(xr_data["time_utc"].values)
+        example[BatchKey.pv_x_osgb] = xr_data["x_osgb"].values
+        example[BatchKey.pv_y_osgb] = xr_data["y_osgb"].values
+
+        return example
 
 
 # Adapted from nowcasting_dataset.data_sources.pv.pv_data_source
@@ -257,7 +273,13 @@ def _load_pv_power_watts_and_capacity_wp(
     pv_power_watts.dropna(axis="index", how="all", inplace=True)
     pv_power_watts.dropna(axis="columns", how="all", inplace=True)
 
-    # Ensure that capacity uses the same PV system IDs as the power DF:
+    # Drop any PV systems whose PV capacity is too low:
+    PV_CAPACITY_THRESHOLD_W = 100
+    pv_systems_to_drop = pv_capacity_wp.index[pv_capacity_wp <= PV_CAPACITY_THRESHOLD_W]
+    pv_systems_to_drop = pv_systems_to_drop.intersection(pv_power_watts.columns)
+    pv_power_watts.drop(columns=pv_systems_to_drop, inplace=True)
+
+    # Ensure that capacity and pv_system_row_num use the same PV system IDs as the power DF:
     pv_system_ids = pv_power_watts.columns
     pv_capacity_wp = pv_capacity_wp.loc[pv_system_ids]
     pv_system_row_number = pv_system_row_number.loc[pv_system_ids]
@@ -272,6 +294,9 @@ def _load_pv_power_watts_and_capacity_wp(
     # Sanity checks:
     assert not pv_power_watts.columns.duplicated().any()
     assert not pv_power_watts.index.duplicated().any()
+    assert np.isfinite(pv_capacity_wp).all()
+    assert (pv_capacity_wp > 0).all()
+    assert np.isfinite(pv_system_row_number).all()
     assert np.array_equal(pv_power_watts.columns, pv_capacity_wp.index)
     return pv_power_watts, pv_capacity_wp, pv_system_row_number
 

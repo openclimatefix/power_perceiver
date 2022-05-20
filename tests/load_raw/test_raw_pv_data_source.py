@@ -3,6 +3,7 @@ from copy import copy
 
 import numpy as np
 import pytest
+import xarray as xr
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
@@ -37,6 +38,10 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
     assert np.isfinite(pv_system_row_number).all()
     assert np.isfinite(pv_system_ids).all()
     assert np.isfinite(pv_capacity_wp).all()
+    assert np.all([col_dtype.type == np.float32 for col_dtype in pv_power_watts.dtypes.values])
+    assert pv_capacity_wp.dtype.type == np.float32
+    assert pv_system_ids.dtype.type == np.int64
+    assert pv_system_row_number.dtype.type == np.float32
 
 
 @pytest.fixture(scope="module")
@@ -84,13 +89,22 @@ def test_get_spatial_slice(
         assert len(np.unique(spatial_slice.pv_system_id)) == N_PV_SYSTEMS_AVAILABLE_IN_THIS_EXAMPLE
 
 
-def test_get_example_and_empty_example(pv_data_source: RawPVDataSource) -> None:
-    pv_data_source = copy(pv_data_source)  # Don't modify the common pv_data_source.
+def _get_example(pv_data_source: RawPVDataSource) -> xr.DataArray:  # noqa: D103
     # Get valid location and t0_datetime for example:
     xr_data = pv_data_source._data_in_ram
     pv_system = xr_data.isel(pv_system_id=100)
     location = Location(x=pv_system.x_osgb.values, y=pv_system.y_osgb.values)
     contig_t0_periods = pv_data_source.get_contiguous_t0_time_periods()
     t0_dt = contig_t0_periods.iloc[0]["start_dt"]
-    example = pv_data_source.get_example(t0_datetime_utc=t0_dt, center_osgb=location)
+    return pv_data_source.get_example(t0_datetime_utc=t0_dt, center_osgb=location)
+
+
+def test_get_example_and_empty_example(pv_data_source: RawPVDataSource) -> None:  # noqa: D103
+    example = _get_example(pv_data_source)
     assert example.shape == pv_data_source.empty_example.shape
+
+
+def test_to_numpy(pv_data_source: RawPVDataSource) -> None:  # noqa: D103
+    xr_example = _get_example(pv_data_source)
+    np_example = RawPVDataSource.to_numpy(xr_example)
+    RawPVDataSource.check_numpy_data(np_example)
