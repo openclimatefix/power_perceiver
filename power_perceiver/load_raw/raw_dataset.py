@@ -27,7 +27,7 @@ _log = logging.getLogger(__name__)
 
 
 @dataclass
-class RawDataset(torch.utils.data.Dataset):
+class RawDataset(torch.utils.data.IterableDataset):
     """Dataset for loading data from intermediate data (not pre-prepared batches).
 
     Initialisation arguments:
@@ -199,16 +199,19 @@ class RawDataset(torch.utils.data.Dataset):
         t0_datetime_utc = self.rng.choice(self._t0_datetimes_per_combo_for_epoch[chosen_combo_name])
         location_osgb = self._randomly_choose_osgb_location(chosen_combo_name)
 
-        xr_example = self._get_xarray_example(
-            chosen_combo_name=chosen_combo_name,
-            t0_datetime_utc=t0_datetime_utc,
-            location_osgb=location_osgb,
-        )
+        try:
+            xr_example = self._get_xarray_example(
+                chosen_combo_name=chosen_combo_name,
+                t0_datetime_utc=t0_datetime_utc,
+                location_osgb=location_osgb,
+            )
+            xr_example = self._process_xr_example(xr_example)
+            np_example = self._xarray_to_numpy_example_and_sanity_check(xr_example)
+            del xr_example
+            np_example = self._process_np_example(np_example)
+        except Exception as e:
+            raise e.__class__(f"{chosen_combo_name=}; {t0_datetime_utc=}; {location_osgb=}") from e
 
-        xr_example = self._process_xr_example(xr_example)
-        np_example = self._xarray_to_numpy_example_and_sanity_check(xr_example)
-        del xr_example
-        np_example = self._process_np_example(np_example)
         return np_example
 
     def _randomly_choose_combo_name(self) -> str:
@@ -270,7 +273,6 @@ class RawDataset(torch.utils.data.Dataset):
                 np_batch[BatchKey.requested_timesteps] = requested_timesteps
             else:
                 np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
-                data_loader_class.check_numpy_data(np_data_for_data_source)
                 np_batch.update(np_data_for_data_source)
         return np_batch
 

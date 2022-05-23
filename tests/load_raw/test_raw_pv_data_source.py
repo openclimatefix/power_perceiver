@@ -84,4 +84,5 @@ def test_get_example_and_empty_example(pv_data_source: RawPVDataSource) -> None:
 def test_to_numpy(pv_data_source: RawPVDataSource) -> None:  # noqa: D103
     xr_example = _get_example(pv_data_source)
     np_example = RawPVDataSource.to_numpy(xr_example)
-    RawPVDataSource.check_numpy_data(np_example)
+    for batch_key, array in np_example.items():
+        assert np.isfinite(array).all(), f"{batch_key=} has non-finite values!"

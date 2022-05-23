@@ -36,4 +36,5 @@ def test_get_example_and_empty_example(gsp_data_source: RawGSPDataSource):  # no
         gsp_data_source.check_xarray_data(xr_example)
         np.testing.assert_array_equal(xr_example.shape, gsp_data_source.empty_example.shape)
         np_example = RawGSPDataSource.to_numpy(xr_example)
-        RawGSPDataSource.check_numpy_data(np_example)
+        for batch_key, array in np_example.items():
+            assert np.isfinite(array).all(), f"{batch_key=} has non-finite values!"

@@ -101,12 +101,6 @@ class RawDataSource:
         """
         raise NotImplementedError("Must be implemented by subclass!")
 
-    @staticmethod
-    def check_numpy_data(np_example: NumpyBatch) -> None:
-        """Check that the numpy "batch" is sane."""
-        for batch_key, array in np_example.items():
-            assert np.isfinite(array).all(), f"{batch_key.name} has NaNs and/or infinities!"
-
     def _get_time_slice(
         self, xr_data: xr.DataArray, t0_datetime_utc: datetime.datetime
     ) -> xr.DataArray:
@@ -115,8 +109,8 @@ class RawDataSource:
         The returned Dataset does not include an `example` dimension.
 
         This method should sanity check that the example is the correct duration. But shouldn't
-        check for NaNs (because subsequent processing might remove NaNs. `check_xarray_data` and
-        `check_numpy_data` should both check for NaNs.
+        check for NaNs (because subsequent processing might remove NaNs.
+        `check_xarray_data` checks for NaNs.
         """
         return xr_data
 
@@ -126,8 +120,8 @@ class RawDataSource:
         The returned Dataset does not include an `example` dimension.
 
         This method should sanity check that the example is the correct spatial shape. But shouldn't
-        check for NaNs (because subsequent processing might remove NaNs. `check_xarray_data` and
-        `check_numpy_data` should both check for NaNs.
+        check for NaNs (because subsequent processing might remove NaNs.
+        `check_xarray_data` checks for NaNs.
         """
         return xr_data
 
@@ -216,6 +210,9 @@ class TimeseriesDataSource:
 
         Override in DataSources which can only fit a subset of the dataset into RAM.
         """
+        # Delete any existing data in RAM while we're loading new data.
+        self._data_in_ram = None
+
         # Convert t0_time_periods back into the complete time periods we want to load:
         time_periods = deepcopy(subset_of_contiguous_t0_time_periods)
         del subset_of_contiguous_t0_time_periods

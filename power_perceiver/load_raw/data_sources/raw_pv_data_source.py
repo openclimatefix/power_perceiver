@@ -139,6 +139,10 @@ class RawPVDataSource(
 
         # Drop any PV systems which have NaN readings at every timestep in the example:
         selected_data = selected_data.dropna(dim="pv_system_id", how="all")
+        assert len(selected_data.pv_system_id) > 0, (
+            f"No PV systems available! {center_osgb.x=}; {center_osgb.y=};"
+            f" {left=}; {right=}; {top=}; {bottom=}"
+        )
         # Interpolate forwards to fill NaNs which follow finite data:
         selected_data = selected_data.interpolate_na(dim="time_utc")
         # Finally, fill any remaining NaNs with zeros. This assumes - probably incorrectly -
