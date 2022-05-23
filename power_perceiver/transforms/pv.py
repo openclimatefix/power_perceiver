@@ -42,15 +42,22 @@ class PVPowerRollingWindow:
     min_periods: Optional[int] = 2
     center: bool = True
     win_type: Optional[str] = None
+    expect_dataset: bool = True
 
-    def __call__(self, dataset: xr.Dataset) -> xr.Dataset:
-        dataset["power_w"] = (
-            dataset["power_w"]
-            .rolling(
-                dim={"time": self.window},
-                min_periods=self.min_periods,
-                center=self.center,
-            )
-            .mean()
-        )
-        return dataset
+    def __call__(self, xr_data: Union[xr.Dataset, xr.DataArray]) -> Union[xr.Dataset, xr.DataArray]:
+        if self.expect_dataset:
+            data_to_resample = xr_data["power_w"]
+        else:
+            data_to_resample = xr_data
+
+        resampled = data_to_resample.rolling(
+            dim={"time_utc": self.window},
+            min_periods=self.min_periods,
+            center=self.center,
+        ).mean()
+
+        if self.expect_dataset:
+            xr_data["power_w"] = resampled
+            return xr_data
+        else:
+            return resampled

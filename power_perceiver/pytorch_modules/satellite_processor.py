@@ -15,26 +15,21 @@ class HRVSatelliteProcessor(nn.Module):
     def __post_init__(self):
         super().__init__()
 
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
+    def forward(self, x: dict[BatchKey, torch.Tensor], hrvsatellite: torch.Tensor) -> torch.Tensor:
         """Returns a byte array ready for Perceiver.
 
         Args:
             x: A batch with at least these BatchKeys:
-                hrvsatellite shape: (batch_size, channels, y, x, n_pixels_per_patch)
                 hrvsatellite_y_osgb_fourier
                 hrvsatellite_x_osgb_fourier
                 hrvsatellite_surface_height
                 solar_azimuth
                 solar_elevation
+            hrvsatellite: shape (batch_size, y, x)  (timesteps have been folded into batch_size)
 
         Returns:
             tensor of shape (example, (y * x), (time * feature)).
         """
-        # Ignore the "channels" dimension because HRV is just a single channel:
-        # (Remember that we assume there is no `time` dimension, and that all timesteps
-        # are reshaped as examples).
-        hrvsatellite = x[BatchKey.hrvsatellite][:, 0]
-
         PATCH_SIZE = 4
 
         # Patch the hrvsatellite

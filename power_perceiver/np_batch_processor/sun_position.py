@@ -23,8 +23,6 @@ class SunPosition:
     from the Zarr! Hence we need this when training directly from Zarr!
     """
 
-    t0_timestep_idx: int = 6
-
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         """Sets `BatchKey.solar_azimuth_at_t0` and `BatchKey.solar_elevation_at_t0`."""
         y_osgb = np_batch[BatchKey.hrvsatellite_y_osgb]  # example, y, x
@@ -36,16 +34,15 @@ class SunPosition:
         x_centre_idx = int(y_osgb.shape[2] // 2)
         y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
         x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
-        time_utc_t0 = time_utc[:, self.t0_timestep_idx]  # Shape: (example,)
 
-        # Convert to the units that pvlib expects: lat, lon and pd.Timestamp.
+        # Convert to the units that pvlib expects: lat, lon.
         lats, lons = osgb_to_lat_lon(x=x_osgb_centre, y=y_osgb_centre)
-        datetimes = pd.to_datetime(time_utc_t0, unit="s")
 
         # Loop round each example to get the Sun's elevation and azimuth:
-        azimuth = np.full_like(y_osgb_centre, fill_value=np.NaN)
-        elevation = np.full_like(y_osgb_centre, fill_value=np.NaN)
-        for i, (lat, lon, dt) in enumerate(zip(lats, lons, datetimes)):
+        azimuth = np.full_like(time_utc, fill_value=np.NaN)
+        elevation = np.full_like(time_utc, fill_value=np.NaN)
+        for i, (lat, lon, dt) in enumerate(zip(lats, lons, time_utc)):
+            dt = pd.to_datetime(dt, unit="s")
             dt = pd.DatetimeIndex([dt])  # pvlib expects a `pd.DatetimeIndex`.
             solpos = pvlib.solarposition.get_solarposition(
                 time=dt,
@@ -57,7 +54,6 @@ class SunPosition:
                 # nrel_c is probably fastest but requires C code to be manually compiled:
                 # https://midcdmz.nrel.gov/spa/
             )
-            solpos = solpos.iloc[0]
             azimuth[i] = solpos["azimuth"]
             elevation[i] = solpos["elevation"]
 
@@ -66,6 +62,6 @@ class SunPosition:
         elevation = (elevation - ELEVATION_MEAN) / ELEVATION_STD
 
         # Store.
-        np_batch[BatchKey.solar_azimuth_at_t0] = azimuth
-        np_batch[BatchKey.solar_elevation_at_t0] = elevation
+        np_batch[BatchKey.solar_azimuth] = azimuth
+        np_batch[BatchKey.solar_elevation] = elevation
         return np_batch

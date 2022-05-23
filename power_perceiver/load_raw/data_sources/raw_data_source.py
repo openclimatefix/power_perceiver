@@ -301,13 +301,13 @@ class TimeseriesDataSource:
         self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
     ) -> pd.Timestamp:
         start_dt = pd.Timestamp(t0_datetime_utc) - np.timedelta64(self.history_duration)
-        return start_dt.floor(self.sample_period_duration)
+        return start_dt.ceil(self.sample_period_duration)
 
     def _get_end_dt_rounded(
         self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
     ) -> pd.Timestamp:
         end_dt = pd.Timestamp(t0_datetime_utc) + np.timedelta64(self.forecast_duration)
-        return end_dt.floor(self.sample_period_duration)
+        return end_dt.ceil(self.sample_period_duration)
 
 
 @dataclass(kw_only=True)

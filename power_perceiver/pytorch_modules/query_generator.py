@@ -143,6 +143,7 @@ class GSPQueryGenerator(nn.Module):
         # gsp_{y,x}_osgb_fourier starts as shape (example, 1, fourier_features).
         y_fourier = x[BatchKey.gsp_y_osgb_fourier][:, 0]  # (example, fourier_features)
         x_fourier = x[BatchKey.gsp_x_osgb_fourier][:, 0]
+        n_original_examples = y_fourier.shape[0]
 
         gsp_id = x[BatchKey.gsp_id]  # Shape: (example,)
         gsp_id_embedding = self.gsp_id_embedding(gsp_id)
@@ -163,12 +164,12 @@ class GSPQueryGenerator(nn.Module):
         assert not torch.isnan(gsp_query).any()
 
         if for_satellite_transformer:
-            time_fourier = x[BatchKey.gsp_5_min_time_utc_fourier]  # (example, n_fourier_features)
-            assert_num_dims(time_fourier, 2)
-            time_fourier = einops.rearrange(time_fourier, "example features -> example 1 features")
             # There might be NaNs in time_fourier.
             # NaNs will be masked in `SatelliteTransformer.forward`.
-            n_repeats = int(time_fourier.shape[0] / y_fourier.shape[0])
+            n_new_examples = x[BatchKey.solar_azimuth].shape[
+                0
+            ]  # solar_azimuth is reshaped upstream.
+            n_repeats = int(n_new_examples / n_original_examples)
             gsp_query = torch.repeat_interleave(gsp_query, repeats=n_repeats, dim=0)
         else:
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
@@ -181,6 +182,6 @@ class GSPQueryGenerator(nn.Module):
                 "example 1 features -> example time features",
                 time=n_timesteps,
             )
-
         gsp_query = torch.concat((gsp_query, time_fourier), dim=2)
+
         return gsp_query

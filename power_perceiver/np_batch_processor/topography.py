@@ -205,10 +205,6 @@ def _get_surface_height_for_satellite(
             ),
         )
 
-        msg = "`surface_height_for_example` has no data! " + msg
-        assert len(surface_height_for_example.y) > 0, msg
-        assert len(surface_height_for_example.x) > 0, msg
-
         # Align by coordinates. This will result in lots of NaNs in the surface height data:
         aligned = xr.combine_by_coords(
             (surface_height_for_example, satellite_example), join="outer"
@@ -223,5 +219,7 @@ def _get_surface_height_for_satellite(
         aligned = xr.combine_by_coords((surface_height_for_example, satellite_example), join="left")
 
         surface_height_for_batch[example_idx] = aligned["surface_height"].values
+
+    assert np.isfinite(surface_height_for_batch).all()
 
     return surface_height_for_batch
