@@ -92,7 +92,7 @@ def load_topo_data(filename: str) -> xr.DataArray:
     # Use our standard naming:
     topo = topo.rename({"x": "x_osgb", "y": "y_osgb"})
 
-    # Select just the UK:
+    # Select Western Europe:
     topo = topo.sel(x_osgb=slice(-300_000, 1_500_000), y_osgb=slice(1_300_000, -800_000))
 
     return topo
@@ -187,19 +187,27 @@ def _get_surface_height_for_satellite(
     surface_height_for_batch = np.full_like(satellite.values, fill_value=np.NaN)
     for example_idx in range(num_examples):
         satellite_example = satellite.sel(example=example_idx)
+        msg = "Satellite imagery must start in the top-left!"
+        assert satellite_example.y_geostationary[0] > satellite_example.y_geostationary[-1], msg
+        assert satellite_example.x_geostationary[0] < satellite_example.x_geostationary[-1], msg
+
         satellite_example = satellite_example.rename(
             {"y_geostationary": "y", "x_geostationary": "x"}
         ).rename("sat")
         surface_height_for_example = surface_height.sel(
             y=slice(
-                satellite_example.y[-1],
                 satellite_example.y[0],
+                satellite_example.y[-1],
             ),
             x=slice(
                 satellite_example.x[0],
                 satellite_example.x[-1],
             ),
         )
+
+        msg = "`surface_height_for_example` has no data! " + msg
+        assert len(surface_height_for_example.y) > 0, msg
+        assert len(surface_height_for_example.x) > 0, msg
 
         # Align by coordinates. This will result in lots of NaNs in the surface height data:
         aligned = xr.combine_by_coords(
