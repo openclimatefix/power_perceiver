@@ -117,16 +117,6 @@ class RawPVDataSource(
         top = center_osgb.y + half_roi_height_meters
         bottom = center_osgb.y - half_roi_height_meters
 
-        # Sanity check!
-        min_x_osgb = xr_data.x_osgb.min()
-        max_x_osgb = xr_data.x_osgb.max()
-        min_y_osgb = xr_data.y_osgb.min()
-        max_y_osgb = xr_data.y_osgb.max()
-        assert left >= min_x_osgb, f"{left=} must be >= {min_x_osgb=}"
-        assert right <= max_x_osgb, f"{right=} must be <= {max_x_osgb=}"
-        assert top <= max_y_osgb, f"{top=} must be <= {max_y_osgb=}"
-        assert bottom >= min_y_osgb, f"{bottom=} must be >= {min_y_osgb=}"
-
         # Select data in the region of interest:
         pv_system_id_mask = (
             (left <= xr_data.x_osgb)
@@ -139,10 +129,16 @@ class RawPVDataSource(
 
         # Drop any PV systems which have NaN readings at every timestep in the example:
         selected_data = selected_data.dropna(dim="pv_system_id", how="all")
-        assert len(selected_data.pv_system_id) > 0, (
-            f"No PV systems available! {center_osgb.x=}; {center_osgb.y=};"
-            f" {left=}; {right=}; {top=}; {bottom=}"
-        )
+
+        # If there are no PV systems then return empty_example:
+        if len(selected_data.pv_system_id) == 0:
+            _log.warning(
+                f"No PV systems available! {center_osgb.x=}; {center_osgb.y=};"
+                f" {left=}; {right=}; {top=}; {bottom=}"
+            )
+            self._allow_nans = True
+            return self.empty_example
+
         # Interpolate forwards to fill NaNs which follow finite data:
         selected_data = selected_data.interpolate_na(dim="time_utc")
         # Finally, fill any remaining NaNs with zeros. This assumes - probably incorrectly -

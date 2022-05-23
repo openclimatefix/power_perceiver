@@ -77,6 +77,7 @@ class RawDataSource:
 
         The returned Dataset must not include an `example` dimension.
         """
+        self._allow_nans = False
         xr_data = self.data_in_ram
         xr_data = self._get_time_slice(xr_data, t0_datetime_utc=t0_datetime_utc)
         xr_data = self._get_spatial_slice(xr_data, center_osgb=center_osgb)
@@ -91,7 +92,8 @@ class RawDataSource:
         return xr_data
 
     def check_xarray_data(self, xr_data: xr.DataArray):  # noqa: D102
-        assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
+        if not self._allow_nans:
+            assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:

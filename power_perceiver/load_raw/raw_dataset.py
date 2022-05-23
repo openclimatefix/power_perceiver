@@ -61,10 +61,8 @@ class RawDataset(torch.utils.data.IterableDataset):
             If `min_duration_to_load_per_epoch` is not `None`, then `ds_combo_for_subsetting` must
             not be `None`.
         load_subset_every_epoch: Set to False for use as a validation dataset.
-        n_examples_per_epoch:
-        xr_batch_processors: Functions which takes an XarrayBatch, and processes
-            *across* modalities, and returns the processed XarrayBatch. Note that xarray
-            processing *within* a modality should be done in `DataSource.transforms`.
+        n_batches_per_epoch:
+        n_examples_per_batch:
         np_batch_processors: Functions which takes a NumpyBatch, and processes
             *across* modalities, and returns the processed NumpyBatch. Note that numpy
             processing *within* a modality should be done in `DataSource.to_numpy`.
@@ -83,8 +81,8 @@ class RawDataset(torch.utils.data.IterableDataset):
     probability_of_each_combo: Optional[dict[str, Number]] = None
     min_duration_to_load_per_epoch: Optional[datetime.timedelta] = datetime.timedelta(hours=48 * 12)
     load_subset_every_epoch: bool = True
-    n_examples_per_epoch: int = 1024 * 32
-    xr_batch_processors: Optional[Sequence[Callable]] = None
+    n_batches_per_epoch: int = 1024
+    n_examples_per_batch: int = 32
     np_batch_processors: Optional[Sequence[Callable]] = None
     t0_freq: str = "5T"
 
@@ -99,7 +97,7 @@ class RawDataset(torch.utils.data.IterableDataset):
             assert self.data_source_combos.keys() == self.probability_of_each_combo.keys()
         if self.min_duration_to_load_per_epoch is not None:
             assert self.min_duration_to_load_per_epoch > pd.Timedelta(self.t0_freq)
-        assert self.n_examples_per_epoch > 0
+        assert self.n_batches_per_epoch > 0
 
     def per_worker_init(self, worker_id: int = 0) -> None:
         """Called by worker_init_fn on each copy of this dataset after the
@@ -134,8 +132,8 @@ class RawDataset(torch.utils.data.IterableDataset):
     def __iter__(self) -> Iterator[NumpyBatch]:  # noqa: D105
         if self.load_subset_every_epoch or not self._t0_datetimes_per_combo_for_epoch:
             self._set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram()
-        for _ in range(self.n_examples_per_epoch):
-            yield self._get_example()
+        for _ in range(self.n_batches_per_epoch):
+            yield self._get_np_batch()
 
     def _set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram(self):
         # Compute subset of contiguous t0 time periods for this epoch, and ask each unique
@@ -192,27 +190,34 @@ class RawDataset(torch.utils.data.IterableDataset):
         )
         return pd.DataFrame(random_t0_periods).sort_values("start_dt")
 
-    def _get_example(self) -> NumpyBatch:
-        chosen_combo_name = self._randomly_choose_combo_name()
+    def _get_np_batch(self) -> NumpyBatch:
+        np_examples = [self._get_np_example() for _ in range(self.n_examples_per_batch)]
+        np_batch: NumpyBatch = {}
+        batch_keys = np_examples[0]  # Batch keys should be the same across all examples.
+        for batch_key in batch_keys:
+            examples_for_key = [np_example[batch_key] for np_example in np_examples]
+            np_batch[batch_key] = np.stack(examples_for_key)
+        return self._process_np_batch(np_batch)
 
-        # Randomly sample t0 and location:
+    def _get_np_example(self) -> NumpyBatch:
+        xr_example = self._get_xr_example()
+        return self._xarray_to_numpy_example(xr_example)
+
+    def _get_xr_example(self) -> XarrayBatch:
+        chosen_combo_name = self._randomly_choose_combo_name()
         t0_datetime_utc = self.rng.choice(self._t0_datetimes_per_combo_for_epoch[chosen_combo_name])
         location_osgb = self._randomly_choose_osgb_location(chosen_combo_name)
 
         try:
-            xr_example = self._get_xarray_example(
+            xr_example = self._get_specific_xr_example(
                 chosen_combo_name=chosen_combo_name,
                 t0_datetime_utc=t0_datetime_utc,
                 location_osgb=location_osgb,
             )
-            xr_example = self._process_xr_example(xr_example)
-            np_example = self._xarray_to_numpy_example_and_sanity_check(xr_example)
-            del xr_example
-            np_example = self._process_np_example(np_example)
         except Exception as e:
             raise e.__class__(f"{chosen_combo_name=}; {t0_datetime_utc=}; {location_osgb=}") from e
 
-        return np_example
+        return xr_example
 
     def _randomly_choose_combo_name(self) -> str:
         """Pick a random ds_combo_name using the probabilities."""
@@ -231,7 +236,7 @@ class RawDataset(torch.utils.data.IterableDataset):
         data_source_which_selects_location = data_source_combo[0]
         return data_source_which_selects_location.get_osgb_location_for_example()
 
-    def _get_xarray_example(
+    def _get_specific_xr_example(
         self,
         chosen_combo_name: str,
         t0_datetime_utc: datetime.datetime,
@@ -239,50 +244,42 @@ class RawDataset(torch.utils.data.IterableDataset):
     ) -> XarrayBatch:
         # Loop through each data source in the combo:
         chosen_data_source_combo = self.data_source_combos[chosen_combo_name]
-        xr_batch: XarrayBatch = {}
+        xr_example: XarrayBatch = {}
         for data_source in self._unique_data_sources:
             if any([data_source is ds for ds in chosen_data_source_combo]):
-                xr_batch[data_source.__class__] = data_source.get_example(
+                xr_example[data_source.__class__] = data_source.get_example(
                     t0_datetime_utc, location_osgb
                 )
             else:
                 try:
-                    xr_batch[data_source.__class__] = data_source.empty_example
+                    xr_example[data_source.__class__] = data_source.empty_example
                 except AttributeError:
                     # This is probably a duplicate data_source. Ignore.
                     pass
 
-        return xr_batch
-
-    def _process_xr_example(self, xr_example: XarrayBatch) -> XarrayBatch:
-        """If necessary, do any processing which needs to be done across modalities,
-        on the xr.Datasets."""
-        if self.xr_batch_processors:
-            for xr_batch_processor in self.xr_batch_processors:
-                xr_example = xr_batch_processor(xr_example)
         return xr_example
 
-    def _xarray_to_numpy_example_and_sanity_check(self, xr_example: XarrayBatch) -> NumpyBatch:
+    def _xarray_to_numpy_example(self, xr_example: XarrayBatch) -> NumpyBatch:
         """Convert from xarray Datasets to numpy."""
-        np_batch: NumpyBatch = {}
+        np_example: NumpyBatch = {}
         for data_loader_class, xr_dataset in xr_example.items():
             if data_loader_class == BatchKey.requested_timesteps:
                 # `ReduceNumTimesteps` introduces a `requested_timesteps` key,
                 # whose value is a np.ndarray.
                 requested_timesteps = xr_dataset
-                np_batch[BatchKey.requested_timesteps] = requested_timesteps
+                np_example[BatchKey.requested_timesteps] = requested_timesteps
             else:
                 np_data_for_data_source = data_loader_class.to_numpy(xr_dataset)
-                np_batch.update(np_data_for_data_source)
-        return np_batch
+                np_example.update(np_data_for_data_source)
+        return np_example
 
-    def _process_np_example(self, np_example: NumpyBatch) -> NumpyBatch:
+    def _process_np_batch(self, np_batch: NumpyBatch) -> NumpyBatch:
         """If necessary, do any processing which needs to be done across modalities,
         on the NumpyBatch."""
         if self.np_batch_processors:
             for np_batch_processor in self.np_batch_processors:
-                np_example = np_batch_processor(np_example)
-        return np_example
+                np_batch = np_batch_processor(np_batch)
+        return np_batch
 
     @property
     def _unique_data_sources(self) -> list[RawDataSource]:
