@@ -5,7 +5,7 @@ import pytest
 import xarray as xr
 from conftest import PV_METADATA_FILENAME, PV_POWER_FILENAME
 
-from power_perceiver.consts import Location
+from power_perceiver.consts import BatchKey, Location
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
     RawPVDataSource,
     _load_pv_metadata,
@@ -41,6 +41,7 @@ def test_load_pv_power_watts_and_capacity_wp():  # noqa: D103
 def test_init(pv_data_source: RawPVDataSource):  # noqa: D103
     pv_power_normalised = pv_data_source._data_in_ram / pv_data_source._data_in_ram.capacity_wp
     assert pv_power_normalised.max().max() <= 1
+    assert pv_power_normalised.dtype == np.float32
 
 
 @pytest.mark.parametrize("n_pv_systems_per_example", [4, 7, 8, 16])
@@ -79,10 +80,12 @@ def _get_example(pv_data_source: RawPVDataSource) -> xr.DataArray:  # noqa: D103
 def test_get_example_and_empty_example(pv_data_source: RawPVDataSource) -> None:  # noqa: D103
     example = _get_example(pv_data_source)
     assert example.shape == pv_data_source.empty_example.shape
+    assert example.dtype == np.float32
 
 
 def test_to_numpy(pv_data_source: RawPVDataSource) -> None:  # noqa: D103
     xr_example = _get_example(pv_data_source)
     np_example = RawPVDataSource.to_numpy(xr_example)
+    assert np_example[BatchKey.pv].dtype == np.float32
     for batch_key, array in np_example.items():
         assert np.isfinite(array).all(), f"{batch_key=} has non-finite values!"

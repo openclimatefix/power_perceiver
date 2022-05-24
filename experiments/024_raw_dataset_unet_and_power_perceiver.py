@@ -508,7 +508,9 @@ class FullModel(pl.LightningModule):
         try:
             time_attn_out = self.time_transformer(time_attn_in)
         except:
-            import ipdb; ipdb.set_trace()  # TODO: REMOVE!
+            import ipdb
+
+            ipdb.set_trace()  # TODO: REMOVE!
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
@@ -546,7 +548,7 @@ class FullModel(pl.LightningModule):
         predicted_pv_power = network_out["predicted_pv_power"]
         actual_pv_power = batch[BatchKey.pv]
         predicted_gsp_power = network_out["predicted_gsp_power"]
-        actual_gsp_power = batch[BatchKey.gsp]
+        actual_gsp_power = batch[BatchKey.gsp].squeeze()
 
         # Mask predicted and actual PV and GSP (some examples don't have PV and/or GSP)
         # For more discussion of how to mask losses in pytorch, see:

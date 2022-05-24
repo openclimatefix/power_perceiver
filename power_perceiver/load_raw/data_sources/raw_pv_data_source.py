@@ -93,7 +93,7 @@ class RawPVDataSource(
         pv_system_row_number = pv_system_row_number.loc[pv_power_watts.columns]
 
         self._data_in_ram = _put_pv_data_into_an_xr_dataarray(
-            pv_power_watts=pv_power_watts,
+            pv_power_watts=pv_power_watts.astype(np.float32),
             y_osgb=pv_metadata.y_osgb.astype(np.float32),
             x_osgb=pv_metadata.x_osgb.astype(np.float32),
             capacity_wp=pv_capacity_wp,
@@ -408,7 +408,7 @@ def _put_pv_data_into_an_xr_dataarray(
         assert np.array_equal(series.index, pv_system_ids, equal_nan=True)
 
     data_array = xr.DataArray(
-        data=pv_power_watts.values.astype(np.float32),
+        data=pv_power_watts.values,
         coords=(("time_utc", pv_power_watts.index), ("pv_system_id", pv_power_watts.columns)),
         name="pv_power_watts",
     )
