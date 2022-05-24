@@ -555,8 +555,8 @@ class FullModel(pl.LightningModule):
         pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
 
         pv_nmae_loss = F.l1_loss(
-            predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask],
-            actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask],
+            predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
+            actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
         )
         self.log(f"{tag}/pv_mse", pv_mse_loss)
         self.log(f"{tag}/pv_nmae", pv_nmae_loss)
@@ -564,8 +564,8 @@ class FullModel(pl.LightningModule):
         # GSP power loss:
         gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
         gsp_nmae_loss = F.l1_loss(
-            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask],
-            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask],
+            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
         )
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
         self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
