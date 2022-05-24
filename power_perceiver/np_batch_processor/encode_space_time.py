@@ -41,7 +41,7 @@ class EncodeSpaceTime:
     lengths: dict[str, Number] = field(
         # Using lambda with default factory when using a mutable default value adapted from:
         # https://stackoverflow.com/a/52064202/732596
-        default_factory=lambda: dict(x_osgb=120_000, y_osgb=200_000, time_utc=60 * 5 * 31)
+        default_factory=lambda: dict(x_osgb=480_000, y_osgb=400_000, time_utc=60 * 5 * 37)
     )
     n_fourier_features_per_dim: int = 8
 

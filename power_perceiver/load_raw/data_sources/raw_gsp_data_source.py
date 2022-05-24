@@ -156,7 +156,7 @@ class RawGSPDataSource(
         ):
             values = xr_data[dataset_key].values
             # Expand dims so EncodeSpaceTime works!
-            example[batch_key] = np.expand_dims(values, axis=1)
+            example[batch_key] = values  # np.expand_dims(values, axis=1)
 
         return example
 

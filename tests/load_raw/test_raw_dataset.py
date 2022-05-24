@@ -1,7 +1,12 @@
 from copy import deepcopy
 
 import pytest
-from conftest import SAT_HEIGHT_IN_PIXELS, SAT_N_EXPECTED_TIMESTEPS, SAT_WIDTH_IN_PIXELS
+from conftest import (
+    N_EXAMPLES_PER_BATCH,
+    SAT_HEIGHT_IN_PIXELS,
+    SAT_N_EXPECTED_TIMESTEPS,
+    SAT_WIDTH_IN_PIXELS,
+)
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_raw.raw_dataset import RawDataset
@@ -31,13 +36,43 @@ def test_iter(raw_dataset_str: str, request):
     for key, expected_shape in (
         (
             BatchKey.hrvsatellite,
-            (SAT_N_EXPECTED_TIMESTEPS, 1, SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS),
+            (
+                N_EXAMPLES_PER_BATCH,
+                SAT_N_EXPECTED_TIMESTEPS,
+                1,
+                SAT_HEIGHT_IN_PIXELS,
+                SAT_WIDTH_IN_PIXELS,
+            ),
         ),
-        (BatchKey.hrvsatellite_time_utc, (SAT_N_EXPECTED_TIMESTEPS,)),
-        (BatchKey.hrvsatellite_y_osgb, (SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS)),
-        (BatchKey.hrvsatellite_x_osgb, (SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS)),
-        (BatchKey.hrvsatellite_y_geostationary, (SAT_HEIGHT_IN_PIXELS,)),
-        (BatchKey.hrvsatellite_x_geostationary, (SAT_WIDTH_IN_PIXELS,)),
+        (
+            BatchKey.hrvsatellite_time_utc,
+            (
+                N_EXAMPLES_PER_BATCH,
+                SAT_N_EXPECTED_TIMESTEPS,
+            ),
+        ),
+        (
+            BatchKey.hrvsatellite_y_osgb,
+            (N_EXAMPLES_PER_BATCH, SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS),
+        ),
+        (
+            BatchKey.hrvsatellite_x_osgb,
+            (N_EXAMPLES_PER_BATCH, SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS),
+        ),
+        (
+            BatchKey.hrvsatellite_y_geostationary,
+            (
+                N_EXAMPLES_PER_BATCH,
+                SAT_HEIGHT_IN_PIXELS,
+            ),
+        ),
+        (
+            BatchKey.hrvsatellite_x_geostationary,
+            (
+                N_EXAMPLES_PER_BATCH,
+                SAT_WIDTH_IN_PIXELS,
+            ),
+        ),
     ):
         value = np_example[key]
         assert (

@@ -11,6 +11,7 @@ from power_perceiver.load_raw.raw_dataset import RawDataset
 SAT_HEIGHT_IN_PIXELS = 128
 SAT_WIDTH_IN_PIXELS = 256
 SAT_N_EXPECTED_TIMESTEPS = 37  # 12 steps of history + 1 for t0 + 24 of forecast
+N_EXAMPLES_PER_BATCH = 16
 
 # TODO: Use public data :)
 PV_METADATA_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv"
@@ -112,7 +113,7 @@ def raw_dataset_with_sat_only(sat_data_source: RawSatelliteDataSource) -> RawDat
         data_source_combos=dict(sat_only=(sat_data_source,)),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),
         n_batches_per_epoch=16,
-        n_examples_per_batch=16,
+        n_examples_per_batch=N_EXAMPLES_PER_BATCH,
     )
 
 
@@ -129,5 +130,5 @@ def raw_dataset_with_sat_only_and_gsp_pv_sat(
         ),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),
         n_batches_per_epoch=16,
-        n_examples_per_batch=16,
+        n_examples_per_batch=N_EXAMPLES_PER_BATCH,
     )

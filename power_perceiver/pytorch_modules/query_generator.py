@@ -142,7 +142,8 @@ class GSPQueryGenerator(nn.Module):
         """Create query for GSP PV forecasts.
 
         Args:
-            x: The batch.
+            x: The batch. Requires BatchKeys: gsp_y_osgb_fourier, gsp_x_osgb_fourier,
+                gsp_id, gsp_time_utc_fourier, solar_azimuth
             for_satellite_transformer: The query for the SatelliteTransformer uses 5-minutely
                 data. The query for the time_transformer uses 30-minutely data.
 
@@ -174,9 +175,8 @@ class GSPQueryGenerator(nn.Module):
         if for_satellite_transformer:
             # There might be NaNs in time_fourier.
             # NaNs will be masked in `SatelliteTransformer.forward`.
-            n_new_examples = x[BatchKey.solar_azimuth].shape[
-                0
-            ]  # solar_azimuth is reshaped upstream.
+            # solar_azimuth is reshaped upstream.
+            n_new_examples = x[BatchKey.solar_azimuth].shape[0]
             n_repeats = int(n_new_examples / n_original_examples)
             gsp_query = torch.repeat_interleave(gsp_query, repeats=n_repeats, dim=0)
         else:
