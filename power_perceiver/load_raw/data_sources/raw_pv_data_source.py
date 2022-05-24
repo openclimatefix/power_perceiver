@@ -132,10 +132,6 @@ class RawPVDataSource(
 
         # If there are no PV systems then return empty_example:
         if len(selected_data.pv_system_id) == 0:
-            _log.warning(
-                f"No PV systems available! {center_osgb.x=}; {center_osgb.y=};"
-                f" {left=}; {right=}; {top=}; {bottom=}"
-            )
             self._allow_nans = True
             return self.empty_example
 

@@ -73,7 +73,7 @@ T0_IDX_5_MIN = NUM_HIST_SAT_IMAGES - 1
 torch.manual_seed(42)
 
 
-def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
+def get_dataloader(start_date, end_date, num_workers) -> torch.utils.data.DataLoader:
 
     data_source_kwargs = dict(
         start_date=start_date,
@@ -127,13 +127,14 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),  # TODO: INCREASE!
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 32),
         n_examples_per_batch=8,
         n_batches_per_epoch=1024,
         np_batch_processors=np_batch_processors,
     )
 
-    raw_dataset.per_worker_init(worker_id=0)  # TODO: REMOVE!
+    if not num_workers:
+        raw_dataset.per_worker_init(worker_id=0)
 
     def _worker_init_fn(worker_id: int):
         worker_info = torch.utils.data.get_worker_info()
@@ -143,7 +144,7 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
     dataloader = torch.utils.data.DataLoader(
         raw_dataset,
         batch_size=None,
-        num_workers=0,
+        num_workers=num_workers,
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
     )
@@ -151,8 +152,8 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
     return dataloader
 
 
-train_dataloader = get_dataloader(start_date="2020-01-01", end_date="2020-12-31")
-val_dataloader = get_dataloader(start_date="2021-01-01", end_date="2021-12-31")
+train_dataloader = get_dataloader(start_date="2020-01-01", end_date="2020-12-31", num_workers=4)
+val_dataloader = get_dataloader(start_date="2021-01-01", end_date="2021-12-31", num_workers=0)
 
 
 # ---------------------------------- SatellitePredictor ----------------------------------
@@ -503,6 +504,8 @@ class FullModel(pl.LightningModule):
         # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
         # want to cheat and give the model the answer!), and contains the actual historical PV.
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
+        # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
+        # And use nan_to_num later in this function.
         historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1]
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
         # Now append a "marker" to indicate which timesteps are history:

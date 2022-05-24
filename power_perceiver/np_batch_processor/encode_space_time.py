@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass, field
 from numbers import Number
 
@@ -209,7 +210,11 @@ def _get_min_per_example(
 
     for modality_i, coord_data_array in enumerate(coords_for_dim_from_all_modalities.values()):
         coord_data_array = coord_data_array.reshape((batch_size, -1))
-        mins[:, modality_i] = np.nanmin(coord_data_array, axis=1)
+        with warnings.catch_warnings():
+            # We expect to encounter all-NaN slices (when a whole PV example is missing,
+            # for example.)
+            warnings.filterwarnings("ignore", "All-NaN slice encountered")
+            mins[:, modality_i] = np.nanmin(coord_data_array, axis=1)
 
     min_per_example = np.nanmin(mins, axis=1)
     assert min_per_example.shape[0] == batch_size
