@@ -176,7 +176,6 @@ class GSPQueryGenerator(nn.Module):
         else:
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
-            assert not torch.isnan(time_fourier).any()
             n_timesteps = time_fourier.shape[1]
             # Repeat the existing query over every timestep
             gsp_query = einops.repeat(
@@ -184,6 +183,6 @@ class GSPQueryGenerator(nn.Module):
                 "example 1 features -> example time features",
                 time=n_timesteps,
             )
-        gsp_query = torch.concat((gsp_query, time_fourier), dim=2)
+            gsp_query = torch.concat((gsp_query, time_fourier), dim=2)
 
         return gsp_query
