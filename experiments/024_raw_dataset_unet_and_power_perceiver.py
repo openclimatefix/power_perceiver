@@ -45,6 +45,7 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
+from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
 
 logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
@@ -449,12 +450,6 @@ class FullModel(pl.LightningModule):
         else:
             predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
-        # Select a subset of predicted images, if we're in training mode:
-        if self.num_timesteps_during_training and self.training:
-            forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
-            forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
-            predicted_sat = predicted_sat[:, forecast_timesteps]
-
         if self.stop_gradients_before_unet:
             predicted_sat = predicted_sat.detach()
 
@@ -462,6 +457,18 @@ class FullModel(pl.LightningModule):
             (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
         )
         assert hrvsatellite.isfinite().all()
+
+        # Select a subset of predicted images, if we're in training mode:
+        if self.num_timesteps_during_training and self.training:
+            # TODO!  Use xr_batch_processor.random_int_without_replacement
+            num_timesteps = x[BatchKey.hrvsatellite].shape[1]
+            random_timestep_indexes = random_int_without_replacement(
+                start=0,
+                stop=num_timesteps,
+                num=self.num_timesteps_during_training,
+            )
+            hrvsatellite = hrvsatellite[:, random_timestep_indexes]
+            # TODO: Also do the other modalities! PV, etc.
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"

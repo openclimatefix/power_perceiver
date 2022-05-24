@@ -47,18 +47,20 @@ class ReduceNumTimesteps:
         requested_timesteps = np.empty(num_total_requested_timesteps, dtype=np.int64)
         requested_timesteps[
             : self.num_requested_history_timesteps
-        ] = self._random_int_without_replacement(
+        ] = random_int_without_replacement(
             start=0,
             stop=self.num_history_timesteps_available,
             num=self.num_requested_history_timesteps,
+            rng=self.rng,
         )
 
         requested_timesteps[
             self.num_requested_history_timesteps :
-        ] = self._random_int_without_replacement(
+        ] = random_int_without_replacement(
             start=self.num_history_timesteps_available,
             stop=self.num_total_timesteps_available,
             num=self.num_requested_forecast_timesteps,
+            rng=self.rng,
         )
 
         if self.keys is None:
@@ -74,7 +76,12 @@ class ReduceNumTimesteps:
 
         return xr_batch
 
-    def _random_int_without_replacement(self, start: int, stop: int, num: int) -> np.ndarray:
-        # This seems to be the best way to get random ints *without* replacement:
-        ints = self.rng.choice(np.arange(start=start, stop=stop), size=num, replace=False)
-        return np.sort(ints)
+
+def random_int_without_replacement(
+    start: int, stop: int, num: int, rng: Optional[np.random.Generator] = None
+) -> np.ndarray:
+    """This seems to be the best way to get random ints *without* replacement"""
+    if rng is None:
+        rng = np.random.default_rng()
+    ints = rng.choice(np.arange(start=start, stop=stop), size=num, replace=False)
+    return np.sort(ints)
