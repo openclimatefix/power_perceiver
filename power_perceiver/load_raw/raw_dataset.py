@@ -165,7 +165,9 @@ class RawDataset(torch.utils.data.IterableDataset):
         data into RAM at the start of each epoch.
         """
         _log.info(f"Selecting a subset of time periods to load into RAM for {combo_name=}.")
-        assert self._all_t0_periods_per_combo
+        assert (
+            self._all_t0_periods_per_combo
+        ), "self._all_t0_periods_per_combo is empty! Have you forgotten to call per_worker_init?"
         all_t0_periods_for_combo = self._all_t0_periods_per_combo[combo_name]
 
         # Select random periods. We use a `while` loop instead of just doing

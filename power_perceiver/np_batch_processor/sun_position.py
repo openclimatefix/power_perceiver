@@ -41,8 +41,8 @@ class SunPosition:
         # Loop round each example to get the Sun's elevation and azimuth:
         azimuth = np.full_like(time_utc, fill_value=np.NaN)
         elevation = np.full_like(time_utc, fill_value=np.NaN)
-        for i, (lat, lon, dt) in enumerate(zip(lats, lons, time_utc)):
-            dt = pd.to_datetime(dt, unit="s")
+        for example_idx, (lat, lon) in enumerate(zip(lats, lons)):
+            dt = pd.to_datetime(time_utc[example_idx], unit="s")
             dt = pd.DatetimeIndex([dt])  # pvlib expects a `pd.DatetimeIndex`.
             solpos = pvlib.solarposition.get_solarposition(
                 time=dt,
@@ -54,12 +54,16 @@ class SunPosition:
                 # nrel_c is probably fastest but requires C code to be manually compiled:
                 # https://midcdmz.nrel.gov/spa/
             )
-            azimuth[i] = solpos["azimuth"]
-            elevation[i] = solpos["elevation"]
+            azimuth[example_idx] = solpos["azimuth"]
+            elevation[example_idx] = solpos["elevation"]
 
         # Normalise.
         azimuth = (azimuth - AZIMUTH_MEAN) / AZIMUTH_STD
         elevation = (elevation - ELEVATION_MEAN) / ELEVATION_STD
+
+        # Check
+        assert np.isfinite(azimuth).all()
+        assert np.isfinite(elevation).all()
 
         # Store.
         np_batch[BatchKey.solar_azimuth] = azimuth
