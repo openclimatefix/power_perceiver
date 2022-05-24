@@ -153,7 +153,7 @@ def get_dataloader(start_date, end_date, num_workers) -> torch.utils.data.DataLo
     return dataloader
 
 
-train_dataloader = get_dataloader(start_date="2020-01-01", end_date="2020-12-31", num_workers=4)
+train_dataloader = get_dataloader(start_date="2020-01-01", end_date="2020-12-31", num_workers=0)
 val_dataloader = get_dataloader(start_date="2021-01-01", end_date="2021-12-31", num_workers=0)
 
 
