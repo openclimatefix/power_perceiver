@@ -90,9 +90,6 @@ class HRVSatelliteProcessor(nn.Module):
         solar_elevation = _repeat_solar_feature_over_x_and_y(x[BatchKey.solar_elevation])
 
         # Concatenate spatial features and solar features onto satellite imagery:
-        import ipdb
-
-        ipdb.set_trace()
         byte_array = torch.concat(
             (
                 y_fourier,

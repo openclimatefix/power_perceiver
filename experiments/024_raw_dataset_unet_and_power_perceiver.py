@@ -452,6 +452,14 @@ class FullModel(pl.LightningModule):
         hrvsatellite = hrvsatellite[..., top:bottom, left:right]
         assert hrvsatellite.shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
         assert hrvsatellite.shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
+        for batch_key in (
+            BatchKey.hrvsatellite_y_osgb_fourier,
+            BatchKey.hrvsatellite_x_osgb_fourier,
+            BatchKey.hrvsatellite_surface_height,
+        ):
+            x[batch_key] = x[batch_key][..., top:bottom, left:right]
+            assert x[batch_key].shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
+            assert x[batch_key].shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
         sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
