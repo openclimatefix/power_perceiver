@@ -64,7 +64,8 @@ SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
 # PowerPerceiver options
 D_MODEL = 128
 N_HEADS = 16
-T0_IDX_5_MIN_TRAINING = T0_IDX_5_MIN_VALIDATION = NUM_HIST_SAT_IMAGES - 1
+T0_IDX_5_MIN = NUM_HIST_SAT_IMAGES - 1
+T0_IDX_5_MIN_TRAINING = T0_IDX_5_MIN_VALIDATION = T0_IDX_5_MIN
 
 
 torch.manual_seed(42)
@@ -218,10 +219,10 @@ class SatellitePredictor(pl.LightningModule):
             data = torch.concat((data, surface_height), dim=1)
 
         if self.use_sun_position:
-            azimuth = x[BatchKey.solar_azimuth_at_t0]
-            elevation = x[BatchKey.solar_elevation_at_t0]
-            sun_pos = torch.stack((azimuth, elevation), dim=1)  # Shape: (example, 2)
-            del azimuth, elevation
+            azimuth_at_t0 = x[BatchKey.solar_azimuth][:, NUM_HIST_SAT_IMAGES]
+            elevation_at_t0 = x[BatchKey.solar_elevation][:, NUM_HIST_SAT_IMAGES]
+            sun_pos = torch.stack((azimuth_at_t0, elevation_at_t0), dim=1)  # Shape: (example, 2)
+            del azimuth_at_t0, elevation_at_t0
             # Repeat over y and x:
             sun_pos = einops.repeat(sun_pos, "example chan -> example chan y x", y=height, x=width)
             data = torch.concat((data, sun_pos), dim=1)

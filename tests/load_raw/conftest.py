@@ -111,7 +111,8 @@ def raw_dataset_with_sat_only(sat_data_source: RawSatelliteDataSource) -> RawDat
     return RawDataset(
         data_source_combos=dict(sat_only=(sat_data_source,)),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),
-        n_examples_per_epoch=16,
+        n_batches_per_epoch=16,
+        n_examples_per_batch=16,
     )
 
 
@@ -127,5 +128,6 @@ def raw_dataset_with_sat_only_and_gsp_pv_sat(
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),
-        n_examples_per_epoch=16,
+        n_batches_per_epoch=16,
+        n_examples_per_batch=16,
     )
