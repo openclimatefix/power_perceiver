@@ -16,6 +16,8 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
 from torch import nn
 
+from power_perceiver.analysis.plot_satellite import LogSatellitePlots
+
 # from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
@@ -125,7 +127,7 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),  # TODO: INCREASE!
-        n_examples_per_batch=32,
+        n_examples_per_batch=24,
         n_batches_per_epoch=1024,
         np_batch_processors=np_batch_processors,
     )
@@ -681,6 +683,7 @@ trainer = pl.Trainer(
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
         LogTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
+        LogSatellitePlots(),
     ],
 )
 
