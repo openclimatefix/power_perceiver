@@ -469,9 +469,11 @@ class FullModel(pl.LightningModule):
 
         # Pass through the transformer!
         sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
-        assert sat_trans_out.isfinite().all()
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
+
+        assert pv_attn_out.isfinite().all()
+        assert gsp_attn_out.isfinite().all()
 
         # Concatenate actual historical PV on each PV attention output,
         # so the time_transformer doesn't have to put much effort into aligning
