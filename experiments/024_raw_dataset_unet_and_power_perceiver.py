@@ -4,7 +4,6 @@ import logging
 import socket
 from copy import deepcopy
 from dataclasses import dataclass
-from pathlib import Path
 
 import einops
 
@@ -67,28 +66,11 @@ D_MODEL = 128
 N_HEADS = 16
 T0_IDX_5_MIN_TRAINING = T0_IDX_5_MIN_VALIDATION = NUM_HIST_SAT_IMAGES - 1
 
-if socket.gethostname() == "donatello":
-    DATA_PATH = Path(
-        "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-        "prepared_ML_training_data/v15"
-    )
-else:
-    # On Google Cloud VM:
-    DATA_PATH = Path("/home/jack/data/v15")
-
-assert DATA_PATH.exists()
-
 
 torch.manual_seed(42)
 
 
 def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
-
-    np_batch_processors = [EncodeSpaceTime()]
-    if USE_SUN_POSITION:
-        np_batch_processors.append(SunPosition(t0_timestep_idx=NUM_HIST_SAT_IMAGES - 1))
-    if USE_TOPOGRAPHY:
-        np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
     data_source_kwargs = dict(
         start_date=start_date,
@@ -124,6 +106,12 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
         **data_source_kwargs,
     )
 
+    np_batch_processors = [EncodeSpaceTime()]
+    if USE_SUN_POSITION:
+        np_batch_processors.append(SunPosition())
+    if USE_TOPOGRAPHY:
+        np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
+
     raw_dataset = RawDataset(
         data_source_combos=dict(
             sat_only=(sat_data_source,),
@@ -132,11 +120,7 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
         min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 32),
         n_examples_per_batch=32,
         n_batches_per_epoch=1024,
-        np_batch_processors=[
-            EncodeSpaceTime(),
-            SunPosition(t0_timestep_idx=NUM_HIST_SAT_IMAGES - 1),
-            Topography("/home/jack/europe_dem_2km_osgb.tif"),
-        ],
+        np_batch_processors=np_batch_processors,
     )
 
     def _worker_init_fn(worker_id: int):
