@@ -127,7 +127,7 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),  # TODO: INCREASE!
-        n_examples_per_batch=16,
+        n_examples_per_batch=8,
         n_batches_per_epoch=1024,
         np_batch_processors=np_batch_processors,
     )
