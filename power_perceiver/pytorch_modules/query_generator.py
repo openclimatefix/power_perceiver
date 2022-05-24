@@ -154,13 +154,12 @@ class GSPQueryGenerator(nn.Module):
         x_fourier = x[BatchKey.gsp_x_osgb_fourier][:, 0]
         n_original_examples = y_fourier.shape[0]
 
-        gsp_id = x[BatchKey.gsp_id]  # Shape: (example,)
+        gsp_id = x[BatchKey.gsp_id].squeeze()  # Shape: (example,)
         gsp_id_embedding = self.gsp_id_embedding(torch.nan_to_num(gsp_id, nan=0).int())
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         gsp_marker = torch.ones_like(y_fourier)
 
-        import ipdb; ipdb.set_trace()  # TODO: Remove!
         gsp_query = torch.concat(
             (
                 gsp_marker,
