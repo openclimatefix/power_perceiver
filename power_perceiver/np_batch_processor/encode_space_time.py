@@ -121,6 +121,10 @@ def compute_fourier_features(
     radians_x_div_term = radians * div_term
     fourier_features[..., 1::2] = np.cos(radians_x_div_term)
     fourier_features[..., 0::2] = np.sin(radians_x_div_term)
+
+    # Sanity check:
+    if np.isfinite(array).all():
+        assert np.isfinite(fourier_features).all()
     return fourier_features
 
 
