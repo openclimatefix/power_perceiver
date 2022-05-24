@@ -346,6 +346,10 @@ class SatelliteTransformer(nn.Module):
         pv_query = torch.nan_to_num(pv_query, nan=0)
         gsp_query = torch.nan_to_num(gsp_query, nan=0)
 
+        assert pv_query.isfinite().all()
+        assert gsp_query.isfinite().all()
+        assert satellite_data.isfinite().all()
+
         # Prepare the attention input and run through the transformer_encoder:
         attn_input = torch.concat((pv_query, gsp_query, satellite_data), dim=1)
         attn_output = attn_input + self.transformer_encoder(attn_input, src_key_padding_mask=mask)
@@ -363,6 +367,9 @@ class SatelliteTransformer(nn.Module):
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
+
+        assert pv_attn_out.isfinite().all()
+        assert gsp_attn_out.isfinite().all()
 
         # Put back the original data! TODO: Remove this hack!
         x.update(original_x)
@@ -468,6 +475,7 @@ class FullModel(pl.LightningModule):
             assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
         # Pass through the transformer!
+        assert hrvsatellite.isfinite().all()
         sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
