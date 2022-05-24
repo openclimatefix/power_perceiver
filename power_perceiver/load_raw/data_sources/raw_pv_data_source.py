@@ -408,7 +408,7 @@ def _put_pv_data_into_an_xr_dataarray(
         assert np.array_equal(series.index, pv_system_ids, equal_nan=True)
 
     data_array = xr.DataArray(
-        data=pv_power_watts.values,
+        data=pv_power_watts.values.astype(np.float32),
         coords=(("time_utc", pv_power_watts.index), ("pv_system_id", pv_power_watts.columns)),
         name="pv_power_watts",
     )
