@@ -39,11 +39,11 @@ class SunPosition:
         lats, lons = osgb_to_lat_lon(x=x_osgb_centre, y=y_osgb_centre)
 
         # Loop round each example to get the Sun's elevation and azimuth:
-        azimuth = np.full_like(time_utc, fill_value=np.NaN)
-        elevation = np.full_like(time_utc, fill_value=np.NaN)
+        azimuth = np.full_like(time_utc, fill_value=np.NaN).astype(np.float32)
+        elevation = np.full_like(time_utc, fill_value=np.NaN).astype(np.float32)
         for example_idx, (lat, lon) in enumerate(zip(lats, lons)):
             dt = pd.to_datetime(time_utc[example_idx], unit="s")
-            dt = pd.DatetimeIndex([dt])  # pvlib expects a `pd.DatetimeIndex`.
+            dt = pd.DatetimeIndex(dt)  # pvlib expects a `pd.DatetimeIndex`.
             solpos = pvlib.solarposition.get_solarposition(
                 time=dt,
                 latitude=lat,
