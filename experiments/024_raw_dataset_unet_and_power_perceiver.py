@@ -3,14 +3,13 @@ import datetime
 import logging
 import socket
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import einops
 
 # ML imports
 import matplotlib.pyplot as plt
-import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -44,7 +43,6 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
-from power_perceiver.xr_batch_processor.reduce_num_timesteps import ReduceNumTimesteps
 
 logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
@@ -100,15 +98,18 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
     )
 
     sat_data_source = RawSatelliteDataSource(
-        zarr_path="gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr",
+        zarr_path=(
+            "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
+            "eumetsat_seviri_hrv_uk.zarr"
+        ),
         roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
         roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
         **data_source_kwargs,
     )
 
     pv_data_source = RawPVDataSource(
-        pv_power_filename=PV_POWER_FILENAME,
-        pv_metadata_filename=PV_METADATA_FILENAME,
+        pv_power_filename="~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf",
+        pv_metadata_filename="~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv",
         roi_height_meters=96_000,
         roi_width_meters=96_000,
         n_pv_systems_per_example=8,
@@ -242,72 +243,6 @@ class SatellitePredictor(pl.LightningModule):
         predicted_sat = self.satellite_predictor(data)
         return predicted_sat  # Shape: example, time, y, x
 
-    def training_step(
-        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
-    ) -> dict[str, object]:
-        return self.validation_step(batch, batch_idx)
-
-    def validation_step(
-        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
-    ) -> dict[str, object]:
-        tag = "train" if self.training else "validation"
-        network_out = self(batch)
-        predicted_sat = network_out
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
-        sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
-        self.log(f"{tag}/sat_mse", sat_mse_loss)
-
-        # MS-SSIM. Requires images to be de-normalised:
-        actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
-        predicted_sat_denorm = (predicted_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
-        ms_ssim_loss = 1 - ms_ssim(
-            predicted_sat_denorm,
-            actual_sat_denorm,
-            data_range=1023.0,
-            size_average=True,  # Return a scalar.
-            win_size=3,  # ClimateHack folks used win_size=3.
-        )
-        self.log(f"{tag}/ms_ssim", ms_ssim_loss)
-        self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
-
-        if self.crop:
-            # Loss on 33x33 central crop:
-            # The image has to be larger than 32x32 otherwise ms-ssim complains:
-            # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
-            CROP = 15
-            sat_mse_loss_crop = F.mse_loss(
-                predicted_sat[:, :, CROP:-CROP, CROP:-CROP],
-                actual_sat[:, :, CROP:-CROP, CROP:-CROP],
-            )
-            self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
-            ms_ssim_loss_crop = 1 - ms_ssim(
-                predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
-                actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
-                data_range=1023.0,
-                size_average=True,  # Return a scalar.
-                win_size=3,  # ClimateHack folks used win_size=3.
-            )
-            self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
-            self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
-            loss = ms_ssim_loss_crop + sat_mse_loss_crop
-        else:
-            loss = ms_ssim_loss + sat_mse_loss
-
-        return dict(
-            loss=loss,
-            predicted_sat=predicted_sat,
-            actual_sat=actual_sat,
-        )
-
-    def configure_optimizers(self):
-        optimizer = self.optimizer_class(self.parameters(), **self.optimizer_kwargs)
-
-        def _lr_lambda(epoch):
-            return 50 / (epoch + 50)
-
-        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
-        return [optimizer], [scheduler]
-
 
 # ---------------------------------- SatelliteTransformer ----------------------------------
 
@@ -411,7 +346,7 @@ class SatelliteTransformer(nn.Module):
             dim=1,
         )
 
-        # Now set NaN GSP queries to zero. They'll be ignored :)
+        # Now set NaN GSP queries to zero. That's fine, because NaNs are being masked.
         pv_query = torch.nan_to_num(pv_query, nan=0)
         gsp_query = torch.nan_to_num(gsp_query, nan=0)
 
@@ -453,6 +388,7 @@ class FullModel(pl.LightningModule):
     num_latent_transformer_encoders: int = 4
     cheat: bool = False  #: Use real satellite imagery of the future.
     stop_gradients_before_unet: bool = True
+    crop: bool = False  #: Compute the loss on a central crop of the imagery.
 
     def __post_init__(self):
         super().__init__()
@@ -510,6 +446,9 @@ class FullModel(pl.LightningModule):
             )
 
         # Crop satellite data:
+        # This is necessary because we want to give the "satellite predictor"
+        # a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
+        # coming, but we probably don't want to give that huge image to a full-self-attention model.
         left = (SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS // 2) - (
             SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
         )
@@ -522,14 +461,15 @@ class FullModel(pl.LightningModule):
         assert hrvsatellite.shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
         assert hrvsatellite.shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
-        # TODO: Continue on from here.
-        sat_trans_out = self.satellite_transformer(x, hrvsatellite)
+        sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
 
         # Concatenate actual historical PV on each PV attention output,
         # so the time_transformer doesn't have to put much effort into aligning
         # historical actual PV with predicted historical PV.
+        # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
+        # want to cheat and give the model the answer!), and contains the actual historical PV.
         t0_idx_5_min = T0_IDX_5_MIN_TRAINING if self.training else T0_IDX_5_MIN_VALIDATION
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
         historical_pv[:, : t0_idx_5_min + 1] = x[BatchKey.pv][:, : t0_idx_5_min + 1]
@@ -539,7 +479,7 @@ class FullModel(pl.LightningModule):
         hist_pv_marker[:, : t0_idx_5_min + 1] = 1
         pv_attn_out = torch.concat((pv_attn_out, historical_pv, hist_pv_marker), dim=3)
 
-        # Reshape pv and gsp attention outputs so each timestep an each pv system is
+        # Reshape pv and gsp attention outputs so each timestep and each pv system is
         # seen as a separate element into the `time transformer`.
         n_timesteps, n_pv_systems = pv_attn_out.shape[1:3]
         REARRANGE_STR = "example time n_pv_systems d_model -> example (time n_pv_systems) d_model"
@@ -549,10 +489,17 @@ class FullModel(pl.LightningModule):
         gsp_attn_out = maybe_pad_with_zeros(gsp_attn_out, requested_dim=self.d_model)
         n_pv_elements = pv_attn_out.shape[1]
 
-        # Get GSP query
+        # Get GSP query for the time_transformer:
+        # The query for the time_transformer is just for the half-hourly timesteps
+        # (not the half-hourly timesteps resampled to 5-minutely.)
         gsp_query_generator = self.satellite_transformer.gsp_query_generator
         gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
+
+        # Some whole examples don't include GSP (or PV) data.
+        # Here, we set those to zero so the model trains without NaN loss.
+        # Examples with NaN GSP power are masked in the objective function.
+        gsp_query = torch.nan_to_num(gsp_query, nan=0)
 
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = (pv_attn_out, gsp_attn_out, gsp_query)
@@ -577,6 +524,7 @@ class FullModel(pl.LightningModule):
         return dict(
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_systems)
             predicted_gsp_power=predicted_gsp_power,  # Shape: (example, time)
+            predicted_sat=predicted_sat,  # Shape: example, time, y, x
         )
 
     def training_step(
@@ -589,14 +537,23 @@ class FullModel(pl.LightningModule):
     ) -> dict[str, object]:
         tag = "train" if self.training else "validation"
         network_out = self(batch)
+
+        # PV & GSP LOSS ######################
         predicted_pv_power = network_out["predicted_pv_power"]
-        predicted_gsp_power = network_out["predicted_gsp_power"]
         actual_pv_power = batch[BatchKey.pv]
-        actual_pv_power = torch.where(
-            batch[BatchKey.pv_mask].unsqueeze(1),
-            actual_pv_power,
-            torch.tensor(0.0, dtype=actual_pv_power.dtype, device=actual_pv_power.device),
-        )
+        predicted_gsp_power = network_out["predicted_gsp_power"]
+        actual_gsp_power = batch[BatchKey.gsp]
+
+        # Mask predicted and actual PV and GSP (some examples don't have PV and/or GSP)
+        # For more discussion of how to mask losses in pytorch, see:
+        # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
+        pv_mask = actual_pv_power.isfinite()
+        gsp_mask = actual_gsp_power.isfinite()
+
+        predicted_pv_power = predicted_pv_power[pv_mask]
+        actual_pv_power = actual_pv_power[pv_mask]
+        predicted_gsp_power = predicted_gsp_power[gsp_mask]
+        actual_gsp_power = actual_gsp_power[gsp_mask]
 
         # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
@@ -609,7 +566,6 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/pv_nmae", pv_nmae_loss)
 
         # GSP power loss:
-        actual_gsp_power = batch[BatchKey.gsp]
         gsp_mse_loss = F.mse_loss(predicted_gsp_power, actual_gsp_power)
         gsp_nmae_loss = F.l1_loss(
             predicted_gsp_power[:, T0_IDX_30_MIN + 1 :], actual_gsp_power[:, T0_IDX_30_MIN + 1 :]
@@ -618,15 +574,58 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
 
         # Total MSE loss:
-        total_mse_loss = pv_mse_loss + gsp_mse_loss
-        self.log(f"{tag}/total_mse", total_mse_loss)
+        total_pv_and_gsp_mse_loss = pv_mse_loss + gsp_mse_loss
+        self.log(f"{tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
         total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
         self.log(f"{tag}/total_nmae", total_nmae_loss)
 
+        # SATELLITE PREDICTOR LOSS ################
+        predicted_sat = network_out["predicted_sat"]
+        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+
+        sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
+        self.log(f"{tag}/sat_mse", sat_mse_loss)
+
+        # MS-SSIM. Requires images to be de-normalised:
+        actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
+        predicted_sat_denorm = (predicted_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
+        ms_ssim_loss = 1 - ms_ssim(
+            predicted_sat_denorm,
+            actual_sat_denorm,
+            data_range=1023.0,
+            size_average=True,  # Return a scalar.
+            win_size=3,  # ClimateHack folks used win_size=3.
+        )
+        self.log(f"{tag}/ms_ssim", ms_ssim_loss)
+        self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
+
+        if self.crop:
+            # Loss on 33x33 central crop:
+            # The image has to be larger than 32x32 otherwise ms-ssim complains:
+            # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
+            CROP = 15
+            sat_mse_loss_crop = F.mse_loss(
+                predicted_sat[:, :, CROP:-CROP, CROP:-CROP],
+                actual_sat[:, :, CROP:-CROP, CROP:-CROP],
+            )
+            self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
+            ms_ssim_loss_crop = 1 - ms_ssim(
+                predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
+                actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
+                data_range=1023.0,
+                size_average=True,  # Return a scalar.
+                win_size=3,  # ClimateHack folks used win_size=3.
+            )
+            self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
+            self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
+            sat_loss = ms_ssim_loss_crop + sat_mse_loss_crop
+        else:
+            sat_loss = ms_ssim_loss + sat_mse_loss
+
         return {
-            "loss": total_mse_loss,
+            "loss": total_pv_and_gsp_mse_loss + sat_loss,
             "pv_mse_loss": pv_mse_loss,
             "gsp_mse_loss": gsp_mse_loss,
             "pv_nmae_loss": pv_nmae_loss,
@@ -636,11 +635,19 @@ class FullModel(pl.LightningModule):
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
+            "sat_loss": sat_loss,
+            "predicted_sat": predicted_sat,  # Shape: example, time, y, x
+            "actual_sat": actual_sat,
         }
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
-        return optimizer
+
+        def _lr_lambda(epoch):
+            return 50 / (epoch + 50)
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
+        return [optimizer], [scheduler]
 
 
 # ---------------------------------- Training ----------------------------------

@@ -14,6 +14,11 @@ from power_perceiver.load_prepared_batches.data_sources.prepared_data_source imp
 class ReduceNumTimesteps:
     """Reduce the number of timesteps per example to `requested_timesteps`.
 
+    NOT ACTUALLY USED BY THE NEW TRAINING REGIME. INSTEAD WE SUBSELECT TIMESTEPS
+    WITHIN THE MODEL ITSELF. THIS FOR TWO REASONS: 1) IT'S TRICKY TO USE
+    XR_BATCH_PROCESSORS IN THE RawDataset. 2) WE WANT THE SatellitePredictor
+    TO ALWAYS USE THE FULL SET OF TIMESTEPS.
+
     If `requested_timesteps` is an int then randomly pick `requested_timesteps` different
     timesteps for each batch.
 

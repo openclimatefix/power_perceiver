@@ -139,7 +139,15 @@ class GSPQueryGenerator(nn.Module):
     def forward(
         self, x: dict[BatchKey, torch.Tensor], for_satellite_transformer: bool = True
     ) -> torch.Tensor:
-        """The returned tensor is of shape (example, time, query_dim)"""
+        """Create query for GSP PV forecasts.
+
+        Args:
+            x: The batch.
+            for_satellite_transformer: The query for the SatelliteTransformer uses 5-minutely
+                data. The query for the time_transformer uses 30-minutely data.
+
+        Returns tensor of shape (example, time, query_dim).
+        """
         # gsp_{y,x}_osgb_fourier starts as shape (example, 1, fourier_features).
         y_fourier = x[BatchKey.gsp_y_osgb_fourier][:, 0]  # (example, fourier_features)
         x_fourier = x[BatchKey.gsp_x_osgb_fourier][:, 0]
