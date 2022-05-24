@@ -52,7 +52,10 @@ def plot_pv_power(
     ax_gsp.scatter(gsp_df.index, gsp_df["predicted_gsp_power"], alpha=0.8, label="Predicted")
     ax_gsp.set_title("GSP PV power")
     ax_gsp.set_ylabel("GSP PV power")
-    ax_gsp.set_xlabel("Time (UTC)\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d"))
+    xlabel = "Time (UTC)"
+    if pv_datetimes[0]:
+        xlabel += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
+    ax_gsp.set_xlabel(xlabel)
     ax_gsp.legend()
 
     ax_gsp.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))

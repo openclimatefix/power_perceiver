@@ -599,8 +599,8 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
         if self.crop:
-            # Loss on 33x33 central crop:
-            # The image has to be larger than 32x32 otherwise ms-ssim complains:
+            # Loss on a central crop:
+            # The cropped image has to be larger than 32x32 otherwise ms-ssim complains:
             # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
             CROP = 15
             sat_mse_loss_crop = F.mse_loss(
@@ -613,7 +613,7 @@ class FullModel(pl.LightningModule):
                 actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
                 data_range=1023.0,
                 size_average=True,  # Return a scalar.
-                win_size=3,  # ClimateHack folks used win_size=3.
+                win_size=3,  # The Illinois ClimateHack folks used win_size=3.
             )
             self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
             self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
