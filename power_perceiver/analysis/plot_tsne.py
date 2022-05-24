@@ -23,7 +23,12 @@ def plot_tsne_of_pv_system_id_embedding(
     num_examples = batch[BatchKey.pv_system_row_number].shape[0]
     for example_idx in range(num_examples):
         row_numbers_for_example = batch[BatchKey.pv_system_row_number][example_idx]
-        pv_mask = batch[BatchKey.pv_mask][example_idx]
+        if BatchKey.pv_mask in batch:
+            # Data is from Prepared PV data loader.
+            pv_mask = batch[BatchKey.pv_mask][example_idx]
+        else:
+            # Data is from RawPVDataLoader.
+            pv_mask = np.isfinite(batch[BatchKey.pv_id][example_idx])
         row_numbers_for_example = row_numbers_for_example[pv_mask]
         row_numbers_for_example = row_numbers_for_example.tolist()
         pv_system_row_numbers_for_all_examples.extend(row_numbers_for_example)

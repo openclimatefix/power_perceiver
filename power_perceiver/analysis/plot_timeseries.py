@@ -53,7 +53,7 @@ def plot_pv_power(
     ax_gsp.set_title("GSP PV power")
     ax_gsp.set_ylabel("GSP PV power")
     xlabel = "Time (UTC)"
-    if not pd.isnull(pv_datetimes[0]):  # Check this example is not NaN!
+    if not pd.isnull(pv_datetimes[0]):  # Check this example is not NaT!
         xlabel += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
     ax_gsp.set_xlabel(xlabel)
     ax_gsp.legend()
