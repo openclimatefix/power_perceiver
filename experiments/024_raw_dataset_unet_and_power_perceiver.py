@@ -81,8 +81,15 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
 
     sat_data_source = RawSatelliteDataSource(
         zarr_path=(
-            "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
-            "eumetsat_seviri_hrv_uk.zarr"
+            (
+                "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+                "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
+            )
+            if socket.gethostname() == "donatello"
+            else (
+                "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
+                "eumetsat_seviri_hrv_uk.zarr"
+            )
         ),
         roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
         roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
