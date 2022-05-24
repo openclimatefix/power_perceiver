@@ -211,6 +211,7 @@ def _get_min_per_example(
         coord_data_array = coord_data_array.reshape((batch_size, -1))
         mins[:, modality_i] = np.nanmin(coord_data_array, axis=1)
 
-    min_per_example = mins.min(axis=1)
+    min_per_example = np.nanmin(mins, axis=1)
     assert min_per_example.shape[0] == batch_size
+    assert np.isfinite(min_per_example).all()
     return np.expand_dims(min_per_example, axis=-1)
