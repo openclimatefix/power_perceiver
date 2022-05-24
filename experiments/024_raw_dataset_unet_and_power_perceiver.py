@@ -387,7 +387,7 @@ class FullModel(pl.LightningModule):
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
     cheat: bool = False  #: Use real satellite imagery of the future.
-    stop_gradients_before_unet: bool = True
+    stop_gradients_before_unet: bool = False
     crop: bool = False  #: Compute the loss on a central crop of the imagery.
 
     def __post_init__(self):
@@ -624,8 +624,11 @@ class FullModel(pl.LightningModule):
         else:
             sat_loss = ms_ssim_loss + sat_mse_loss
 
+        total_sat_pv_gsp_loss = total_pv_and_gsp_mse_loss + sat_loss
+        self.log(f"{tag}/total_sat_pv_gsp_loss")
+
         return {
-            "loss": total_pv_and_gsp_mse_loss + sat_loss,
+            "loss": total_sat_pv_gsp_loss,
             "pv_mse_loss": pv_mse_loss,
             "gsp_mse_loss": gsp_mse_loss,
             "pv_nmae_loss": pv_nmae_loss,
@@ -655,14 +658,16 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="023.02: Stop gradient before U-Net. U-Net & Power Perceiver. GCP-3",
+    name="024.00: New RawDataset! U-Net & Power Perceiver. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
 )
 
 # log model only if validation loss decreases
-checkpoint_callback = pl.callbacks.ModelCheckpoint(monitor="validation/total_mse", mode="min")
+checkpoint_callback = pl.callbacks.ModelCheckpoint(
+    monitor="validation/total_sat_pv_gsp_loss", mode="min"
+)
 
 
 if socket.gethostname() == "donatello":
