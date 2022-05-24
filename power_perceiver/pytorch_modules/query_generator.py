@@ -114,11 +114,6 @@ class PVQueryGenerator(nn.Module):
             )
             pv_system_query = torch.concat((pv_system_query, pv_power), dim=2)
 
-        # Missing PV systems are represented as NaN in the fourier features. Fill these with zeros.
-        # (We do this because we can't mask the *query*. Instead, we'll ignore missing PV
-        # systems in the objective function.)
-        pv_system_query = torch.nan_to_num(pv_system_query, nan=0.0)
-
         return pv_system_query
 
 
@@ -170,7 +165,6 @@ class GSPQueryGenerator(nn.Module):
             dim=1,  # All the inputs are of shape (example, features)
         )
         gsp_query = einops.rearrange(gsp_query, "example features -> example 1 features")
-        assert not torch.isnan(gsp_query).any()
 
         if for_satellite_transformer:
             # There might be NaNs in time_fourier.
