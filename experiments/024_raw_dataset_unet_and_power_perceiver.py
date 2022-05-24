@@ -321,6 +321,7 @@ class SatelliteTransformer(nn.Module):
             x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")
 
         hrvsatellite = einops.rearrange(hrvsatellite, "example time ... -> (example time) ...")
+        assert hrvsatellite.isfinite().all()
 
         # Process satellite data and queries:
         pv_query = self.pv_query_generator(x, for_satellite_transformer=True)
