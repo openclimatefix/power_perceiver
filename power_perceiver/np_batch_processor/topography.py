@@ -222,6 +222,6 @@ def _get_surface_height_for_satellite(
 
     # If we slightly ran off the edge of the topo data then we'll get NaNs.
     # TODO: Enlarge topo data so we never get NaNs!
-    assert np.nan_to_num(surface_height_for_batch, nan=0)
+    surface_height_for_batch = np.nan_to_num(surface_height_for_batch, nan=0)
 
     return surface_height_for_batch
