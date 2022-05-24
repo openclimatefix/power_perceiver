@@ -505,10 +505,7 @@ class FullModel(pl.LightningModule):
 
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = torch.concat((pv_attn_out, gsp_attn_out, gsp_query), dim=1)
-        try:
-            time_attn_out = self.time_transformer(time_attn_in)
-        except:
-            import ipdb; ipdb.set_trace()  # TODO: REMOVE!
+        time_attn_out = self.time_transformer(time_attn_in)
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
@@ -553,6 +550,8 @@ class FullModel(pl.LightningModule):
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
         pv_mask = actual_pv_power.isfinite()
         gsp_mask = actual_gsp_power.isfinite()
+        
+        import ipdb; ipdb.set_trace()
 
         predicted_pv_power = predicted_pv_power[pv_mask]
         actual_pv_power = actual_pv_power[pv_mask]
