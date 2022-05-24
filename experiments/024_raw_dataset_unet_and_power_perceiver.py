@@ -505,6 +505,7 @@ class FullModel(pl.LightningModule):
 
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = torch.concat((pv_attn_out, gsp_attn_out, gsp_query), dim=1)
+        import ipdb; ipdb.set_trace()
         time_attn_out = self.time_transformer(time_attn_in)
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)

@@ -246,7 +246,10 @@ def _load_pv_power_watts_and_capacity_wp(
 
     pv_capacity_wp.index = [np.int32(col) for col in pv_capacity_wp.index]
 
-    # Create pv_system_row_number
+    # Create pv_system_row_number. We use the index of `pv_capacity_wp` because that includes
+    # the PV system IDs for the entire dataset (independent of `start_date` and `end_date`).
+    # We use `float32` for the ID because we use NaN to indicate a missing PV system,
+    # or that this whole example doesn't include PV.
     all_pv_system_ids = pv_capacity_wp.index
     pv_system_row_number = np.arange(start=0, stop=len(all_pv_system_ids), dtype=np.float32)
     pv_system_row_number = pd.Series(pv_system_row_number, index=all_pv_system_ids)
