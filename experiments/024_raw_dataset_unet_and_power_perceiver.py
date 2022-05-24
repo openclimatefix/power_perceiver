@@ -508,9 +508,7 @@ class FullModel(pl.LightningModule):
         try:
             time_attn_out = self.time_transformer(time_attn_in)
         except:
-            import ipdb
-
-            ipdb.set_trace()  # TODO: REMOVE!
+            import ipdb; ipdb.set_trace()  # TODO: REMOVE!
 
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
