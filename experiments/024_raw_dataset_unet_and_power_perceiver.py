@@ -550,27 +550,22 @@ class FullModel(pl.LightningModule):
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
         pv_mask = actual_pv_power.isfinite()
         gsp_mask = actual_gsp_power.isfinite()
-        
-        import ipdb; ipdb.set_trace()
-
-        predicted_pv_power = predicted_pv_power[pv_mask]
-        actual_pv_power = actual_pv_power[pv_mask]
-        predicted_gsp_power = predicted_gsp_power[gsp_mask]
-        actual_gsp_power = actual_gsp_power[gsp_mask]
 
         # PV power loss:
-        pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
+        pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
 
         pv_nmae_loss = F.l1_loss(
-            predicted_pv_power[:, T0_IDX_5_MIN + 1 :], actual_pv_power[:, T0_IDX_5_MIN + 1 :]
+            predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask],
+            actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask],
         )
         self.log(f"{tag}/pv_mse", pv_mse_loss)
         self.log(f"{tag}/pv_nmae", pv_nmae_loss)
 
         # GSP power loss:
-        gsp_mse_loss = F.mse_loss(predicted_gsp_power, actual_gsp_power)
+        gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
         gsp_nmae_loss = F.l1_loss(
-            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :], actual_gsp_power[:, T0_IDX_30_MIN + 1 :]
+            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask],
+            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask],
         )
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
         self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
