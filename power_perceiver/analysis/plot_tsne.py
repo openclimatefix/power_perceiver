@@ -38,6 +38,7 @@ def plot_tsne_of_pv_system_id_embedding(
     all_gsp_ids = torch.arange(start=1, end=NUM_GSPS, device=device)
 
     all_ids = torch.concat((all_gsp_ids, pv_system_row_numbers_for_all_examples))
+    all_ids = torch.nan_to_num(all_ids).int()
 
     pv_id_embedding = pv_system_id_embedding(all_ids)
     pv_id_embedding = pv_id_embedding.detach().cpu()

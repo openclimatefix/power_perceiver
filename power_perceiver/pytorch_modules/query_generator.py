@@ -15,8 +15,7 @@ from power_perceiver.utils import assert_num_dims
 class PVQueryGenerator(nn.Module):
     """Create a query from the locations of the PV systems."""
 
-    t0_idx_5_min_training: int
-    t0_idx_5_min_validation: int
+    t0_idx_5_min: int
 
     # This must be an InitVar because PyTorch does not allow modules to be
     # assigned before super().__init__()
@@ -46,12 +45,13 @@ class PVQueryGenerator(nn.Module):
 
         pv_system_row_number = x[BatchKey.pv_system_row_number]  # (example, n_pv_systems)
         pv_system_row_number = pv_system_row_number + self.num_gsps
-        pv_system_embedding = self.pv_system_id_embedding(pv_system_row_number)
+        pv_system_embedding = self.pv_system_id_embedding(
+            torch.nan_to_num(pv_system_row_number, nan=0).int()
+        )
         n_pv_systems = x[BatchKey.pv_x_osgb].shape[1]
 
         # (example features) if for_satellite_transformer else (example, time, n_fourier_features)
         time_fourier = x[BatchKey.pv_time_utc_fourier]
-        t0_idx_5_min = self.t0_idx_5_min_training if self.training else self.t0_idx_5_min_validation
         if for_satellite_transformer:
             # time_fourier shape: (example features)
             assert_num_dims(time_fourier, 2)
@@ -64,7 +64,7 @@ class PVQueryGenerator(nn.Module):
         else:
             # time_fourier shape: (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
-            time_fourier = time_fourier[:, t0_idx_5_min]
+            time_fourier = time_fourier[:, self.t0_idx_5_min]
         # Repeat across all PV systems:
         time_fourier = einops.repeat(
             time_fourier,
@@ -79,7 +79,7 @@ class PVQueryGenerator(nn.Module):
             else:
                 assert_num_dims(solar_feature, 2)
                 # Select the timestep. The original shape is (example, time).
-                solar_feature = solar_feature[:, t0_idx_5_min]
+                solar_feature = solar_feature[:, self.t0_idx_5_min]
             return einops.repeat(
                 solar_feature,
                 "example -> example n_pv_systems 1",
@@ -108,7 +108,7 @@ class PVQueryGenerator(nn.Module):
         if not for_satellite_transformer:
             pv_power = x[BatchKey.pv]  # (batch_size, time, n_pv_systems)
             assert_num_dims(pv_power, 3)
-            pv_power = pv_power[:, : t0_idx_5_min + 1]
+            pv_power = pv_power[:, : self.t0_idx_5_min + 1]
             pv_power = einops.rearrange(
                 pv_power, "example time n_pv_systems -> example n_pv_systems time"
             )
@@ -154,7 +154,7 @@ class GSPQueryGenerator(nn.Module):
         n_original_examples = y_fourier.shape[0]
 
         gsp_id = x[BatchKey.gsp_id]  # Shape: (example,)
-        gsp_id_embedding = self.gsp_id_embedding(gsp_id)
+        gsp_id_embedding = self.gsp_id_embedding(torch.nan_to_num(gsp_id, nan=0).int())
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         gsp_marker = torch.ones_like(y_fourier)

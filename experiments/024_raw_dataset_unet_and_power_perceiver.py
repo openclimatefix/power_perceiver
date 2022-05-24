@@ -65,7 +65,6 @@ SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
 D_MODEL = 128
 N_HEADS = 16
 T0_IDX_5_MIN = NUM_HIST_SAT_IMAGES - 1
-T0_IDX_5_MIN_TRAINING = T0_IDX_5_MIN_VALIDATION = T0_IDX_5_MIN
 
 
 torch.manual_seed(42)
@@ -276,8 +275,7 @@ class SatelliteTransformer(nn.Module):
 
         self.pv_query_generator = PVQueryGenerator(
             pv_system_id_embedding=id_embedding,
-            t0_idx_5_min_training=T0_IDX_5_MIN_TRAINING,
-            t0_idx_5_min_validation=T0_IDX_5_MIN_VALIDATION,
+            t0_idx_5_min=T0_IDX_5_MIN,
             num_gsps=NUM_GSPS,
         )
 
@@ -457,13 +455,12 @@ class FullModel(pl.LightningModule):
         # historical actual PV with predicted historical PV.
         # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
         # want to cheat and give the model the answer!), and contains the actual historical PV.
-        t0_idx_5_min = T0_IDX_5_MIN_TRAINING if self.training else T0_IDX_5_MIN_VALIDATION
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
-        historical_pv[:, : t0_idx_5_min + 1] = x[BatchKey.pv][:, : t0_idx_5_min + 1]
+        historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1]
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
         # Now append a "marker" to indicate which timesteps are history:
         hist_pv_marker = torch.zeros_like(historical_pv)
-        hist_pv_marker[:, : t0_idx_5_min + 1] = 1
+        hist_pv_marker[:, : T0_IDX_5_MIN + 1] = 1
         pv_attn_out = torch.concat((pv_attn_out, historical_pv, hist_pv_marker), dim=3)
 
         # Reshape pv and gsp attention outputs so each timestep and each pv system is
@@ -544,10 +541,9 @@ class FullModel(pl.LightningModule):
 
         # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power, actual_pv_power)
-        t0_idx_5_min = T0_IDX_5_MIN_TRAINING if self.training else T0_IDX_5_MIN_VALIDATION
 
         pv_nmae_loss = F.l1_loss(
-            predicted_pv_power[:, t0_idx_5_min + 1 :], actual_pv_power[:, t0_idx_5_min + 1 :]
+            predicted_pv_power[:, T0_IDX_5_MIN + 1 :], actual_pv_power[:, T0_IDX_5_MIN + 1 :]
         )
         self.log(f"{tag}/pv_mse", pv_mse_loss)
         self.log(f"{tag}/pv_nmae", pv_nmae_loss)
