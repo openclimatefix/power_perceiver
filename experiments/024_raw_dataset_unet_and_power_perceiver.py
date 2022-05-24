@@ -622,7 +622,7 @@ class FullModel(pl.LightningModule):
             sat_loss = ms_ssim_loss + sat_mse_loss
 
         total_sat_pv_gsp_loss = total_pv_and_gsp_mse_loss + sat_loss
-        self.log(f"{tag}/total_sat_pv_gsp_loss")
+        self.log(f"{tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
 
         return {
             "loss": total_sat_pv_gsp_loss,
