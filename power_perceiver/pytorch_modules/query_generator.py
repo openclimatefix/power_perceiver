@@ -160,6 +160,7 @@ class GSPQueryGenerator(nn.Module):
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         gsp_marker = torch.ones_like(y_fourier)
 
+        import ipdb; ipdb.set_trace()  # TODO: Remove!
         gsp_query = torch.concat(
             (
                 gsp_marker,
