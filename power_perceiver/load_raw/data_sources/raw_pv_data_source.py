@@ -185,8 +185,10 @@ class RawPVDataSource(
         )
         empty_dt_index = np.full(shape=self.total_seq_length, fill_value=np.NaN)
         empty_dt_index = pd.DatetimeIndex(empty_dt_index)
-        empty_pv_power = pd.DataFrame(np.NaN, index=empty_dt_index, columns=empty_pv_system_ids)
-        empty_metadata = pd.Series(np.NaN, index=empty_pv_system_ids)
+        empty_pv_power = pd.DataFrame(
+            np.NaN, index=empty_dt_index, columns=empty_pv_system_ids
+        ).astype(np.float32)
+        empty_metadata = pd.Series(np.NaN, index=empty_pv_system_ids).astype(np.float32)
         pv_system_row_number = np.full(
             shape=self.n_pv_systems_per_example, fill_value=np.NaN, dtype=np.float32
         )

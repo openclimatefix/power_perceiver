@@ -4,6 +4,7 @@ import logging
 import socket
 from copy import deepcopy
 from dataclasses import dataclass
+from typing import Optional
 
 import einops
 
@@ -383,6 +384,7 @@ class FullModel(pl.LightningModule):
     cheat: bool = False  #: Use real satellite imagery of the future.
     stop_gradients_before_unet: bool = False
     crop: bool = False  #: Compute the loss on a central crop of the imagery.
+    num_timesteps_during_training: Optional[int] = None
 
     def __post_init__(self):
         super().__init__()
@@ -420,24 +422,22 @@ class FullModel(pl.LightningModule):
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Predict future satellite images.
         if self.cheat:
-            hrvsatellite = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
+            predicted_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
         else:
             predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
-            # Select a subset of predicted images, if we're in training mode:
-            if BatchKey.requested_timesteps in x:
-                # If `requested_timesteps` is in `x` then `ReduceNumTimesteps` was in the data
-                # pipeline
-                forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
-                forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
-                predicted_sat = predicted_sat[:, forecast_timesteps]
+        # Select a subset of predicted images, if we're in training mode:
+        if self.num_timesteps_during_training and self.training:
+            forecast_timesteps = x[BatchKey.requested_timesteps][NUM_HIST_SAT_IMAGES:]
+            forecast_timesteps = forecast_timesteps - NUM_HIST_SAT_IMAGES
+            predicted_sat = predicted_sat[:, forecast_timesteps]
 
-            if self.stop_gradients_before_unet:
-                predicted_sat = predicted_sat.detach()
+        if self.stop_gradients_before_unet:
+            predicted_sat = predicted_sat.detach()
 
-            hrvsatellite = torch.concat(
-                (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
-            )
+        hrvsatellite = torch.concat(
+            (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
+        )
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
