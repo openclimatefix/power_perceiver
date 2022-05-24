@@ -305,6 +305,17 @@ class SatelliteTransformer(nn.Module):
     def forward(
         self, x: dict[BatchKey, torch.Tensor], hrvsatellite: torch.Tensor
     ) -> dict[str, torch.Tensor]:
+        # Sanity checks!
+        assert hrvsatellite.isfinite().all()
+        for batch_key in (
+            BatchKey.solar_azimuth,
+            BatchKey.solar_elevation,
+            BatchKey.hrvsatellite_time_utc_fourier,
+            BatchKey.hrvsatellite_y_osgb_fourier,
+            BatchKey.hrvsatellite_x_osgb_fourier,
+        ):
+            assert x[batch_key].isfinite().all(), f"{batch_key.name} is not finite!"
+
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
         # TODO: Fix this `original_x` hack, which is needed to prevent the reshaping affecting
