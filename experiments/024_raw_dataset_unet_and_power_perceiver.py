@@ -501,7 +501,7 @@ class FullModel(pl.LightningModule):
         # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
         # want to cheat and give the model the answer!), and contains the actual historical PV.
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
-        historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1]
+        historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1].nan_to_num(0)
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
         # Now append a "marker" to indicate which timesteps are history:
         hist_pv_marker = torch.zeros_like(historical_pv)
@@ -528,7 +528,7 @@ class FullModel(pl.LightningModule):
         # Some whole examples don't include GSP (or PV) data.
         # Here, we set those to zero so the model trains without NaN loss.
         # Examples with NaN GSP power are masked in the objective function.
-        gsp_query = torch.nan_to_num(gsp_query, nan=0)
+        gsp_query = gsp_query.nan_to_num(0)
 
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = torch.concat((pv_attn_out, gsp_attn_out, gsp_query), dim=1)
