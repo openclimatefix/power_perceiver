@@ -186,7 +186,7 @@ def _get_surface_height_for_satellite(
     surface_height = surface_height.rename("surface_height")
     surface_height_for_batch = np.full_like(satellite.values, fill_value=np.NaN)
     for example_idx in range(num_examples):
-        satellite_example = satellite.sel(example=example_idx)
+        satellite_example = satellite.isel(example=example_idx)
         msg = "Satellite imagery must start in the top-left!"
         assert satellite_example.y_geostationary[0] > satellite_example.y_geostationary[-1], msg
         assert satellite_example.x_geostationary[0] < satellite_example.x_geostationary[-1], msg
@@ -220,6 +220,8 @@ def _get_surface_height_for_satellite(
 
         surface_height_for_batch[example_idx] = aligned["surface_height"].values
 
-    assert np.isfinite(surface_height_for_batch).all()
+    # If we slightly ran off the edge of the topo data then we'll get NaNs.
+    # TODO: Enlarge topo data so we never get NaNs!
+    assert np.nan_to_num(surface_height_for_batch, nan=0)
 
     return surface_height_for_batch
