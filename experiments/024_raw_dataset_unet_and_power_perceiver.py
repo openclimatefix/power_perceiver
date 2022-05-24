@@ -236,6 +236,7 @@ class SatellitePredictor(pl.LightningModule):
             sun_pos = einops.repeat(sun_pos, "example chan -> example chan y x", y=height, x=width)
             data = torch.concat((data, sun_pos), dim=1)
 
+        assert data.isfinite().all()
         predicted_sat = self.satellite_predictor(data)
         return predicted_sat  # Shape: example, time, y, x
 
@@ -438,6 +439,7 @@ class FullModel(pl.LightningModule):
         hrvsatellite = torch.concat(
             (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
         )
+        assert hrvsatellite.isfinite().all()
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
@@ -467,6 +469,7 @@ class FullModel(pl.LightningModule):
 
         # Pass through the transformer!
         sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
+        assert sat_trans_out.isfinite().all()
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
         gsp_attn_out = sat_trans_out["gsp_attn_out"]
 
@@ -507,8 +510,10 @@ class FullModel(pl.LightningModule):
 
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = torch.concat((pv_attn_out, gsp_attn_out, gsp_query), dim=1)
+        assert time_attn_in.isfinite().all()
         time_attn_out = self.time_transformer(time_attn_in)
 
+        assert time_attn_out.isfinite().all()
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
         # Reshape the PV power predictions
