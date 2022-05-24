@@ -117,11 +117,13 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 32),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),  # TODO: INCREASE!
         n_examples_per_batch=32,
         n_batches_per_epoch=1024,
         np_batch_processors=np_batch_processors,
     )
+
+    raw_dataset.per_worker_init(worker_id=0)  # TODO: REMOVE!
 
     def _worker_init_fn(worker_id: int):
         worker_info = torch.utils.data.get_worker_info()
@@ -131,7 +133,7 @@ def get_dataloader(start_date, end_date) -> torch.utils.data.DataLoader:
     dataloader = torch.utils.data.DataLoader(
         raw_dataset,
         batch_size=None,
-        num_workers=6,
+        num_workers=0,
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
     )
