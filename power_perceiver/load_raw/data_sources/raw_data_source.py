@@ -349,10 +349,11 @@ class SpatialDataSource:
         source_image_height = len(self._data_in_ram[self._y_dim_name])
         source_image_width = len(self._data_in_ram[self._x_dim_name])
 
-        min_y = half_height_of_crop
-        max_y = source_image_height - half_height_of_crop
-        min_x = half_width_of_crop
-        max_x = source_image_width - half_width_of_crop
+        # Plus or minus one for safety.
+        min_y = half_height_of_crop + 1
+        max_y = source_image_height - half_height_of_crop - 1
+        min_x = half_width_of_crop + 1
+        max_x = source_image_width - half_width_of_crop - 1
 
         # Sanity check!
         assert 0 < min_x < source_image_width

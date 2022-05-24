@@ -345,6 +345,8 @@ class SatelliteTransformer(nn.Module):
         satellite_data = maybe_pad_with_zeros(satellite_data, requested_dim=self.d_model)
 
         # Mask the NaN GSP and PV queries. True or non-zero value indicates value will be ignored.
+        # TODO: This masking code could probably be made simpler. See how it's done
+        # in FullModel.forwards.
         mask = torch.concat(
             (
                 torch.isnan(pv_query[:, :, 1]),  # pv_y_osgb_fourier is in index 1.
@@ -355,8 +357,8 @@ class SatelliteTransformer(nn.Module):
         )
 
         # Now set NaN GSP queries to zero. That's fine, because NaNs are being masked.
-        pv_query = torch.nan_to_num(pv_query, nan=0)
-        gsp_query = torch.nan_to_num(gsp_query, nan=0)
+        pv_query = pv_query.nan_to_num(0)
+        gsp_query = gsp_query.nan_to_num(0)
 
         assert pv_query.isfinite().all()
         assert gsp_query.isfinite().all()
@@ -501,7 +503,7 @@ class FullModel(pl.LightningModule):
         # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
         # want to cheat and give the model the answer!), and contains the actual historical PV.
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
-        historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1].nan_to_num(0)
+        historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1]
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
         # Now append a "marker" to indicate which timesteps are history:
         hist_pv_marker = torch.zeros_like(historical_pv)
@@ -525,15 +527,17 @@ class FullModel(pl.LightningModule):
         gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
-        # Some whole examples don't include GSP (or PV) data.
-        # Here, we set those to zero so the model trains without NaN loss.
-        # Examples with NaN GSP power are masked in the objective function.
-        gsp_query = gsp_query.nan_to_num(0)
-
         # Concatenate all the things we're going to feed into the "time transformer":
         time_attn_in = torch.concat((pv_attn_out, gsp_attn_out, gsp_query), dim=1)
-        assert time_attn_in.isfinite().all()
-        time_attn_out = self.time_transformer(time_attn_in)
+
+        # Some whole examples don't include GSP (or PV) data.
+        # Here, we set those to zero so the model trains without NaN loss.
+        # Examples with NaN GSP power are masked in the objective function and
+        # in the attention mechanism.
+        mask = time_attn_in.isnan().any(dim=2)
+        assert not mask.all()
+        time_attn_in = time_attn_in.nan_to_num(0)
+        time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
 
         assert time_attn_out.isfinite().all()
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
