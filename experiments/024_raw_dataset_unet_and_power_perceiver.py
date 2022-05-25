@@ -749,7 +749,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.02: Crop sat before loss. 8 timesteps. batch_size=32. New RawDataset! donatello-0",
+    name="024.03: Fix bug. Sat loss on entire img. 8 timesteps. batch_size=32. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
