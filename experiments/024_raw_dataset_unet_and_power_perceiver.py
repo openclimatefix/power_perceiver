@@ -130,7 +130,7 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),  # TODO: INCREASE THIS!
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 32),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch,
         np_batch_processors=np_batch_processors,
@@ -432,7 +432,9 @@ class FullModel(pl.LightningModule):
     num_latent_transformer_encoders: int = 4
     cheat: bool = False  #: Use real satellite imagery of the future.
     stop_gradients_before_unet: bool = False
-    crop: bool = False  #: Compute the loss on a central crop of the imagery.
+    crop_sat_before_sat_predictor_loss: bool = (
+        True  #: Compute the loss on a central crop of the imagery.
+    )
     num_5_min_timesteps_during_training: Optional[int] = 8
 
     def __post_init__(self):
@@ -628,7 +630,8 @@ class FullModel(pl.LightningModule):
         pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
         self.log(f"{tag}/pv_mse", pv_mse_loss)
 
-        if not self.training:
+        if (self.num_5_min_timesteps_during_training is None) or (not self.training):
+            # Only compute NMAE loss when we know how many timesteps of PV data there are!
             pv_nmae_loss = F.l1_loss(
                 predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
                 actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
@@ -639,7 +642,7 @@ class FullModel(pl.LightningModule):
         gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
 
-        if not self.training:
+        if (self.num_5_min_timesteps_during_training is None) or (not self.training):
             gsp_nmae_loss = F.l1_loss(
                 predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
                 actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
@@ -656,7 +659,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
-        if not self.training:
+        if (self.num_5_min_timesteps_during_training is None) or (not self.training):
             total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
             self.log(f"{tag}/total_nmae", total_nmae_loss)
 
@@ -680,19 +683,18 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/ms_ssim", ms_ssim_loss)
         self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
-        if self.crop:
+        if self.crop_sat_before_sat_predictor_loss:
             # Loss on a central crop:
             # The cropped image has to be larger than 32x32 otherwise ms-ssim complains:
             # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
-            CROP = 15
             sat_mse_loss_crop = F.mse_loss(
-                predicted_sat[:, :, CROP:-CROP, CROP:-CROP],
-                actual_sat[:, :, CROP:-CROP, CROP:-CROP],
+                predicted_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
+                actual_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
             )
             self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
             ms_ssim_loss_crop = 1 - ms_ssim(
-                predicted_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
-                actual_sat_denorm[:, :, CROP:-CROP, CROP:-CROP],
+                predicted_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
+                actual_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
                 data_range=1023.0,
                 size_average=True,  # Return a scalar.
                 win_size=3,  # The Illinois ClimateHack folks used win_size=3.
@@ -734,7 +736,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.01: 8 timesteps. batch_size=32. New RawDataset! U-Net & Power Perceiver. donatello-0",
+    name="024.02: Crop sat before loss. 8 timesteps. batch_size=32. New RawDataset! donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
