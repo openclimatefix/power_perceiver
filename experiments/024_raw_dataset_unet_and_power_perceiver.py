@@ -131,7 +131,7 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 1),  # TODO: INCREASE!
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -499,7 +499,7 @@ class FullModel(pl.LightningModule):
                 stop=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
                 num=self.num_5_min_forecast_timesteps_during_training,
             )
-            random_timestep_indexes = np.concat(
+            random_timestep_indexes = np.concatenate(
                 (random_history_timestep_indexes, random_forecast_timestep_indexes)
             )
             hrvsatellite = hrvsatellite[:, random_timestep_indexes]

@@ -19,9 +19,11 @@ def plot_pv_power(
     example_idx: int,
     pv_datetimes: torch.Tensor,
     gsp_datetimes: torch.Tensor,
+    solar_azimuth: torch.Tensor,
+    solar_elevation: torch.Tensor,
 ) -> plt.Figure:
-    fig, axes = plt.subplots(nrows=3, sharex=True, sharey=True)
-    ax_pv_actual, ax_pv_predicted, ax_gsp = axes
+    fig, axes = plt.subplots(nrows=4, sharex=True, sharey=True)
+    ax_pv_actual, ax_pv_predicted, ax_gsp, ax_solar = axes
 
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
     gsp_datetimes = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
@@ -58,7 +60,12 @@ def plot_pv_power(
     ax_gsp.set_xlabel(xlabel)
     ax_gsp.legend()
 
-    ax_gsp.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    # Solar elevation and azimuth
+    ax2_solar = ax_solar.twiny()  # Don't share Y axis
+    ax2_solar.plot(pv_datetimes, solar_azimuth, label="Solar Azimuth")
+    ax2_solar.plot(pv_datetimes, solar_elevation, label="Solar Elevation")
+    ax2_solar.legend()
+    ax2_solar.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
 
     return fig
 
@@ -101,6 +108,8 @@ class LogTimeseriesPlots(SimpleCallback):
                     gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
                     example_idx=example_idx,
                     pv_datetimes=pv_datetimes,
+                    solar_azimuth=batch[BatchKey.solar_azimuth].cpu().detach(),
+                    solar_elevation=batch[BatchKey.solar_elevation].cpu().detach(),
                 )
                 wandb.log(
                     {
