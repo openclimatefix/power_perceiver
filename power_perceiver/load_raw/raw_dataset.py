@@ -21,7 +21,7 @@ from power_perceiver.time import (
     intersection_of_multiple_dataframes_of_periods,
     time_periods_to_datetime_index,
 )
-from power_perceiver.utils import sample_row_and_drop_row_from_df
+from power_perceiver.utils import sample_row_and_drop_row_from_df, set_fsspec_for_multiprocess
 
 _log = logging.getLogger(__name__)
 
@@ -102,6 +102,7 @@ class RawDataset(torch.utils.data.IterableDataset):
     def per_worker_init(self, worker_id: int = 0) -> None:
         """Called by worker_init_fn on each copy of this dataset after the
         worker process has been spawned."""
+        set_fsspec_for_multiprocess()
         self.worker_id = worker_id
         # Each worker must have a different seed for its random number generator.
         # Otherwise all the workers will output exactly the same data!

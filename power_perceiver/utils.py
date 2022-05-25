@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Union
 
-import fsspec
+import fsspec.asyn
 import numpy as np
 import pandas as pd
 from pathy import Pathy
@@ -82,3 +82,4 @@ def set_fsspec_for_multiprocess() -> None:
     """
     fsspec.asyn.iothread[0] = None
     fsspec.asyn.loop[0] = None
+    fsspec.asyn._lock = None

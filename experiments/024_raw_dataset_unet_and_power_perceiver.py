@@ -130,7 +130,7 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 128),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),  # TODO: INCREASE THIS!
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch,
         np_batch_processors=np_batch_processors,
@@ -159,7 +159,7 @@ def get_dataloader(
 train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
-    num_workers=0,
+    num_workers=0,  # TODO: INCREASE THIS!
     n_batches_per_epoch=1024,
     load_subset_every_epoch=True,
 )
@@ -493,7 +493,8 @@ class FullModel(pl.LightningModule):
             )
             hrvsatellite = hrvsatellite[:, random_timestep_indexes]
             for batch_key in (
-                BatchKey.hrvsatellite,
+                # Don't include BatchKey.hrvsatellite, because we need all timesteps to
+                # compute the loss for the SatellitePredictor!
                 BatchKey.hrvsatellite_time_utc,
                 BatchKey.hrvsatellite_time_utc_fourier,
                 BatchKey.pv,
