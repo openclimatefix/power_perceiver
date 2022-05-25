@@ -79,5 +79,5 @@ class LogSatellitePlots(SimpleCallback):
                 # Plot surface height:
                 fig, ax = plt.subplots()
                 ax.imshow(batch[BatchKey.hrvsatellite_surface_height][example_idx].cpu())
-                wandb.log(f"{tag}/surface_height/{batch_idx=};{example_idx=}", wandb.Image(fig))
+                wandb.log({f"{tag}/surface_height/{batch_idx=};{example_idx=}": wandb.Image(fig)})
                 plt.close(fig)
