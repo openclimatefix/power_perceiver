@@ -69,9 +69,9 @@ def plot_pv_power(
 
     # Satellite
     actual_satellite = actual_satellite[example_idx, :, 0]
-    axes[-3].imshow(actual_satellite[0])
-    axes[-2].imshow(actual_satellite[-1])
-    axes[-1].imshow(surface_height[example_idx])
+    axes[-3].twinx().twiny().imshow(actual_satellite[0])
+    axes[-2].twinx().twiny().imshow(actual_satellite[-1])
+    axes[-1].twinx().twiny().imshow(surface_height[example_idx])
 
     return fig
 
