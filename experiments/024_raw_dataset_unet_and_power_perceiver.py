@@ -24,6 +24,7 @@ from pytorch_lightning.loggers import WandbLogger
 from pytorch_msssim import ms_ssim
 from torch import nn
 
+from power_perceiver.analysis.plot_probability_timeseries import LogProbabilityTimeseriesPlots
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 
 # from power_perceiver.analysis.plot_satellite import LogSatellitePlots
@@ -785,7 +786,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.04: MDN. Correct T0 timestep. Sat loss on entire img. donatello-0",
+    name="024.05: MDN with plots. Correct T0 timestep. Sat loss on entire img. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -810,6 +811,7 @@ trainer = pl.Trainer(
         checkpoint_callback,
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
         LogTimeseriesPlots(),
+        LogProbabilityTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
         LogSatellitePlots(),
     ],
