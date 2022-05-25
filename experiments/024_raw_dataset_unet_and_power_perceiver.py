@@ -1,3 +1,9 @@
+"""
+U-Net followed by the Power Perceiver.
+
+See this issue for a diagram: https://github.com/openclimatefix/power_perceiver/issues/54
+"""
+
 # General imports
 import datetime
 import logging
@@ -41,6 +47,7 @@ from power_perceiver.load_raw.raw_dataset import RawDataset
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.sun_position import SunPosition
 from power_perceiver.np_batch_processor.topography import Topography
+from power_perceiver.pytorch_modules.mixture_density_network import MixtureDensityNetwork
 from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
@@ -69,7 +76,6 @@ SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
 # PowerPerceiver options
 D_MODEL = 128
 N_HEADS = 16
-T0_IDX_5_MIN = NUM_HIST_SAT_IMAGES - 1
 
 
 torch.manual_seed(42)
@@ -161,8 +167,8 @@ def get_dataloader(
 train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
-    num_workers=4,
-    n_batches_per_epoch_per_worker=256,
+    num_workers=2,
+    n_batches_per_epoch_per_worker=512,
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(
@@ -315,7 +321,6 @@ class SatelliteTransformer(nn.Module):
 
         self.pv_query_generator = PVQueryGenerator(
             pv_system_id_embedding=id_embedding,
-            t0_idx_5_min=T0_IDX_5_MIN,
             num_gsps=NUM_GSPS,
         )
 
@@ -364,7 +369,7 @@ class SatelliteTransformer(nn.Module):
         assert hrvsatellite.isfinite().all()
 
         # Process satellite data and queries:
-        pv_query = self.pv_query_generator(x, for_satellite_transformer=True)
+        pv_query = self.pv_query_generator(x)
         gsp_query = self.gsp_query_generator(x, for_satellite_transformer=True)
         satellite_data = self.hrvsatellite_processor(x, hrvsatellite)
 
@@ -465,8 +470,9 @@ class FullModel(pl.LightningModule):
         self.pv_output_module = nn.Sequential(
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=1),
-            nn.ReLU(),  # ReLU output guarantees that we can't predict negative PV power!
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+            nn.GELU(),
+            MixtureDensityNetwork(in_features=self.d_model, num_gaussians=2),
         )
 
         # Do this at the end of __post_init__ to capture model topology to wandb:
@@ -533,7 +539,7 @@ class FullModel(pl.LightningModule):
             BatchKey.hrvsatellite_x_osgb_fourier,
             BatchKey.hrvsatellite_surface_height,
         ):
-            x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX, ...]
+            x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
             assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
             assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
@@ -587,6 +593,7 @@ class FullModel(pl.LightningModule):
         # in the attention mechanism.
         mask = time_attn_in.isnan().any(dim=2)
         assert not mask.all()
+        self.log({f"{self.tag}/time_transformer_mask_mean": mask.float().mean()})
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
 
@@ -615,10 +622,13 @@ class FullModel(pl.LightningModule):
     @property
     def t0_idx_5_min(self) -> int:
         if self.training and self.num_5_min_history_timesteps_during_training:
-            t0_idx_5_min = self.num_5_min_history_timesteps_during_training
+            return self.num_5_min_history_timesteps_during_training - 1
         else:
-            t0_idx_5_min = T0_IDX_5_MIN
-        return t0_idx_5_min
+            return NUM_HIST_SAT_IMAGES - 1
+
+    @property
+    def tag(self) -> str:
+        return "train" if self.training else "validation"
 
     def training_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
@@ -628,7 +638,7 @@ class FullModel(pl.LightningModule):
     def validation_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
-        tag = "train" if self.training else "validation"
+
         network_out = self(batch)
 
         # PV & GSP LOSS ######################
@@ -645,23 +655,23 @@ class FullModel(pl.LightningModule):
 
         # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
-        self.log(f"{tag}/pv_mse", pv_mse_loss)
+        self.log(f"{self.tag}/pv_mse", pv_mse_loss)
 
         pv_nmae_loss = F.l1_loss(
             predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
             actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
         )
-        self.log(f"{tag}/pv_nmae", pv_nmae_loss)
+        self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
         # GSP power loss:
         gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
-        self.log(f"{tag}/gsp_mse", gsp_mse_loss)
+        self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
         gsp_nmae_loss = F.l1_loss(
             predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
             actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
         )
-        self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
+        self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
         # Total MSE loss:
         total_pv_and_gsp_mse_loss = gsp_mse_loss
@@ -670,18 +680,18 @@ class FullModel(pl.LightningModule):
         # subsequent iterations!)
         if pv_mse_loss.isfinite().all():
             total_pv_and_gsp_mse_loss += pv_mse_loss
-        self.log(f"{tag}/total_mse", total_pv_and_gsp_mse_loss)
+        self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
         total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
-        self.log(f"{tag}/total_nmae", total_nmae_loss)
+        self.log(f"{self.tag}/total_nmae", total_nmae_loss)
 
         # SATELLITE PREDICTOR LOSS ################
         predicted_sat = network_out["predicted_sat"]
         actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
 
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
-        self.log(f"{tag}/sat_mse", sat_mse_loss)
+        self.log(f"{self.tag}/sat_mse", sat_mse_loss)
 
         # MS-SSIM. Requires images to be de-normalised:
         actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
@@ -693,8 +703,8 @@ class FullModel(pl.LightningModule):
             size_average=True,  # Return a scalar.
             win_size=3,  # ClimateHack folks used win_size=3.
         )
-        self.log(f"{tag}/ms_ssim", ms_ssim_loss)
-        self.log(f"{tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
+        self.log(f"{self.tag}/ms_ssim", ms_ssim_loss)
+        self.log(f"{self.tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
 
         if self.crop_sat_before_sat_predictor_loss:
             # Loss on a central crop:
@@ -704,7 +714,7 @@ class FullModel(pl.LightningModule):
                 predicted_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
                 actual_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
             )
-            self.log(f"{tag}/sat_mse_crop", sat_mse_loss_crop)
+            self.log(f"{self.tag}/sat_mse_crop", sat_mse_loss_crop)
             ms_ssim_loss_crop = 1 - ms_ssim(
                 predicted_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
                 actual_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
@@ -712,8 +722,8 @@ class FullModel(pl.LightningModule):
                 size_average=True,  # Return a scalar.
                 win_size=3,  # The Illinois ClimateHack folks used win_size=3.
             )
-            self.log(f"{tag}/ms_ssim_crop", ms_ssim_loss_crop)
-            self.log(f"{tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
+            self.log(f"{self.tag}/ms_ssim_crop", ms_ssim_loss_crop)
+            self.log(f"{self.tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
             sat_loss = ms_ssim_loss_crop + sat_mse_loss_crop
         else:
             sat_loss = ms_ssim_loss + sat_mse_loss
@@ -721,7 +731,7 @@ class FullModel(pl.LightningModule):
         total_sat_pv_gsp_loss = sat_loss
         if total_pv_and_gsp_mse_loss.isfinite().all():
             total_sat_pv_gsp_loss += total_pv_and_gsp_mse_loss
-        self.log(f"{tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
+        self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
 
         return {
             "loss": total_sat_pv_gsp_loss,
