@@ -141,9 +141,7 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(
-            hours=12 * 8
-        ),  # TODO: INCREASE to 12 x 48!
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -174,7 +172,7 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=2,
-    n_batches_per_epoch_per_worker=64,  # TODO: INCREASE to 512!
+    n_batches_per_epoch_per_worker=512,
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(
@@ -541,11 +539,15 @@ class FullModel(pl.LightningModule):
         assert hrvsatellite.shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
         # Crop spatial coordinates:
+        original_x = {}
         for batch_key in (
             BatchKey.hrvsatellite_y_osgb_fourier,
             BatchKey.hrvsatellite_x_osgb_fourier,
             BatchKey.hrvsatellite_surface_height,
         ):
+            # Save a backup so we can put the backup back at the end of this function!
+            # This is useful so we can plot the full surface height.
+            original_x[batch_key] = x[batch_key]
             x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
             assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
             assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
@@ -620,6 +622,8 @@ class FullModel(pl.LightningModule):
         # GSP power. There's just 1 GSP. So each gsp element is a timestep.
         n_gsp_elements = gsp_query.shape[1]
         predicted_gsp_power = power_out[:, -n_gsp_elements:]
+
+        x.update(original_x)
 
         return dict(
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
