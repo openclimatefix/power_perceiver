@@ -448,6 +448,7 @@ class FullModel(pl.LightningModule):
     crop_sat_before_sat_predictor_loss: bool = False
     num_5_min_history_timesteps_during_training: Optional[int] = 4
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
+    num_gaussians: int = 2
 
     def __post_init__(self):
         super().__init__()
@@ -477,7 +478,7 @@ class FullModel(pl.LightningModule):
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
-            MixtureDensityNetwork(in_features=self.d_model, num_gaussians=2),
+            MixtureDensityNetwork(in_features=self.d_model, num_gaussians=self.num_gaussians),
         )
 
         # Do this at the end of __post_init__ to capture model topology to wandb:
@@ -598,7 +599,7 @@ class FullModel(pl.LightningModule):
         # in the attention mechanism.
         mask = time_attn_in.isnan().any(dim=2)
         assert not mask.all()
-        self.log({f"{self.tag}/time_transformer_mask_mean": mask.float().mean()})
+        self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
 
