@@ -661,31 +661,33 @@ class FullModel(pl.LightningModule):
         gsp_mask = actual_gsp_power.isfinite()
 
         # PV negative log prob loss:
-        pv_distribution = get_distribution(predicted_pv_power[pv_mask])
-        pv_neg_log_prob_loss = -pv_distribution.log_prob(actual_pv_power[pv_mask]).mean()
+        pv_distribution_masked = get_distribution(predicted_pv_power[pv_mask])
+        pv_neg_log_prob_loss = -pv_distribution_masked.log_prob(actual_pv_power[pv_mask]).mean()
         self.log(f"{self.tag}/pv_neg_log_prob", pv_neg_log_prob_loss)
 
         # PV power loss:
-        pv_mse_loss = F.mse_loss(pv_distribution.mean, actual_pv_power[pv_mask])
+        pv_distribution = get_distribution(predicted_pv_power)
+        pv_mse_loss = F.mse_loss(pv_distribution.mean[pv_mask], actual_pv_power[pv_mask])
         self.log(f"{self.tag}/pv_mse", pv_mse_loss)
 
         pv_nmae_loss = F.l1_loss(
-            pv_distribution.mean[:, self.t0_idx_5_min + 1 :],
+            pv_distribution.mean[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
             actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
         )
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
         # GSP negative log prob loss:
-        gsp_distribution = get_distribution(predicted_gsp_power[gsp_mask])
-        gsp_neg_log_prob_loss = -gsp_distribution.log_prob(actual_gsp_power[gsp_mask]).mean()
+        gsp_distribution_masked = get_distribution(predicted_gsp_power[gsp_mask])
+        gsp_neg_log_prob_loss = -gsp_distribution_masked.log_prob(actual_gsp_power[gsp_mask]).mean()
         self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
 
         # GSP power loss:
-        gsp_mse_loss = F.mse_loss(gsp_distribution.mean, actual_gsp_power[gsp_mask])
+        gsp_distribution = get_distribution(predicted_gsp_power)
+        gsp_mse_loss = F.mse_loss(gsp_distribution.mean[gsp_mask], actual_gsp_power[gsp_mask])
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
         gsp_nmae_loss = F.l1_loss(
-            gsp_distribution.mean[:, T0_IDX_30_MIN + 1 :],
+            gsp_distribution.mean[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
             actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
         )
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
