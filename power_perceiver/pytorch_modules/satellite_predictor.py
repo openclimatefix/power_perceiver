@@ -4,7 +4,7 @@ from functools import partial
 import torch
 from fastai.layers import Mish
 from fastai.vision.learner import create_unet_model
-from fastai.vision.models.xresnet import xse_resnext50_deeper
+from fastai.vision.models.xresnet import xse_resnext50_deep
 from torch import nn
 
 _log = logging.getLogger(__name__)
@@ -27,7 +27,7 @@ class XResUNet(nn.Module):
         _log.info(f"kwargs for XResUNet = {kwargs}")
         super().__init__()
         if arch is None:
-            arch = partial(xse_resnext50_deeper, act_cls=Mish, sa=True)
+            arch = partial(xse_resnext50_deep, act_cls=Mish, sa=True)
         self.model = create_unet_model(arch=arch, **kwargs)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
