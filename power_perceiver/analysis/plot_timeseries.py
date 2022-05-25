@@ -86,7 +86,13 @@ class LogTimeseriesPlots(SimpleCallback):
             # TODO: Generate pv_datetimes upstream and pass it into this function, just like
             # we do with `gsp_time_utc`.
             pv_datetimes = batch[BatchKey.pv_time_utc].cpu()
-            for example_idx in range(4):
+            n_examples_per_batch = pv_datetimes.shape[0]
+            examples_with_gsp_data = [
+                example_idx
+                for example_idx in range(n_examples_per_batch)
+                if batch[BatchKey.gsp_time_utc][example_idx, 0].isfinite()
+            ]
+            for example_idx in examples_with_gsp_data[:4]:
                 fig = plot_pv_power(
                     actual_pv_power=actual_pv_power,
                     predicted_pv_power=predicted_pv_power,

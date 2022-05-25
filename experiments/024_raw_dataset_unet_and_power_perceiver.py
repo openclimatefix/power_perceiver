@@ -74,7 +74,9 @@ T0_IDX_5_MIN = NUM_HIST_SAT_IMAGES - 1
 torch.manual_seed(42)
 
 
-def get_dataloader(start_date, end_date, num_workers) -> torch.utils.data.DataLoader:
+def get_dataloader(
+    start_date, end_date, num_workers, n_batches_per_epoch, load_subset_every_epoch
+) -> torch.utils.data.DataLoader:
 
     data_source_kwargs = dict(
         start_date=start_date,
@@ -128,10 +130,11 @@ def get_dataloader(start_date, end_date, num_workers) -> torch.utils.data.DataLo
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 64),
-        n_examples_per_batch=8,
-        n_batches_per_epoch=1024,
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 128),
+        n_examples_per_batch=32,
+        n_batches_per_epoch=n_batches_per_epoch,
         np_batch_processors=np_batch_processors,
+        load_subset_every_epoch=load_subset_every_epoch,
     )
 
     if not num_workers:
@@ -153,8 +156,20 @@ def get_dataloader(start_date, end_date, num_workers) -> torch.utils.data.DataLo
     return dataloader
 
 
-train_dataloader = get_dataloader(start_date="2020-01-01", end_date="2020-12-31", num_workers=0)
-val_dataloader = get_dataloader(start_date="2021-01-01", end_date="2021-12-31", num_workers=0)
+train_dataloader = get_dataloader(
+    start_date="2020-01-01",
+    end_date="2020-12-31",
+    num_workers=0,
+    n_batches_per_epoch=1024,
+    load_subset_every_epoch=True,
+)
+val_dataloader = get_dataloader(
+    start_date="2021-01-01",
+    end_date="2021-12-31",
+    num_workers=0,
+    n_batches_per_epoch=128,
+    load_subset_every_epoch=False,
+)
 
 
 # ---------------------------------- SatellitePredictor ----------------------------------
@@ -254,6 +269,16 @@ def maybe_pad_with_zeros(tensor: torch.Tensor, requested_dim: int) -> torch.Tens
         zero_padding = torch.zeros(*zero_padding_shape, dtype=tensor.dtype, device=tensor.device)
         tensor = torch.concat((tensor, zero_padding), dim=2)
     return tensor
+
+
+LEFT_IDX = (SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS // 2) - (
+    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
+)
+RIGHT_IDX = LEFT_IDX + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
+TOP_IDX = (SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS // 2) - (
+    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
+)
+BOTTOM_IDX = TOP_IDX + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -408,7 +433,7 @@ class FullModel(pl.LightningModule):
     cheat: bool = False  #: Use real satellite imagery of the future.
     stop_gradients_before_unet: bool = False
     crop: bool = False  #: Compute the loss on a central crop of the imagery.
-    num_timesteps_during_training: Optional[int] = None
+    num_timesteps_during_training: Optional[int] = 8
 
     def __post_init__(self):
         super().__init__()
@@ -444,7 +469,7 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        # Predict future satellite images.
+        # Predict future satellite images. The SatellitePredictor always gets every timestep.
         if self.cheat:
             predicted_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
         else:
@@ -458,9 +483,8 @@ class FullModel(pl.LightningModule):
         )
         assert hrvsatellite.isfinite().all()
 
-        # Select a subset of predicted images, if we're in training mode:
+        # Select a subset of predicted images if we're in training mode:
         if self.num_timesteps_during_training and self.training:
-            # TODO!  Use xr_batch_processor.random_int_without_replacement
             num_timesteps = x[BatchKey.hrvsatellite].shape[1]
             random_timestep_indexes = random_int_without_replacement(
                 start=0,
@@ -468,21 +492,26 @@ class FullModel(pl.LightningModule):
                 num=self.num_timesteps_during_training,
             )
             hrvsatellite = hrvsatellite[:, random_timestep_indexes]
-            # TODO: Also do the other modalities! PV, etc.
+            for batch_key in (
+                BatchKey.hrvsatellite,
+                BatchKey.hrvsatellite_time_utc,
+                BatchKey.hrvsatellite_time_utc_fourier,
+                BatchKey.pv,
+                BatchKey.pv_time_utc,
+                BatchKey.pv_time_utc_fourier,
+                BatchKey.gsp,
+                BatchKey.gsp_time_utc,
+                BatchKey.gsp_time_utc_fourier,
+                BatchKey.solar_azimuth,
+                BatchKey.solar_elevation,
+            ):
+                x[batch_key] = x[batch_key][:, random_timestep_indexes]
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
         # a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
         # coming, but we probably don't want to give that huge image to a full-self-attention model.
-        left = (SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS // 2) - (
-            SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
-        )
-        right = left + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-        top = (SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS // 2) - (
-            SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
-        )
-        bottom = top + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-        hrvsatellite = hrvsatellite[..., top:bottom, left:right]
+        hrvsatellite = hrvsatellite[..., TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
         assert hrvsatellite.shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
         assert hrvsatellite.shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
@@ -492,7 +521,7 @@ class FullModel(pl.LightningModule):
             BatchKey.hrvsatellite_x_osgb_fourier,
             BatchKey.hrvsatellite_surface_height,
         ):
-            x[batch_key] = x[batch_key][:, top:bottom, left:right, ...]
+            x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX, ...]
             assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
             assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
@@ -596,30 +625,39 @@ class FullModel(pl.LightningModule):
 
         # PV power loss:
         pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
-
-        pv_nmae_loss = F.l1_loss(
-            predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
-            actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
-        )
         self.log(f"{tag}/pv_mse", pv_mse_loss)
-        self.log(f"{tag}/pv_nmae", pv_nmae_loss)
+
+        if not self.training:
+            pv_nmae_loss = F.l1_loss(
+                predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
+                actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
+            )
+            self.log(f"{tag}/pv_nmae", pv_nmae_loss)
 
         # GSP power loss:
         gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
-        gsp_nmae_loss = F.l1_loss(
-            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
-            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
-        )
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
-        self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
+
+        if not self.training:
+            gsp_nmae_loss = F.l1_loss(
+                predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+                actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+            )
+            self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
 
         # Total MSE loss:
-        total_pv_and_gsp_mse_loss = pv_mse_loss + gsp_mse_loss
+        total_pv_and_gsp_mse_loss = gsp_mse_loss
+        # In rare cases, there will be no PV data at all. We need to handle these
+        # cases otherwise the loss will go to NaN (although it does recover in
+        # subsequent iterations!)
+        if pv_mse_loss.isfinite().all():
+            total_pv_and_gsp_mse_loss += pv_mse_loss
         self.log(f"{tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
-        total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
-        self.log(f"{tag}/total_nmae", total_nmae_loss)
+        if not self.training:
+            total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
+            self.log(f"{tag}/total_nmae", total_nmae_loss)
 
         # SATELLITE PREDICTOR LOSS ################
         predicted_sat = network_out["predicted_sat"]
@@ -664,21 +702,18 @@ class FullModel(pl.LightningModule):
         else:
             sat_loss = ms_ssim_loss + sat_mse_loss
 
-        total_sat_pv_gsp_loss = total_pv_and_gsp_mse_loss + sat_loss
+        total_sat_pv_gsp_loss = sat_loss
+        if total_pv_and_gsp_mse_loss.isfinite().all():
+            total_sat_pv_gsp_loss += total_pv_and_gsp_mse_loss
         self.log(f"{tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
 
         return {
             "loss": total_sat_pv_gsp_loss,
-            "pv_mse_loss": pv_mse_loss,
-            "gsp_mse_loss": gsp_mse_loss,
-            "pv_nmae_loss": pv_nmae_loss,
-            "gsp_nmae_loss": gsp_nmae_loss,
             "predicted_gsp_power": predicted_gsp_power,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
-            "sat_loss": sat_loss,
             "predicted_sat": predicted_sat,  # Shape: example, time, y, x
             "actual_sat": actual_sat,
         }
@@ -698,7 +733,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.00: New RawDataset! U-Net & Power Perceiver. GCP-1",
+    name="024.01: 8 timesteps. batch_size=32. New RawDataset! U-Net & Power Perceiver. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
