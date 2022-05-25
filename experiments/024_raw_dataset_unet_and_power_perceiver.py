@@ -10,6 +10,7 @@ import einops
 
 # ML imports
 import matplotlib.pyplot as plt
+import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -75,7 +76,7 @@ torch.manual_seed(42)
 
 
 def get_dataloader(
-    start_date, end_date, num_workers, n_batches_per_epoch, load_subset_every_epoch
+    start_date, end_date, num_workers, n_batches_per_epoch_per_worker, load_subset_every_epoch
 ) -> torch.utils.data.DataLoader:
 
     data_source_kwargs = dict(
@@ -130,9 +131,9 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 32),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
         n_examples_per_batch=32,
-        n_batches_per_epoch=n_batches_per_epoch,
+        n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
     )
@@ -151,6 +152,7 @@ def get_dataloader(
         num_workers=num_workers,
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
+        persistent_workers=True,
     )
 
     return dataloader
@@ -160,14 +162,14 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=4,
-    n_batches_per_epoch=1024,
+    n_batches_per_epoch_per_worker=256,
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
     num_workers=2,
-    n_batches_per_epoch=128,
+    n_batches_per_epoch_per_worker=64,
     load_subset_every_epoch=False,
 )
 
@@ -432,10 +434,10 @@ class FullModel(pl.LightningModule):
     num_latent_transformer_encoders: int = 4
     cheat: bool = False  #: Use real satellite imagery of the future.
     stop_gradients_before_unet: bool = False
-    crop_sat_before_sat_predictor_loss: bool = (
-        True  #: Compute the loss on a central crop of the imagery.
-    )
-    num_5_min_timesteps_during_training: Optional[int] = 8
+    #: Compute the loss on a central crop of the imagery.
+    crop_sat_before_sat_predictor_loss: bool = False
+    num_5_min_history_timesteps_during_training: Optional[int] = 4
+    num_5_min_forecast_timesteps_during_training: Optional[int] = 6
 
     def __post_init__(self):
         super().__init__()
@@ -486,12 +488,19 @@ class FullModel(pl.LightningModule):
         assert hrvsatellite.isfinite().all()
 
         # Select a subset of 5-minute timesteps during training:
-        if self.num_5_min_timesteps_during_training and self.training:
-            num_timesteps = x[BatchKey.hrvsatellite].shape[1]
-            random_timestep_indexes = random_int_without_replacement(
+        if self.num_5_min_history_timesteps_during_training and self.training:
+            random_history_timestep_indexes = random_int_without_replacement(
                 start=0,
-                stop=num_timesteps,
-                num=self.num_5_min_timesteps_during_training,
+                stop=NUM_HIST_SAT_IMAGES,
+                num=self.num_5_min_history_timesteps_during_training,
+            )
+            random_forecast_timestep_indexes = random_int_without_replacement(
+                start=NUM_HIST_SAT_IMAGES,
+                stop=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
+                num=self.num_5_min_forecast_timesteps_during_training,
+            )
+            random_timestep_indexes = np.concat(
+                (random_history_timestep_indexes, random_forecast_timestep_indexes)
             )
             hrvsatellite = hrvsatellite[:, random_timestep_indexes]
             for batch_key in (
@@ -545,11 +554,11 @@ class FullModel(pl.LightningModule):
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
         # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
         # And use nan_to_num later in this function.
-        historical_pv[:, : T0_IDX_5_MIN + 1] = x[BatchKey.pv][:, : T0_IDX_5_MIN + 1]
+        historical_pv[:, : self.t0_idx_5_min + 1] = x[BatchKey.pv][:, : self.t0_idx_5_min + 1]
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
         # Now append a "marker" to indicate which timesteps are history:
         hist_pv_marker = torch.zeros_like(historical_pv)
-        hist_pv_marker[:, : T0_IDX_5_MIN + 1] = 1
+        hist_pv_marker[:, : self.t0_idx_5_min + 1] = 1
         pv_attn_out = torch.concat((pv_attn_out, historical_pv, hist_pv_marker), dim=3)
 
         # Reshape pv and gsp attention outputs so each timestep and each pv system is
@@ -603,6 +612,14 @@ class FullModel(pl.LightningModule):
             predicted_sat=predicted_sat,  # Shape: example, time, y, x
         )
 
+    @property
+    def t0_idx_5_min(self) -> int:
+        if self.training and self.num_5_min_history_timesteps_during_training:
+            t0_idx_5_min = self.num_5_min_history_timesteps_during_training
+        else:
+            t0_idx_5_min = T0_IDX_5_MIN
+        return t0_idx_5_min
+
     def training_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
@@ -630,24 +647,21 @@ class FullModel(pl.LightningModule):
         pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
         self.log(f"{tag}/pv_mse", pv_mse_loss)
 
-        if (self.num_5_min_timesteps_during_training is None) or (not self.training):
-            # Only compute NMAE loss when we know how many timesteps of PV data there are!
-            pv_nmae_loss = F.l1_loss(
-                predicted_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
-                actual_pv_power[:, T0_IDX_5_MIN + 1 :][pv_mask[:, T0_IDX_5_MIN + 1 :]],
-            )
-            self.log(f"{tag}/pv_nmae", pv_nmae_loss)
+        pv_nmae_loss = F.l1_loss(
+            predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
+            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
+        )
+        self.log(f"{tag}/pv_nmae", pv_nmae_loss)
 
         # GSP power loss:
         gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
         self.log(f"{tag}/gsp_mse", gsp_mse_loss)
 
-        if (self.num_5_min_timesteps_during_training is None) or (not self.training):
-            gsp_nmae_loss = F.l1_loss(
-                predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
-                actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
-            )
-            self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
+        gsp_nmae_loss = F.l1_loss(
+            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+        )
+        self.log(f"{tag}/gsp_nmae", gsp_nmae_loss)
 
         # Total MSE loss:
         total_pv_and_gsp_mse_loss = gsp_mse_loss
@@ -659,9 +673,8 @@ class FullModel(pl.LightningModule):
         self.log(f"{tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
-        if (self.num_5_min_timesteps_during_training is None) or (not self.training):
-            total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
-            self.log(f"{tag}/total_nmae", total_nmae_loss)
+        total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
+        self.log(f"{tag}/total_nmae", total_nmae_loss)
 
         # SATELLITE PREDICTOR LOSS ################
         predicted_sat = network_out["predicted_sat"]
