@@ -131,7 +131,7 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 1),  # TODO: INCREASE!
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -162,7 +162,7 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=4,
-    n_batches_per_epoch_per_worker=64,  # TODO: INCREASE!
+    n_batches_per_epoch_per_worker=256,
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(

@@ -54,18 +54,18 @@ def plot_pv_power(
     ax_gsp.scatter(gsp_df.index, gsp_df["predicted_gsp_power"], alpha=0.8, label="Predicted")
     ax_gsp.set_title("GSP PV power")
     ax_gsp.set_ylabel("GSP PV power")
-    xlabel = "Time (UTC)"
-    if not pd.isnull(pv_datetimes[0]):  # Check this example is not NaT!
-        xlabel += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
-    ax_gsp.set_xlabel(xlabel)
     ax_gsp.legend()
 
     # Solar elevation and azimuth
-    ax2_solar = ax_solar.twiny()  # Don't share Y axis
+    ax2_solar = ax_solar.twinx()  # Don't share Y axis!
     ax2_solar.plot(pv_datetimes, solar_azimuth[example_idx], label="Solar Azimuth")
     ax2_solar.plot(pv_datetimes, solar_elevation[example_idx], label="Solar Elevation")
     ax2_solar.legend()
     ax2_solar.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+    xlabel = "Time (UTC)"
+    if not pd.isnull(pv_datetimes[0]):  # Check this example is not NaT!
+        xlabel += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
+    ax2_solar.set_xlabel(xlabel)
 
     return fig
 
