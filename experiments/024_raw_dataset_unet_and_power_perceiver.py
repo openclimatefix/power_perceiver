@@ -47,7 +47,10 @@ from power_perceiver.load_raw.raw_dataset import RawDataset
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.sun_position import SunPosition
 from power_perceiver.np_batch_processor.topography import Topography
-from power_perceiver.pytorch_modules.mixture_density_network import MixtureDensityNetwork
+from power_perceiver.pytorch_modules.mixture_density_network import (
+    MixtureDensityNetwork,
+    get_distribution,
+)
 from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
@@ -137,7 +140,9 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
+        min_duration_to_load_per_epoch=datetime.timedelta(
+            hours=12 * 1
+        ),  # TODO: INCREASE to 12 x 48!
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -168,7 +173,7 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=2,
-    n_batches_per_epoch_per_worker=512,
+    n_batches_per_epoch_per_worker=64,  # TODO: INCREASE to 512!
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(
@@ -604,18 +609,19 @@ class FullModel(pl.LightningModule):
         predicted_pv_power = power_out[:, :n_pv_elements]
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
-            "example (time n_pv_systems) 1 -> example time n_pv_systems",
+            "example (time n_pv_systems) mdn_features -> example time n_pv_systems mdn_features",
             time=n_timesteps,
             n_pv_systems=n_pv_systems,
+            mdn_features=self.num_gaussians * 3,
         )
 
-        # GSP power. There's just 1 GSP.
+        # GSP power. There's just 1 GSP. So each gsp element is a timestep.
         n_gsp_elements = gsp_query.shape[1]
-        predicted_gsp_power = power_out[:, -n_gsp_elements:, 0]
+        predicted_gsp_power = power_out[:, -n_gsp_elements:]
 
         return dict(
-            predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_systems)
-            predicted_gsp_power=predicted_gsp_power,  # Shape: (example, time)
+            predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
+            predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
             predicted_sat=predicted_sat,  # Shape: example, time, y, x
         )
 
@@ -653,33 +659,45 @@ class FullModel(pl.LightningModule):
         pv_mask = actual_pv_power.isfinite()
         gsp_mask = actual_gsp_power.isfinite()
 
+        # PV negative log prob loss:
+        pv_distribution = get_distribution(predicted_pv_power[pv_mask])
+        pv_neg_log_prob_loss = -pv_distribution.log_prob(actual_pv_power[pv_mask]).mean()
+        self.log(f"{self.tag}/pv_neg_log_prob", pv_neg_log_prob_loss)
+
         # PV power loss:
-        pv_mse_loss = F.mse_loss(predicted_pv_power[pv_mask], actual_pv_power[pv_mask])
+        pv_mse_loss = F.mse_loss(pv_distribution.mean, actual_pv_power[pv_mask])
         self.log(f"{self.tag}/pv_mse", pv_mse_loss)
 
         pv_nmae_loss = F.l1_loss(
-            predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
+            pv_distribution.mean[:, self.t0_idx_5_min + 1 :],
             actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
         )
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
+        # GSP negative log prob loss:
+        gsp_distribution = get_distribution(predicted_gsp_power[gsp_mask])
+        gsp_neg_log_prob_loss = -gsp_distribution.log_prob(actual_gsp_power[gsp_mask]).mean()
+        self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
+
         # GSP power loss:
-        gsp_mse_loss = F.mse_loss(predicted_gsp_power[gsp_mask], actual_gsp_power[gsp_mask])
+        gsp_mse_loss = F.mse_loss(gsp_distribution.mean, actual_gsp_power[gsp_mask])
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
         gsp_nmae_loss = F.l1_loss(
-            predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+            gsp_distribution.mean[:, T0_IDX_30_MIN + 1 :],
             actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
         )
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
-        # Total MSE loss:
+        # Total PV and GSP loss:
         total_pv_and_gsp_mse_loss = gsp_mse_loss
+        total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss
         # In rare cases, there will be no PV data at all. We need to handle these
         # cases otherwise the loss will go to NaN (although it does recover in
         # subsequent iterations!)
         if pv_mse_loss.isfinite().all():
             total_pv_and_gsp_mse_loss += pv_mse_loss
+            total_pv_and_gsp_neg_log_prob_loss += pv_neg_log_prob_loss
         self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
@@ -729,12 +747,15 @@ class FullModel(pl.LightningModule):
             sat_loss = ms_ssim_loss + sat_mse_loss
 
         total_sat_pv_gsp_loss = sat_loss
+        total_sat_and_pv_gsp_neg_log_prob = sat_loss
         if total_pv_and_gsp_mse_loss.isfinite().all():
             total_sat_pv_gsp_loss += total_pv_and_gsp_mse_loss
+            total_sat_and_pv_gsp_neg_log_prob += total_pv_and_gsp_neg_log_prob_loss
         self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
+        self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
 
         return {
-            "loss": total_sat_pv_gsp_loss,
+            "loss": total_sat_and_pv_gsp_neg_log_prob,
             "predicted_gsp_power": predicted_gsp_power,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
@@ -759,7 +780,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.03: Fix bug. Sat loss on entire img. 8 timesteps. batch_size=32. donatello-0",
+    name="024.04: MDN. Correct T0 timestep. Sat loss on entire img. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
