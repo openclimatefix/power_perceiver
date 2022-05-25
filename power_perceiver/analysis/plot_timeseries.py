@@ -62,8 +62,8 @@ def plot_pv_power(
 
     # Solar elevation and azimuth
     ax2_solar = ax_solar.twiny()  # Don't share Y axis
-    ax2_solar.plot(pv_datetimes, solar_azimuth, label="Solar Azimuth")
-    ax2_solar.plot(pv_datetimes, solar_elevation, label="Solar Elevation")
+    ax2_solar.plot(pv_datetimes, solar_azimuth[example_idx], label="Solar Azimuth")
+    ax2_solar.plot(pv_datetimes, solar_elevation[example_idx], label="Solar Elevation")
     ax2_solar.legend()
     ax2_solar.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
 
