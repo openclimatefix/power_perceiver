@@ -28,6 +28,10 @@ def plot_pv_power(
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
     gsp_datetimes = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
 
+    if pd.isnull(pv_datetimes[0]):
+        # This example has no PV data.
+        return fig
+
     # PV
     def _plot_pv(ax, data, title):
         ax.plot(pv_datetimes, data)
@@ -42,7 +46,7 @@ def plot_pv_power(
             right=pv_datetimes[-1],
         )
         title = "Actual PV power"
-        if pv_idx == 1 and not pd.isnull(pv_datetimes[0]):
+        if pv_idx == 1:
             title += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
         _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], "Actual PV power")
 
@@ -91,7 +95,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
             examples_with_gsp_data = [
                 example_idx
                 for example_idx in range(n_examples_per_batch)
-                if batch[BatchKey.gsp_time_utc][example_idx, 0].isfinite()
+                if batch[BatchKey.pv_time_utc][example_idx].isfinite().all()
             ]
             for example_idx in examples_with_gsp_data[:4]:
                 fig = plot_pv_power(

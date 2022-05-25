@@ -142,7 +142,7 @@ def get_dataloader(
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
         min_duration_to_load_per_epoch=datetime.timedelta(
-            hours=12 * 1
+            hours=12 * 8
         ),  # TODO: INCREASE to 12 x 48!
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
@@ -794,7 +794,7 @@ wandb_logger = WandbLogger(
 
 # log model only if validation loss decreases
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    monitor="validation/total_sat_pv_gsp_loss", mode="min"
+    monitor="validation/total_sat_and_pv_gsp_neg_log_prob", mode="min"
 )
 
 

@@ -1,5 +1,4 @@
 import datetime
-from typing import Optional
 
 import matplotlib
 import matplotlib.dates as mdates
@@ -27,6 +26,7 @@ class MixtureDensityNetwork(nn.Module):
 def get_pi_mu_sigma(
     network_output: torch.Tensor,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    assert network_output.shape[-1] % 3 == 0
     num_gaussians = int(network_output.shape[-1] / 3)
     pi = network_output[..., :num_gaussians]
     mu = network_output[..., num_gaussians : num_gaussians * 2]
@@ -34,16 +34,8 @@ def get_pi_mu_sigma(
     return pi, mu, sigma
 
 
-def get_distribution(
-    network_output: torch.Tensor,
-    example_i: Optional[int] = None,
-) -> torch.distributions.MixtureSameFamily:
+def get_distribution(network_output: torch.Tensor) -> torch.distributions.MixtureSameFamily:
     pi, mu, sigma = get_pi_mu_sigma(network_output)
-
-    if example_i is not None:
-        pi = pi[example_i]
-        mu = mu[example_i]
-        sigma = sigma[example_i]
 
     mixture_distribution = torch.distributions.Categorical(probs=pi)
     component_distribution = torch.distributions.Normal(loc=mu, scale=sigma)
@@ -58,7 +50,6 @@ def plot_probs(
     network_output: torch.Tensor,
     left: datetime.datetime,
     right: datetime.datetime,
-    example_i: int = 0,
 ) -> matplotlib.axes.Axes:
     """Plot distribution over time.
 
@@ -87,7 +78,7 @@ def plot_probs(
     sweep = sweep.unsqueeze(-1).expand(sweep_n_steps, n_timesteps)
 
     # Get probabilities.
-    distribution = get_distribution(network_output, example_i=example_i)
+    distribution = get_distribution(network_output)
     log_probs = distribution.log_prob(sweep)
     probs = torch.exp(log_probs).detach().cpu().numpy()
 
