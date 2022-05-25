@@ -760,10 +760,12 @@ class FullModel(pl.LightningModule):
         return {
             "loss": total_sat_and_pv_gsp_neg_log_prob,
             "predicted_gsp_power": predicted_gsp_power,
+            "predicted_gsp_power_mean": gsp_distribution.mean,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
+            "predicted_pv_power_mean": pv_distribution.mean,
             "predicted_sat": predicted_sat,  # Shape: example, time, y, x
             "actual_sat": actual_sat,
         }
