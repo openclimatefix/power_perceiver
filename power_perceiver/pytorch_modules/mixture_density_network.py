@@ -54,6 +54,7 @@ def plot_probs(
     """Plot distribution over time.
 
     Args:
+        network_output: Shape: (time, mixture_density_network_features)
         left, right: Pass in the output of `mdates.date2num` for the left and
             right time boundaries.
     """
@@ -64,7 +65,7 @@ def plot_probs(
     sweep_start = 1
     sweep_stop = 0
 
-    n_timesteps = network_output.shape[1]
+    n_timesteps = network_output.shape[0]
 
     # Define a 'sweep' matrix which we pass into log_prob to get probabilities
     # for a range of values at each timestep. Those values range from sweep_start to sweep_stop.
