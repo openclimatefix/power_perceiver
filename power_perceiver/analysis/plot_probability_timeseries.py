@@ -30,31 +30,31 @@ def plot_pv_power(
 
     # PV
     def _plot_pv(ax, data, title):
-        ax.plot(pv_datetimes, data[example_idx].squeeze())
+        ax.plot(pv_datetimes, data)
         ax.set_title(title)
         ax.set_ylabel("PV power")
 
     for pv_idx, ax in enumerate(axes[:-1]):
-        title = "Actual PV power"
-        if pv_idx == 1 and not pd.isnull(pv_datetimes[0]):
-            title += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
-        _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], "Actual PV power")
         plot_probs(
             ax=ax,
             network_output=predicted_pv_power[example_idx, :, pv_idx],
             left=pv_datetimes[0],
             right=pv_datetimes[-1],
         )
+        title = "Actual PV power"
+        if pv_idx == 1 and not pd.isnull(pv_datetimes[0]):
+            title += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
+        _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], "Actual PV power")
 
     # GSP
     ax_gsp = axes[-1]
-    ax_gsp.plot(gsp_datetimes, actual_gsp_power[example_idx], label="Actual")
     plot_probs(
         ax=ax_gsp,
         network_output=predicted_gsp_power[example_idx].squeeze(),
         left=gsp_datetimes[0],
         right=gsp_datetimes[-1],
     )
+    ax_gsp.plot(gsp_datetimes, actual_gsp_power[example_idx], label="Actual")
     ax_gsp.set_title("GSP PV power")
     ax_gsp.legend()
 
