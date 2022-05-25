@@ -495,7 +495,8 @@ class FullModel(pl.LightningModule):
             for batch_key in (
                 # Don't include BatchKey.hrvsatellite, because we need all timesteps to
                 # compute the loss for the SatellitePredictor!
-                BatchKey.hrvsatellite_time_utc,
+                # BatchKey.hrvsatellite_time_utc,
+                #
                 BatchKey.hrvsatellite_time_utc_fourier,
                 BatchKey.pv,
                 BatchKey.pv_time_utc,
