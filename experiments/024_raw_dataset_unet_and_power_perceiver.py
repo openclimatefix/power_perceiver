@@ -433,7 +433,7 @@ class FullModel(pl.LightningModule):
     cheat: bool = False  #: Use real satellite imagery of the future.
     stop_gradients_before_unet: bool = False
     crop: bool = False  #: Compute the loss on a central crop of the imagery.
-    num_timesteps_during_training: Optional[int] = 8
+    num_5_min_timesteps_during_training: Optional[int] = 8
 
     def __post_init__(self):
         super().__init__()
@@ -483,13 +483,13 @@ class FullModel(pl.LightningModule):
         )
         assert hrvsatellite.isfinite().all()
 
-        # Select a subset of predicted images if we're in training mode:
-        if self.num_timesteps_during_training and self.training:
+        # Select a subset of 5-minute timesteps during training:
+        if self.num_5_min_timesteps_during_training and self.training:
             num_timesteps = x[BatchKey.hrvsatellite].shape[1]
             random_timestep_indexes = random_int_without_replacement(
                 start=0,
                 stop=num_timesteps,
-                num=self.num_timesteps_during_training,
+                num=self.num_5_min_timesteps_during_training,
             )
             hrvsatellite = hrvsatellite[:, random_timestep_indexes]
             for batch_key in (
@@ -499,13 +499,13 @@ class FullModel(pl.LightningModule):
                 BatchKey.pv,
                 BatchKey.pv_time_utc,
                 BatchKey.pv_time_utc_fourier,
-                BatchKey.gsp,
-                BatchKey.gsp_time_utc,
-                BatchKey.gsp_time_utc_fourier,
                 BatchKey.solar_azimuth,
                 BatchKey.solar_elevation,
             ):
-                x[batch_key] = x[batch_key][:, random_timestep_indexes]
+                try:
+                    x[batch_key] = x[batch_key][:, random_timestep_indexes]
+                except Exception as e:
+                    import ipdb; ipdb.set_trace()  # TODO: REMOVE!
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
