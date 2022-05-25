@@ -159,14 +159,14 @@ def get_dataloader(
 train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
-    num_workers=0,  # TODO: INCREASE THIS!
+    num_workers=4,
     n_batches_per_epoch=1024,
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
-    num_workers=0,
+    num_workers=2,
     n_batches_per_epoch=128,
     load_subset_every_epoch=False,
 )
@@ -495,8 +495,10 @@ class FullModel(pl.LightningModule):
             for batch_key in (
                 # Don't include BatchKey.hrvsatellite, because we need all timesteps to
                 # compute the loss for the SatellitePredictor!
-                # BatchKey.hrvsatellite_time_utc,
-                #
+                # Don't include BatchKey.hrvsatellite_time_utc because all it's used for
+                # is plotting satellite predictions, and we need all timesteps for that!
+                # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
+                # satellite_transformer.
                 BatchKey.hrvsatellite_time_utc_fourier,
                 BatchKey.pv,
                 BatchKey.pv_time_utc,
@@ -504,10 +506,7 @@ class FullModel(pl.LightningModule):
                 BatchKey.solar_azimuth,
                 BatchKey.solar_elevation,
             ):
-                try:
-                    x[batch_key] = x[batch_key][:, random_timestep_indexes]
-                except Exception as e:
-                    import ipdb; ipdb.set_trace()  # TODO: REMOVE!
+                x[batch_key] = x[batch_key][:, random_timestep_indexes]
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
