@@ -21,8 +21,10 @@ def plot_pv_power(
     example_idx: int,
     pv_datetimes: torch.Tensor,
     gsp_datetimes: torch.Tensor,
+    actual_satellite: torch.Tensor,  # shape: example, time, channels, y, x
+    surface_height: torch.Tensor,
 ) -> plt.Figure:
-    fig, axes = plt.subplots(nrows=3, ncols=3, sharex=True, sharey=True)
+    fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
     axes = np.array(axes).flatten()
 
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
@@ -38,7 +40,7 @@ def plot_pv_power(
         ax.set_title(title)
         ax.set_ylabel("PV power")
 
-    for pv_idx, ax in enumerate(axes[:-1]):
+    for pv_idx, ax in enumerate(axes[:-5]):
         plot_probs(
             ax=ax,
             network_output=predicted_pv_power[example_idx, :, pv_idx],
@@ -47,11 +49,11 @@ def plot_pv_power(
         )
         title = "Actual PV power"
         if pv_idx == 1:
-            title += "\nDate: " + pv_datetimes[0].date().strftime("%Y-%m-%d")
-        _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], "Actual PV power")
+            title += " " + pv_datetimes[0].date().strftime("%Y-%m-%d")
+        _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], title)
 
     # GSP
-    ax_gsp = axes[-1]
+    ax_gsp = axes[-4]
     plot_probs(
         ax=ax_gsp,
         network_output=predicted_gsp_power[example_idx].squeeze(),
@@ -62,8 +64,14 @@ def plot_pv_power(
     ax_gsp.set_title("GSP PV power")
     ax_gsp.legend()
 
-    for ax in axes:
+    for ax in axes[:-3]:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+
+    # Satellite
+    actual_satellite = actual_satellite[example_idx, :, 0]
+    axes[-3].imshow(actual_satellite[0])
+    axes[-2].imshow(actual_satellite[-1])
+    axes[-1].imshow(surface_height[example_idx])
 
     return fig
 
@@ -106,6 +114,8 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
                     example_idx=example_idx,
                     pv_datetimes=pv_datetimes,
+                    actual_satellite=batch[BatchKey.hrvsatellite].cpu(),
+                    surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
                 )
                 wandb.log(
                     {
