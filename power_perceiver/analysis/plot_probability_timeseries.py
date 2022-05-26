@@ -26,6 +26,8 @@ def plot_pv_power(
     pv_power_from_sat_transformer: torch.Tensor,
     predicted_pv_power_mean: torch.Tensor,
     predicted_gsp_power_mean: torch.Tensor,
+    gsp_id: torch.Tensor,
+    pv_id: torch.Tensor,
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
     axes = np.array(axes).flatten()
@@ -38,11 +40,6 @@ def plot_pv_power(
         return fig
 
     # PV
-    def _plot_pv(ax, data, title):
-        ax.plot(pv_datetimes, data)
-        ax.set_title(title)
-        ax.set_ylabel("PV power")
-
     for pv_idx, ax in enumerate(axes[:-5]):
         plot_probs(
             ax=ax,
@@ -50,13 +47,16 @@ def plot_pv_power(
             left=pv_datetimes[0],
             right=pv_datetimes[-1],
         )
-        title = "Actual PV power"
-        if pv_idx == 0:
-            title += " " + pv_datetimes[0].date().strftime("%Y-%m-%d")
-        _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], title)
-        _plot_pv(ax, pv_power_from_sat_transformer[example_idx, :, pv_idx], "SatTrans prediction")
-        _plot_pv(ax, predicted_pv_power_mean[example_idx, :, pv_idx], "Mean prediction")
-
+        ax.set_title("PV power for {:.0f}".format(pv_id[example_idx]))
+        ax.plot(pv_datetimes, actual_pv_power[example_idx, :, pv_idx], label="Actual PV")
+        ax.plot(
+            pv_datetimes,
+            pv_power_from_sat_transformer[example_idx, :, pv_idx],
+            label="SatTrans prediction",
+        )
+        ax.plot(
+            pv_datetimes, predicted_pv_power_mean[example_idx, :, pv_idx], label="Mean prediction"
+        )
         ax.legend()
 
     # GSP
@@ -69,7 +69,8 @@ def plot_pv_power(
     )
     ax_gsp.plot(gsp_datetimes, actual_gsp_power[example_idx], label="Actual")
     ax_gsp.plot(gsp_datetimes, predicted_gsp_power_mean[example_idx], label="Mean prediction")
-    ax_gsp.set_title("GSP PV power")
+    ax_gsp.set_title("GSP PV power for {:.0f}".format(gsp_id[example_idx]))
+    ax_gsp.set_xlabel(pv_datetimes[0].date().strftime("%Y-%m-%d"))
     ax_gsp.legend()
 
     for ax in axes[:-3]:
@@ -91,6 +92,8 @@ def plot_pv_power(
             top=False,
             left=False,
             right=False,
+            labelbottom=False,
+            labelleft=False,
         )
 
     return fig
@@ -141,6 +144,8 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     pv_power_from_sat_transformer=outputs["pv_power_from_sat_transformer"]
                     .cpu()
                     .detach(),
+                    pv_id=batch[BatchKey.pv_id].cpu(),
+                    gsp_id=batch[BatchKey.gsp_id].cpu(),
                 )
                 wandb.log(
                     {
