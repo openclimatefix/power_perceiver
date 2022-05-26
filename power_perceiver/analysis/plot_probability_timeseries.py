@@ -47,7 +47,7 @@ def plot_pv_power(
             left=pv_datetimes[0],
             right=pv_datetimes[-1],
         )
-        ax.set_title("PV power for {:.0f}".format(pv_id[example_idx]))
+        ax.set_title("PV power for {:.0f}".format(pv_id[example_idx, pv_idx]))
         ax.plot(pv_datetimes, actual_pv_power[example_idx, :, pv_idx], label="Actual PV")
         ax.plot(
             pv_datetimes,
