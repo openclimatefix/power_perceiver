@@ -57,7 +57,7 @@ def plot_pv_power(
         ax.plot(
             pv_datetimes, predicted_pv_power_mean[example_idx, :, pv_idx], label="Mean prediction"
         )
-        ax.legend()
+        ax.legend(framealpha=0.4)
 
     # GSP
     ax_gsp = axes[-4]
@@ -71,7 +71,7 @@ def plot_pv_power(
     ax_gsp.plot(gsp_datetimes, predicted_gsp_power_mean[example_idx], label="Mean prediction")
     ax_gsp.set_title("GSP PV power for {:.0f}".format(gsp_id[example_idx]))
     ax_gsp.set_xlabel(pv_datetimes[0].date().strftime("%Y-%m-%d"))
-    ax_gsp.legend()
+    ax_gsp.legend(framealpha=0.4)
 
     for ax in axes[:-3]:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
