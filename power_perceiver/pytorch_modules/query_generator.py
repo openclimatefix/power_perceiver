@@ -13,7 +13,11 @@ from power_perceiver.utils import assert_num_dims
 
 @dataclass(eq=False)
 class PVQueryGenerator(nn.Module):
-    """Create a query from the locations of the PV systems."""
+    """Create a query from the locations of the PV systems.
+
+    This returns n_pv_systems x n_timestep queries per example. In other words, each query
+    is about a single PV system at a single timestep.
+    """
 
     # This must be an InitVar because PyTorch does not allow modules to be
     # assigned before super().__init__()
@@ -42,16 +46,23 @@ class PVQueryGenerator(nn.Module):
         # (example features) if for_satellite_transformer else (example, time, n_fourier_features)
         time_fourier = x[BatchKey.pv_time_utc_fourier]  # shape: ((example * time) features)
         assert_num_dims(time_fourier, 2)
+        time_fourier_t0 = x[BatchKey.pv_time_utc_fourier_t0]  # shape: (orig_examples, features)
 
         # Repeat y_fourier, x_fourier, and pv_system_embedding across each timestep:
         n_repeats = int(time_fourier.shape[0] / y_fourier.shape[0])
         y_fourier = y_fourier.repeat_interleave(repeats=n_repeats, dim=0)
         x_fourier = x_fourier.repeat_interleave(repeats=n_repeats, dim=0)
         pv_system_embedding = pv_system_embedding.repeat_interleave(repeats=n_repeats, dim=0)
+        time_fourier_t0 = time_fourier_t0.repeat_interleave(repeats=n_repeats, dim=0)
 
         # Repeat across all PV systems:
         time_fourier = einops.repeat(
             time_fourier,
+            "example features -> example n_pv_systems features",
+            n_pv_systems=n_pv_systems,
+        )
+        time_fourier_t0 = einops.repeat(
+            time_fourier_t0,
             "example features -> example n_pv_systems features",
             n_pv_systems=n_pv_systems,
         )
@@ -78,6 +89,7 @@ class PVQueryGenerator(nn.Module):
                 y_fourier,
                 x_fourier,
                 time_fourier,
+                time_fourier_t0,  # So the model can tell which "step" this is.
                 solar_azimuth,
                 solar_elevation,
                 pv_system_embedding,
@@ -147,12 +159,18 @@ class GSPQueryGenerator(nn.Module):
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
             n_timesteps = time_fourier.shape[1]
+            time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_to]  # (example, n_fourier_features)
             # Repeat the existing query over every timestep
+            time_fourier_t0 = einops.repeat(
+                time_fourier_t0,
+                "example features -> example time features",
+                time=n_timesteps,
+            )
             gsp_query = einops.repeat(
                 gsp_query,
                 "example 1 features -> example time features",
                 time=n_timesteps,
             )
-            gsp_query = torch.concat((gsp_query, time_fourier), dim=2)
+            gsp_query = torch.concat((gsp_query, time_fourier, time_fourier_t0), dim=2)
 
         return gsp_query

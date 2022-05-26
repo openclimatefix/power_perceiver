@@ -46,6 +46,7 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSo
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.raw_dataset import RawDataset
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
+from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
 from power_perceiver.np_batch_processor.sun_position import SunPosition
 from power_perceiver.np_batch_processor.topography import Topography
 from power_perceiver.pytorch_modules.mixture_density_network import (
@@ -130,7 +131,10 @@ def get_dataloader(
         **data_source_kwargs,
     )
 
-    np_batch_processors = [EncodeSpaceTime()]
+    np_batch_processors = [
+        EncodeSpaceTime(),
+        SaveT0Time(pv_t0_idx=NUM_HIST_SAT_IMAGES - 1, gsp_t0_idx=T0_IDX_30_MIN),
+    ]
     if USE_SUN_POSITION:
         np_batch_processors.append(SunPosition())
     if USE_TOPOGRAPHY:
