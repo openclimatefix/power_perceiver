@@ -23,6 +23,8 @@ def plot_pv_power(
     gsp_datetimes: torch.Tensor,
     actual_satellite: torch.Tensor,  # shape: example, time, channels, y, x
     surface_height: torch.Tensor,
+    pv_power_from_sat_transformer: torch.Tensor,
+    gsp_power_from_sat_transformer: torch.Tensor,
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
     axes = np.array(axes).flatten()
@@ -48,9 +50,11 @@ def plot_pv_power(
             right=pv_datetimes[-1],
         )
         title = "Actual PV power"
-        if pv_idx == 1:
+        if pv_idx == 0:
             title += " " + pv_datetimes[0].date().strftime("%Y-%m-%d")
         _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], title)
+        _plot_pv(ax, pv_power_from_sat_transformer[example_idx, :, pv_idx], "SatTrans prediction")
+        ax.legend()
 
     # GSP
     ax_gsp = axes[-4]
@@ -61,6 +65,9 @@ def plot_pv_power(
         right=gsp_datetimes[-1],
     )
     ax_gsp.plot(gsp_datetimes, actual_gsp_power[example_idx], label="Actual")
+    ax_gsp.plot(
+        gsp_datetimes, gsp_power_from_sat_transformer[example_idx], label="SatTrans prediction"
+    )
     ax_gsp.set_title("GSP PV power")
     ax_gsp.legend()
 
@@ -70,8 +77,20 @@ def plot_pv_power(
     # Satellite
     actual_satellite = actual_satellite[example_idx, :, 0]
     axes[-3].twinx().twiny().imshow(actual_satellite[0])
+    axes[-3].set_title("First actual satellite image")
     axes[-2].twinx().twiny().imshow(actual_satellite[-1])
+    axes[-2].set_title("Last actual satellite image")
     axes[-1].twinx().twiny().imshow(surface_height[example_idx])
+    axes[-1].set_title("Surface height")
+    for ax in axes[-3:]:
+        ax.tick_params(
+            axis="both",
+            which="both",
+            bottom=False,
+            top=False,
+            left=False,
+            right=False,
+        )
 
     return fig
 
@@ -116,6 +135,12 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     pv_datetimes=pv_datetimes,
                     actual_satellite=batch[BatchKey.hrvsatellite].cpu(),
                     surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
+                    pv_power_from_sat_transformer=outputs["pv_power_from_sat_transformer"]
+                    .cpu()
+                    .detach(),
+                    gsp_power_from_sat_transformer=outputs["gsp_power_from_sat_transformer"]
+                    .cpu()
+                    .detach(),
                 )
                 wandb.log(
                     {

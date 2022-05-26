@@ -345,6 +345,15 @@ class SatelliteTransformer(nn.Module):
             num_latent_transformer_encoders=self.num_latent_transformer_encoders,
         )
 
+        self.power_output = nn.Sequential(
+            nn.Linear(in_features=self.d_model, out_features=self.d_model),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=self.d_model // 2),
+            nn.GELU(),
+            nn.Linear(in_features=self.d_model, out_features=1),
+            nn.ReLU(),  # Ensure the output is always positive!
+        )
+
     def forward(
         self, x: dict[BatchKey, torch.Tensor], hrvsatellite: torch.Tensor
     ) -> dict[str, torch.Tensor]:
@@ -401,12 +410,18 @@ class SatelliteTransformer(nn.Module):
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
 
+        # Power output:
+        pv_power_out = self.power_output(pv_attn_out)
+        gsp_power_out = self.power_output(gsp_attn_out)
+
         # Put back the original data! TODO: Remove this hack!
         x.update(original_x)
 
         return {
             "pv_attn_out": pv_attn_out,  # shape: (example, n_pv_systems, d_model)
             "gsp_attn_out": gsp_attn_out,  # shape: (example, 1, d_model)
+            "pv_power_out": pv_power_out,
+            "gsp_power_out": gsp_power_out,
         }
 
 
@@ -607,6 +622,8 @@ class FullModel(pl.LightningModule):
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
             predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
             predicted_sat=predicted_sat,  # Shape: example, time, y, x
+            pv_power_from_sat_transformer=sat_trans_out["pv_power_out"],
+            gsp_power_from_sat_transformer=sat_trans_out["gsp_power_out"],
         )
 
     @property
@@ -659,6 +676,12 @@ class FullModel(pl.LightningModule):
         )
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
+        # PV loss from satellite transformer:
+        pv_from_sat_trans_mse_loss = F.mse_loss(
+            network_out["pv_power_from_sat_transformer"], actual_pv_power
+        )
+        self.log(f"{self.tag}/pv_from_sat_trans_mse_loss", pv_from_sat_trans_mse_loss)
+
         # GSP negative log prob loss:
         gsp_distribution_masked = get_distribution(predicted_gsp_power[gsp_mask])
         gsp_neg_log_prob_loss = -gsp_distribution_masked.log_prob(actual_gsp_power[gsp_mask]).mean()
@@ -675,14 +698,20 @@ class FullModel(pl.LightningModule):
         )
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
+        # GSP loss from satellite transformer:
+        gsp_from_sat_trans_mse_loss = F.mse_loss(
+            network_out["gsp_power_from_sat_transformer"], actual_pv_power
+        )
+        self.log(f"{self.tag}/gsp_from_sat_trans_mse_loss", gsp_from_sat_trans_mse_loss)
+
         # Total PV and GSP loss:
-        total_pv_and_gsp_mse_loss = gsp_mse_loss
+        total_pv_and_gsp_mse_loss = gsp_mse_loss + gsp_from_sat_trans_mse_loss
         total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss
         # In rare cases, there will be no PV data at all. We need to handle these
         # cases otherwise the loss will go to NaN (although it does recover in
         # subsequent iterations!)
         if pv_mse_loss.isfinite().all():
-            total_pv_and_gsp_mse_loss += pv_mse_loss
+            total_pv_and_gsp_mse_loss += pv_mse_loss + pv_from_sat_trans_mse_loss
             total_pv_and_gsp_neg_log_prob_loss += pv_neg_log_prob_loss
         self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
 
@@ -751,6 +780,8 @@ class FullModel(pl.LightningModule):
             "predicted_pv_power_mean": pv_distribution.mean,
             "predicted_sat": predicted_sat,  # Shape: example, time, y, x
             "actual_sat": actual_sat,
+            "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
+            "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
         }
 
     def configure_optimizers(self):
@@ -768,7 +799,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.06: t0 timestep for PV and GSP queries. Fix MDN plots. donatello-0",
+    name="024.07: Aux output. t0 timestep for PV and GSP queries. Fix MDN plots. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
