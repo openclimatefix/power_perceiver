@@ -25,6 +25,8 @@ def plot_pv_power(
     surface_height: torch.Tensor,
     pv_power_from_sat_transformer: torch.Tensor,
     gsp_power_from_sat_transformer: torch.Tensor,
+    predicted_pv_power_mean: torch.Tensor,
+    predicted_gsp_power_mean: torch.Tensor,
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
     axes = np.array(axes).flatten()
@@ -128,8 +130,10 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                 fig = plot_pv_power(
                     actual_pv_power=actual_pv_power,
                     predicted_pv_power=predicted_pv_power,
+                    predicted_pv_power_mean=outputs["predicted_pv_power_mean"].cpu().detach(),
                     actual_gsp_power=outputs["actual_gsp_power"].cpu().detach(),
                     predicted_gsp_power=outputs["predicted_gsp_power"].cpu().detach(),
+                    predicted_gsp_power_mean=outputs["predicted_gsp_power_mean"].cpu().detach(),
                     gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
                     example_idx=example_idx,
                     pv_datetimes=pv_datetimes,

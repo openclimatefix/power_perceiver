@@ -411,8 +411,8 @@ class SatelliteTransformer(nn.Module):
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
 
         # Power output:
-        pv_power_out = self.power_output(pv_attn_out)
-        gsp_power_out = self.power_output(gsp_attn_out)
+        pv_power_out = self.power_output(pv_attn_out).squeeze()
+        gsp_power_out = self.power_output(gsp_attn_out).squeeze()
 
         # Put back the original data! TODO: Remove this hack!
         x.update(original_x)
@@ -678,7 +678,7 @@ class FullModel(pl.LightningModule):
 
         # PV loss from satellite transformer:
         pv_from_sat_trans_mse_loss = F.mse_loss(
-            network_out["pv_power_from_sat_transformer"], actual_pv_power
+            network_out["pv_power_from_sat_transformer"][pv_mask], actual_pv_power[pv_mask]
         )
         self.log(f"{self.tag}/pv_from_sat_trans_mse_loss", pv_from_sat_trans_mse_loss)
 
@@ -700,7 +700,7 @@ class FullModel(pl.LightningModule):
 
         # GSP loss from satellite transformer:
         gsp_from_sat_trans_mse_loss = F.mse_loss(
-            network_out["gsp_power_from_sat_transformer"], actual_pv_power
+            network_out["gsp_power_from_sat_transformer"][gsp_mask], actual_pv_power[gsp_mask]
         )
         self.log(f"{self.tag}/gsp_from_sat_trans_mse_loss", gsp_from_sat_trans_mse_loss)
 
