@@ -79,11 +79,11 @@ def plot_pv_power(
     # Satellite
     actual_satellite = actual_satellite[example_idx, :, 0]
     axes[-3].twinx().twiny().imshow(actual_satellite[0])
-    axes[-3].set_title("First actual satellite image")
+    axes[-3].set_xlabel("First actual satellite image")
     axes[-2].twinx().twiny().imshow(actual_satellite[-1])
-    axes[-2].set_title("Last actual satellite image")
+    axes[-2].set_xlabel("Last actual satellite image")
     axes[-1].twinx().twiny().imshow(surface_height[example_idx])
-    axes[-1].set_title("Surface height")
+    axes[-1].set_xlabel("Surface height")
     for ax in axes[-3:]:
         ax.tick_params(
             axis="both",
