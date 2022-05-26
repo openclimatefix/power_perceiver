@@ -283,6 +283,7 @@ def maybe_pad_with_zeros(tensor: torch.Tensor, requested_dim: int) -> torch.Tens
     return tensor
 
 
+# Indexes for cropping the centre of the satellite image:
 LEFT_IDX = (SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS // 2) - (
     SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
 )
@@ -343,17 +344,6 @@ class SatelliteTransformer(nn.Module):
     def forward(
         self, x: dict[BatchKey, torch.Tensor], hrvsatellite: torch.Tensor
     ) -> dict[str, torch.Tensor]:
-        # Sanity checks!
-        assert hrvsatellite.isfinite().all()
-        for batch_key in (
-            BatchKey.solar_azimuth,
-            BatchKey.solar_elevation,
-            BatchKey.hrvsatellite_time_utc_fourier,
-            BatchKey.hrvsatellite_y_osgb_fourier,
-            BatchKey.hrvsatellite_x_osgb_fourier,
-        ):
-            assert x[batch_key].isfinite().all(), f"{batch_key.name} is not finite!"
-
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
         # TODO: Fix this `original_x` hack, which is needed to prevent the reshaping affecting
@@ -370,7 +360,6 @@ class SatelliteTransformer(nn.Module):
             x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")
 
         hrvsatellite = einops.rearrange(hrvsatellite, "example time ... -> (example time) ...")
-        assert hrvsatellite.isfinite().all()
 
         # Process satellite data and queries:
         pv_query = self.pv_query_generator(x)
@@ -382,28 +371,14 @@ class SatelliteTransformer(nn.Module):
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
         satellite_data = maybe_pad_with_zeros(satellite_data, requested_dim=self.d_model)
 
-        # Mask the NaN GSP and PV queries. True or non-zero value indicates value will be ignored.
-        # TODO: This masking code could probably be made simpler. See how it's done
-        # in FullModel.forwards.
-        mask = torch.concat(
-            (
-                torch.isnan(pv_query[:, :, 1]),  # pv_y_osgb_fourier is in index 1.
-                torch.isnan(gsp_query[:, :, -1]),  # The time fourier features are last in dim 2.
-                torch.zeros_like(satellite_data[:, :, 0]),
-            ),
-            dim=1,
-        )
-
-        # Now set NaN GSP queries to zero. That's fine, because NaNs are being masked.
-        pv_query = pv_query.nan_to_num(0)
-        gsp_query = gsp_query.nan_to_num(0)
-
-        assert pv_query.isfinite().all()
-        assert gsp_query.isfinite().all()
-        assert satellite_data.isfinite().all()
-
-        # Prepare the attention input and run through the transformer_encoder:
+        # Prepare inputs for the transformer_encoder:
         attn_input = torch.concat((pv_query, gsp_query, satellite_data), dim=1)
+
+        # Mask the NaN GSP and PV queries. True or non-zero value indicates value will be ignored.
+        mask = attn_input.isnan().any(dim=2)
+        attn_input = attn_input.nan_to_num(0)
+
+        # Pass data into transformer_encoder:
         attn_output = attn_input + self.transformer_encoder(attn_input, src_key_padding_mask=mask)
 
         # Reshape to (example time element d_model):
@@ -414,14 +389,13 @@ class SatelliteTransformer(nn.Module):
             time=num_timesteps,
         )
 
+        assert attn_output.isfinite().all()
+
         # Select the elements of the output which correspond to the query:
         gsp_start_idx = pv_query.shape[1]
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
-
-        assert pv_attn_out.isfinite().all()
-        assert gsp_attn_out.isfinite().all()
 
         # Put back the original data! TODO: Remove this hack!
         x.update(original_x)

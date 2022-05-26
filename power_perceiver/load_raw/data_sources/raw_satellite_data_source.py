@@ -141,8 +141,6 @@ class RawSatelliteDataSource(
 def open_sat_data(zarr_path: Union[Path, str]) -> xr.DataArray:
     """Lazily opens the Zarr store.
 
-    Rounds the 'time' coordinates, so the timestamps are at 00, 05, ..., 55 past the hour.
-
     Args:
       zarr_path: Cloud URL or local path pattern.  If GCP URL, must start with 'gs://'
     """
