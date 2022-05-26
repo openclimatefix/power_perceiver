@@ -77,14 +77,19 @@ def plot_pv_power(
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
 
     # Satellite
+    sat_axes = [ax.twinx().twiny() for ax in axes[-3:]]
+
     actual_satellite = actual_satellite[example_idx, :, 0]
-    axes[-3].twinx().twiny().imshow(actual_satellite[0])
-    axes[-3].set_xlabel("First actual satellite image")
-    axes[-2].twinx().twiny().imshow(actual_satellite[-1])
-    axes[-2].set_xlabel("Last actual satellite image")
-    axes[-1].twinx().twiny().imshow(surface_height[example_idx])
-    axes[-1].set_xlabel("Surface height")
-    for ax in axes[-3:]:
+    sat_axes[0].imshow(actual_satellite[0])
+    sat_axes[0].set_xlabel("First actual satellite image")
+
+    sat_axes[1].imshow(actual_satellite[-1])
+    sat_axes[1].set_xlabel("Last actual satellite image")
+
+    sat_axes[2].imshow(surface_height[example_idx])
+    sat_axes[2].set_xlabel("Surface height")
+
+    def _turn_off_ticks(ax):
         ax.tick_params(
             axis="both",
             which="both",
@@ -95,6 +100,12 @@ def plot_pv_power(
             labelbottom=False,
             labelleft=False,
         )
+
+    for ax in axes[-3:]:
+        _turn_off_ticks(ax)
+
+    for ax in sat_axes:
+        _turn_off_ticks(ax)
 
     return fig
 
