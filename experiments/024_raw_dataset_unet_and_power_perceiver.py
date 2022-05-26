@@ -768,7 +768,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.05: MDN with plots. Correct T0 timestep. Sat loss on entire img. donatello-0",
+    name="024.06: t0 timestep for PV and GSP queries. Fix MDN plots. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

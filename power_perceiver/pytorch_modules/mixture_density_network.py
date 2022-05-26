@@ -83,6 +83,9 @@ def plot_probs(
     log_probs = distribution.log_prob(sweep)
     probs = torch.exp(log_probs).detach().cpu().numpy()
 
+    # Normalise so every column has a max of 1 otherwise blurry distributions are very hard to see!
+    probs /= probs.max(axis=0)
+
     # Plot!
     extent = (left, right, sweep_stop, sweep_start)  # left, right, bottom, top
     ax.imshow(probs, aspect="auto", interpolation="none", extent=extent, cmap="Greys")
