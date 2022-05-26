@@ -26,9 +26,6 @@ from torch import nn
 
 from power_perceiver.analysis.plot_probability_timeseries import LogProbabilityTimeseriesPlots
 from power_perceiver.analysis.plot_satellite import LogSatellitePlots
-
-# from power_perceiver.analysis.plot_satellite import LogSatellitePlots
-from power_perceiver.analysis.plot_timeseries import LogTimeseriesPlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 
 # power_perceiver imports
@@ -820,7 +817,6 @@ trainer = pl.Trainer(
         # LogSatellitePlots(),
         checkpoint_callback,
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
-        LogTimeseriesPlots(),
         LogProbabilityTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
         LogSatellitePlots(),
