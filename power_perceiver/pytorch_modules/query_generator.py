@@ -159,7 +159,7 @@ class GSPQueryGenerator(nn.Module):
             time_fourier = x[BatchKey.gsp_time_utc_fourier]  # (example, time, n_fourier_features)
             assert_num_dims(time_fourier, 3)
             n_timesteps = time_fourier.shape[1]
-            time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_to]  # (example, n_fourier_features)
+            time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_t0]  # (example, n_fourier_features)
             # Repeat the existing query over every timestep
             time_fourier_t0 = einops.repeat(
                 time_fourier_t0,
