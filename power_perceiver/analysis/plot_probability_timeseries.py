@@ -1,5 +1,6 @@
 from typing import Any, Optional
 
+import matplotlib
 import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
@@ -89,7 +90,7 @@ def plot_pv_power(
     sat_axes[2].imshow(surface_height[example_idx])
     sat_axes[2].set_xlabel("Surface height")
 
-    def _turn_off_ticks(ax):
+    def _turn_off_ticks(ax: matplotlib.axes.Axes):
         ax.tick_params(
             axis="both",
             which="both",
@@ -99,6 +100,8 @@ def plot_pv_power(
             right=False,
             labelbottom=False,
             labelleft=False,
+            labeltop=False,
+            labelright=False,
         )
 
     for ax in axes[-3:]:
