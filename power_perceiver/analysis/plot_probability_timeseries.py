@@ -145,7 +145,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     .cpu()
                     .detach(),
                     pv_id=batch[BatchKey.pv_id].cpu(),
-                    gsp_id=batch[BatchKey.gsp_id].cpu(),
+                    gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
                 )
                 wandb.log(
                     {
