@@ -29,7 +29,7 @@ class PVQueryGenerator(nn.Module):
         self.pv_system_id_embedding = pv_system_id_embedding
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        """The returned tensor is of shape (example, n_pv_systems, query_dim)
+        """The returned tensor is of shape (example, n_pv_systems, query_dim).
 
         We assume the PVQueryGenerator is *only* used in SatelliteTransformer,
         and `pv_time_utc_fourier`, `solar_azimuth`, and `solar_elevation` will have already been
