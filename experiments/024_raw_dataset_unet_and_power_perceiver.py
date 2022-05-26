@@ -350,7 +350,7 @@ class SatelliteTransformer(nn.Module):
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=self.d_model // 2),
             nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=1),
+            nn.Linear(in_features=self.d_model // 2, out_features=1),
             nn.ReLU(),  # Ensure the output is always positive!
         )
 
@@ -418,8 +418,8 @@ class SatelliteTransformer(nn.Module):
         x.update(original_x)
 
         return {
-            "pv_attn_out": pv_attn_out,  # shape: (example, n_pv_systems, d_model)
-            "gsp_attn_out": gsp_attn_out,  # shape: (example, 1, d_model)
+            "pv_attn_out": pv_attn_out,  # shape: (example, time, n_pv_systems, d_model)
+            "gsp_attn_out": gsp_attn_out,  # shape: (example, time, 1, d_model)
             "pv_power_out": pv_power_out,
             "gsp_power_out": gsp_power_out,
         }
