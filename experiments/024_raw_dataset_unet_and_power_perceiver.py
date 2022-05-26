@@ -418,10 +418,10 @@ class SatelliteTransformer(nn.Module):
         x.update(original_x)
 
         return {
-            "pv_attn_out": pv_attn_out,  # shape: (example, time, n_pv_systems, d_model)
-            "gsp_attn_out": gsp_attn_out,  # shape: (example, time, 1, d_model)
-            "pv_power_out": pv_power_out,
-            "gsp_power_out": gsp_power_out,
+            "pv_attn_out": pv_attn_out,  # shape: (example, 5_min_time, n_pv_systems, d_model)
+            "gsp_attn_out": gsp_attn_out,  # shape: (example, 5_min_time, 1, d_model)
+            "pv_power_out": pv_power_out,  # shape: (example, 5_min_time, n_pv_systems)
+            "gsp_power_out": gsp_power_out,  # shape: (example, 5_min_time)
         }
 
 
@@ -622,7 +622,9 @@ class FullModel(pl.LightningModule):
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
             predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
             predicted_sat=predicted_sat,  # Shape: example, time, y, x
+            # shape: (example, 5_min_time, n_pv_systems):
             pv_power_from_sat_transformer=sat_trans_out["pv_power_out"],
+            # shape: (example, 5_min_time):
             gsp_power_from_sat_transformer=sat_trans_out["gsp_power_out"],
         )
 
@@ -677,6 +679,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
         # PV loss from satellite transformer:
+        # (don't do this for GSP because GSP data from sat transformer is 5-minutely!)
         pv_from_sat_trans_mse_loss = F.mse_loss(
             network_out["pv_power_from_sat_transformer"][pv_mask], actual_pv_power[pv_mask]
         )
@@ -698,14 +701,8 @@ class FullModel(pl.LightningModule):
         )
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
-        # GSP loss from satellite transformer:
-        gsp_from_sat_trans_mse_loss = F.mse_loss(
-            network_out["gsp_power_from_sat_transformer"][gsp_mask], actual_pv_power[gsp_mask]
-        )
-        self.log(f"{self.tag}/gsp_from_sat_trans_mse_loss", gsp_from_sat_trans_mse_loss)
-
         # Total PV and GSP loss:
-        total_pv_and_gsp_mse_loss = gsp_mse_loss + gsp_from_sat_trans_mse_loss
+        total_pv_and_gsp_mse_loss = gsp_mse_loss
         total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss
         # In rare cases, there will be no PV data at all. We need to handle these
         # cases otherwise the loss will go to NaN (although it does recover in

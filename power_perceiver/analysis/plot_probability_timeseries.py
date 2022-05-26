@@ -24,7 +24,6 @@ def plot_pv_power(
     actual_satellite: torch.Tensor,  # shape: example, time, channels, y, x
     surface_height: torch.Tensor,
     pv_power_from_sat_transformer: torch.Tensor,
-    gsp_power_from_sat_transformer: torch.Tensor,
     predicted_pv_power_mean: torch.Tensor,
     predicted_gsp_power_mean: torch.Tensor,
 ) -> plt.Figure:
@@ -56,6 +55,8 @@ def plot_pv_power(
             title += " " + pv_datetimes[0].date().strftime("%Y-%m-%d")
         _plot_pv(ax, actual_pv_power[example_idx, :, pv_idx], title)
         _plot_pv(ax, pv_power_from_sat_transformer[example_idx, :, pv_idx], "SatTrans prediction")
+        _plot_pv(ax, predicted_pv_power_mean[example_idx, :, pv_idx], "Mean prediction")
+
         ax.legend()
 
     # GSP
@@ -67,9 +68,7 @@ def plot_pv_power(
         right=gsp_datetimes[-1],
     )
     ax_gsp.plot(gsp_datetimes, actual_gsp_power[example_idx], label="Actual")
-    ax_gsp.plot(
-        gsp_datetimes, gsp_power_from_sat_transformer[example_idx], label="SatTrans prediction"
-    )
+    ax_gsp.plot(gsp_datetimes, predicted_gsp_power_mean[example_idx], label="Mean prediction")
     ax_gsp.set_title("GSP PV power")
     ax_gsp.legend()
 
@@ -140,9 +139,6 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     actual_satellite=batch[BatchKey.hrvsatellite].cpu(),
                     surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
                     pv_power_from_sat_transformer=outputs["pv_power_from_sat_transformer"]
-                    .cpu()
-                    .detach(),
-                    gsp_power_from_sat_transformer=outputs["gsp_power_from_sat_transformer"]
                     .cpu()
                     .detach(),
                 )
