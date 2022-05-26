@@ -657,26 +657,38 @@ class FullModel(pl.LightningModule):
         # For more discussion of how to mask losses in pytorch, see:
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
         pv_mask = actual_pv_power.isfinite()
+        pv_mask_from_t0 = pv_mask[:, self.t0_idx_5_min + 1 :]
         gsp_mask = actual_gsp_power.isfinite()
+        gsp_mask_from_t0 = gsp_mask[:, T0_IDX_30_MIN + 1 :]
 
         # PV negative log prob loss:
-        pv_distribution_masked = get_distribution(predicted_pv_power[pv_mask])
-        pv_neg_log_prob_loss = -pv_distribution_masked.log_prob(actual_pv_power[pv_mask]).mean()
+        pv_distribution_masked = get_distribution(
+            predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
+        )
+        pv_neg_log_prob_loss = -pv_distribution_masked.log_prob(
+            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
+        ).mean()
         self.log(f"{self.tag}/pv_neg_log_prob", pv_neg_log_prob_loss)
 
         # PV power loss:
         pv_distribution = get_distribution(predicted_pv_power)
-        pv_mse_loss = F.mse_loss(pv_distribution.mean[pv_mask], actual_pv_power[pv_mask])
+        pv_mse_loss = F.mse_loss(
+            pv_distribution.mean[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
+            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
+        )
         self.log(f"{self.tag}/pv_mse", pv_mse_loss)
 
         pv_nmae_loss = F.l1_loss(
-            pv_distribution.mean[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
-            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask[:, self.t0_idx_5_min + 1 :]],
+            pv_distribution.mean[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
+            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
         )
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
         # PV loss from satellite transformer:
         # (don't do this for GSP because GSP data from sat transformer is 5-minutely!)
+        # We include the history as well as the forecast, because the satellite transformer
+        # doesn't see the history, and we want to encourage the satellite transformer to
+        # infer PV yield from historical and future images.
         pv_from_sat_trans_mse_loss = F.mse_loss(
             network_out["pv_power_from_sat_transformer"][pv_mask], actual_pv_power[pv_mask]
         )
@@ -693,8 +705,8 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
         gsp_nmae_loss = F.l1_loss(
-            gsp_distribution.mean[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
-            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask[:, T0_IDX_30_MIN + 1 :]],
+            gsp_distribution.mean[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0],
+            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0],
         )
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
@@ -793,7 +805,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.07: Aux output. t0 timestep for PV and GSP queries. Fix MDN plots. donatello-0",
+    name="024.08: Don't include hist PV in objective func. Aux output. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
