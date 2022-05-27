@@ -616,7 +616,11 @@ class FullModel(pl.LightningModule):
         pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
         # rnn_out shape: (example n_pv_systems), time, d_model
         pv_rnn_out = einops.rearrange(
-            pv_rnn_out, "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model"
+            pv_rnn_out,
+            "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
+            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
+            d_model=self.d_model,
+            time=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
         )
         n_pv_elements = pv_rnn_out.shape[1]
         del sat_trans_pv_attn_out, hist_sat_trans_pv_attn_out, future_sat_trans_pv_attn_out
