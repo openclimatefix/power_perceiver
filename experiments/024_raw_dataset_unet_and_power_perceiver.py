@@ -858,6 +858,8 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
         self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
 
+        import ipdb; ipdb.set_trace()
+
         return {
             "loss": total_sat_and_pv_gsp_neg_log_prob,
             "predicted_gsp_power": predicted_gsp_power,
