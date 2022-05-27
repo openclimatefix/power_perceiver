@@ -488,7 +488,7 @@ class FullModel(pl.LightningModule):
             num_latent_transformer_encoders=self.num_latent_transformer_encoders,
         )
 
-        self.pv_output_module = nn.Sequential(
+        self.pv_mixture_density_net = nn.Sequential(
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
             nn.GELU(),
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
@@ -685,7 +685,9 @@ class FullModel(pl.LightningModule):
         # time_attn_out will be NaN for examples which are entirely masked (because this
         # example has no PV or GSP)
 
-        power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
+        # The MDN doesn't like NaNs:
+        power_out = self.pv_mixture_density_net(time_attn_out.nan_to_num(0))
+        # power_out is shape: (example, total_num_elements, 1)
 
         # Reshape the PV power predictions
         predicted_pv_power = power_out[:, :n_pv_elements]
@@ -780,9 +782,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
 
         # GSP power loss:
-        # When we're not masking `predicted_gsp_power`, we have to nan_to_num because examples
-        # without GSP will be NaN, and the `get_distribution` machinery doesn't like NaNs!
-        gsp_distribution = get_distribution(predicted_gsp_power.nan_to_num(0))
+        gsp_distribution = get_distribution(predicted_gsp_power)
         gsp_mse_loss = F.mse_loss(gsp_distribution.mean[gsp_mask], actual_gsp_power[gsp_mask])
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
