@@ -145,7 +145,7 @@ def get_dataloader(
         ),
         # TODO: Increase to 48 for donatello:
         # TODO: Increase to ~12 for GCP!
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -176,7 +176,7 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=2,
-    n_batches_per_epoch_per_worker=64,  # TODO: INCREASE TO 512!
+    n_batches_per_epoch_per_worker=512,
     load_subset_every_epoch=True,
 )
 val_dataloader = get_dataloader(
@@ -663,34 +663,36 @@ class FullModel(pl.LightningModule):
         # Examples with NaN PV or GSP power are masked in the objective function and
         # in the attention mechanism.
         # TODO: Maybe we shouldn't actually be masking entire *examples*?
-        # That seems to break the downstream code.
-        mask = torch.concat(
-            (
-                einops.rearrange(
-                    x[BatchKey.pv].isnan(),
-                    "example time n_pv_systems -> example (time n_pv_systems)",
-                ),
-                # Remember that `sat_trans_gsp_attn_out` is at *5 minute* intervals!
-                # So we need to repeat the GSP mask for each 5 minute interval.
-                # And the might have less 5 minute intervals if we're training and
-                # subsampling 5-min intervals!
-                einops.repeat(
-                    x[BatchKey.gsp_id].isnan().squeeze(),
-                    "example -> example num_5_min_timesteps",
-                    num_5_min_timesteps=num_5_min_timesteps,
-                ),
-                gsp_query.isnan().any(dim=2),
-            ),
-            dim=1,
-        )
-        assert not mask.all()
-        self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
+        # Masking entire examples seems to break the downstream code.
+        # Maybe it's sufficient to mask the loss?
+        # If so, we can remove the block of code below :) See issue #103.
+        # mask = torch.concat(
+        #     (
+        #         einops.rearrange(
+        #             x[BatchKey.pv].isnan(),
+        #             "example time n_pv_systems -> example (time n_pv_systems)",
+        #         ),
+        #         # Remember that `sat_trans_gsp_attn_out` is at *5 minute* intervals!
+        #         # So we need to repeat the GSP mask for each 5 minute interval.
+        #         # And the might have less 5 minute intervals if we're training and
+        #         # subsampling 5-min intervals!
+        #         einops.repeat(
+        #             x[BatchKey.gsp_id].isnan().squeeze(),
+        #             "example -> example num_5_min_timesteps",
+        #             num_5_min_timesteps=num_5_min_timesteps,
+        #         ),
+        #         gsp_query.isnan().any(dim=2),
+        #     ),
+        #     dim=1,
+        # )
+        # assert not mask.all()
+        # self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(
             time_attn_in
         )  # TODO Put mask back in?, src_key_padding_mask=mask)
-        # time_attn_out will be NaN for examples which are entirely masked (because this
-        # example has no PV or GSP)
+        # If we're using `mask` then time_attn_out will be NaN for examples which
+        # are entirely masked (because this example has no PV or GSP)
 
         # The MDN doesn't like NaNs:
         power_out = self.pv_mixture_density_net(time_attn_out.nan_to_num(0))
@@ -885,7 +887,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.09: RNN for PV. donatello=2",
+    name="024.09: RNN for PV. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
