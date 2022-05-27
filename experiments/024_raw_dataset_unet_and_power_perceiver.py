@@ -74,6 +74,7 @@ SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS = 256
 SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS = 128
 
 SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
+N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 # PowerPerceiver options
 D_MODEL = 128
@@ -116,7 +117,7 @@ def get_dataloader(
         pv_metadata_filename="~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv",
         roi_height_meters=96_000,
         roi_width_meters=96_000,
-        n_pv_systems_per_example=8,
+        n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
         transforms=[PVPowerRollingWindow(expect_dataset=False)],
         **data_source_kwargs,
     )
@@ -142,7 +143,8 @@ def get_dataloader(
             sat_only=(sat_data_source,),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
+        # TODO: Increase to 48 for donatello:
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -438,6 +440,7 @@ class FullModel(pl.LightningModule):
     num_5_min_history_timesteps_during_training: Optional[int] = 4
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
     num_gaussians: int = 2
+    num_rnn_layers: int = 4
 
     def __post_init__(self):
         super().__init__()
@@ -450,6 +453,28 @@ class FullModel(pl.LightningModule):
 
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
+
+        # Find temporal features, and help calibrate predictions using recent history:
+        # TODO: Move the RNN into its own nn.Module.
+        rnn_kwargs = dict(
+            hidden_size=self.d_model,
+            num_layers=self.num_rnn_layers,
+            batch_first=True,
+            dropout=self.dropout,
+        )
+        self.pv_rnn_history_encoder = nn.RNN(
+            # Each timestep of the encoder RNN receives the output of the satellite_transformer
+            # (which is of size d_model per PV system and per timestep), for a single PV system,
+            # plus one timestep of that PV system's history.
+            input_size=self.d_model + 1,
+            **rnn_kwargs,
+        )
+        self.pv_rnn_future_decoder = nn.RNN(
+            # Each timestep of the decoder RNN receives the output of the satellite_transformer
+            # (which is of size d_model per PV system and per timestep) for a single PV system.
+            input_size=self.d_model,
+            **rnn_kwargs,
+        )
 
         # Look across timesteps to produce the final output.
         self.time_transformer = MultiLayerTransformerEncoder(
@@ -545,36 +570,68 @@ class FullModel(pl.LightningModule):
         # Pass through the transformer!
         assert hrvsatellite.isfinite().all()
         sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
-        pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)
-        gsp_attn_out = sat_trans_out["gsp_attn_out"]
+        sat_trans_pv_attn_out = sat_trans_out[
+            "pv_attn_out"
+        ]  # Shape: (example time n_pv_systems d_model)
+        sat_trans_gsp_attn_out = sat_trans_out["gsp_attn_out"]
 
-        assert pv_attn_out.isfinite().all()
-        assert gsp_attn_out.isfinite().all()
+        assert sat_trans_pv_attn_out.isfinite().all()
+        assert sat_trans_gsp_attn_out.isfinite().all()
 
-        # Concatenate actual historical PV on each PV attention output,
-        # so the time_transformer doesn't have to put much effort into aligning
-        # historical actual PV with predicted historical PV.
-        # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
-        # want to cheat and give the model the answer!), and contains the actual historical PV.
-        historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
+        # Prepare inputs for the pv_rnn_history_encoder:
+        # Each timestep of the encoder RNN receives the output of the satellite_transformer
+        # (which is of size d_model per PV system and per timestep), for a single PV system,
+        # plus one timestep of that PV system's history.
         # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
         # And use nan_to_num later in this function.
-        historical_pv[:, : self.t0_idx_5_min + 1] = x[BatchKey.pv][:, : self.t0_idx_5_min + 1]
-        historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
-        # Now append a "marker" to indicate which timesteps are history:
-        hist_pv_marker = torch.zeros_like(historical_pv)
-        hist_pv_marker[:, : self.t0_idx_5_min + 1] = 1
-        pv_attn_out = torch.concat((pv_attn_out, historical_pv, hist_pv_marker), dim=3)
+        hist_pv = x[BatchKey.pv][:, : self.t0_idx_5_min + 1]  # Shape: example, time, n_pv_systems
 
-        # Reshape pv and gsp attention outputs so each timestep and each pv system is
+        # Reshape so each PV system is seen as a different example:
+        hist_pv = einops.rearrange(
+            hist_pv, "example time n_pv_systems -> (example n_pv_systems) time 1"
+        )
+        sat_trans_pv_attn_out = einops.rearrange(
+            sat_trans_pv_attn_out,
+            "example time n_pv_systems d_model -> (example n_pv_systems) time d_model",
+            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,  # sanity check
+        )
+        hist_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, : self.t0_idx_5_min + 1]
+
+        pv_rnn_hist_enc_in = torch.concat((hist_pv, hist_sat_trans_pv_attn_out), dim=2)
+        pv_rnn_hist_enc_in = pv_rnn_hist_enc_in.nan_to_num(0)
+        pv_rnn_hist_enc_out, pv_rnn_hist_enc_hidden = self.pv_rnn_history_encoder(
+            pv_rnn_hist_enc_in
+        )
+
+        # Now for the pv_rnn_future_decoder:
+        future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, self.t0_idx_5_min + 1 :]
+        pv_rnn_fut_dec_out = self.pv_rnn_future_decoder(
+            input=future_sat_trans_pv_attn_out,
+            h_0=pv_rnn_hist_enc_hidden,
+        )
+
+        # Concatenate the output from the encoder and decoder RNNs, and reshape
+        # so each timestep and each PV system is a separate elements into `time_transformer`.
+        pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
+        # rnn_out shape: (example n_pv_systems), time, d_model
+        pv_rnn_out = einops.rearrange(
+            pv_rnn_out, "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model"
+        )
+        n_pv_elements = pv_rnn_out.shape[1]
+        del sat_trans_pv_attn_out, hist_sat_trans_pv_attn_out, future_sat_trans_pv_attn_out
+        del hist_pv, pv_rnn_hist_enc_hidden
+
+        # Reshape gsp attention outputs so each timestep is
         # seen as a separate element into the `time transformer`.
-        n_timesteps, n_pv_systems = pv_attn_out.shape[1:3]
-        REARRANGE_STR = "example time n_pv_systems d_model -> example (time n_pv_systems) d_model"
-        pv_attn_out = einops.rearrange(pv_attn_out, REARRANGE_STR)
-        pv_attn_out = maybe_pad_with_zeros(pv_attn_out, requested_dim=self.d_model)
-        gsp_attn_out = einops.rearrange(gsp_attn_out, REARRANGE_STR, n_pv_systems=1)
-        gsp_attn_out = maybe_pad_with_zeros(gsp_attn_out, requested_dim=self.d_model)
-        n_pv_elements = pv_attn_out.shape[1]
+        sat_trans_gsp_attn_out = einops.rearrange(
+            sat_trans_gsp_attn_out, "example time 1 d_model -> example time d_model"
+        )
+
+        # Pad with zeros
+        pv_rnn_out = maybe_pad_with_zeros(pv_rnn_out, requested_dim=self.d_model)
+        sat_trans_gsp_attn_out = maybe_pad_with_zeros(
+            sat_trans_gsp_attn_out, requested_dim=self.d_model
+        )
 
         # Get GSP query for the time_transformer:
         # The query for the time_transformer is just for the half-hourly timesteps
@@ -584,13 +641,20 @@ class FullModel(pl.LightningModule):
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
         # Concatenate all the things we're going to feed into the "time transformer":
-        time_attn_in = torch.concat((pv_attn_out, gsp_attn_out, gsp_query), dim=1)
+        time_attn_in = torch.concat((pv_rnn_out, sat_trans_gsp_attn_out, gsp_query), dim=1)
 
         # Some whole examples don't include GSP (or PV) data.
-        # Here, we set those to zero so the model trains without NaN loss.
-        # Examples with NaN GSP power are masked in the objective function and
+        # Here, we set those to zero so the model trains without NaN loss, and mask them.
+        # Examples with NaN PV or GSP power are masked in the objective function and
         # in the attention mechanism.
-        mask = time_attn_in.isnan().any(dim=2)
+        mask = torch.concat(
+            (
+                x[BatchKey.pv].isnan().any(dim=2),
+                x[BatchKey.gsp].isnan(),
+                gsp_query.isnan().any(dim=2),
+            ),
+            dim=1,
+        )
         assert not mask.all()
         self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
         time_attn_in = time_attn_in.nan_to_num(0)
@@ -604,9 +668,9 @@ class FullModel(pl.LightningModule):
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
             "example (time n_pv_systems) mdn_features -> example time n_pv_systems mdn_features",
-            time=n_timesteps,
-            n_pv_systems=n_pv_systems,
-            mdn_features=self.num_gaussians * 3,
+            time=x[BatchKey.pv].shape[1],
+            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
+            mdn_features=self.num_gaussians * 3,  # x3 for pi, mu, sigma.
         )
 
         # GSP power. There's just 1 GSP. So each gsp element is a timestep.
@@ -805,7 +869,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.08: Don't include hist PV in objective func. Aux output. donatello-0",
+    name="024.09: RNN for PV. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
