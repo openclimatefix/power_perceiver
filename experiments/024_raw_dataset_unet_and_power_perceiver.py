@@ -145,7 +145,7 @@ def get_dataloader(
         ),
         # TODO: Increase to 48 for donatello:
         # TODO: Increase to ~12 for GCP!
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 32),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 24),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
