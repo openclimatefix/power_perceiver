@@ -545,6 +545,12 @@ class FullModel(pl.LightningModule):
                 BatchKey.solar_elevation,
             ):
                 x[batch_key] = x[batch_key][:, random_timestep_indexes]
+            num_5_min_timesteps = (
+                self.num_5_min_history_timesteps_during_training
+                + self.num_5_min_forecast_timesteps_during_training
+            )
+        else:
+            num_5_min_timesteps = NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
@@ -595,6 +601,7 @@ class FullModel(pl.LightningModule):
             sat_trans_pv_attn_out,
             "example time n_pv_systems d_model -> (example n_pv_systems) time d_model",
             n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,  # sanity check
+            time=num_5_min_timesteps,
         )
         hist_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, : self.t0_idx_5_min + 1]
 
@@ -620,7 +627,7 @@ class FullModel(pl.LightningModule):
             "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
             n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
             d_model=self.d_model,
-            time=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
+            time=num_5_min_timesteps,
         )
         n_pv_elements = pv_rnn_out.shape[1]
         del sat_trans_pv_attn_out, hist_sat_trans_pv_attn_out, future_sat_trans_pv_attn_out
@@ -658,10 +665,14 @@ class FullModel(pl.LightningModule):
                     x[BatchKey.pv].isnan(),
                     "example time n_pv_systems -> example (time n_pv_systems)",
                 ),
+                # Remember that `sat_trans_gsp_attn_out` is at *5 minute* intervals!
+                # So we need to repeat the GSP mask for each 5 minute interval.
+                # And the might have less 5 minute intervals if we're training and
+                # subsampling 5-min intervals!
                 einops.repeat(
                     x[BatchKey.gsp_id].isnan().squeeze(),
-                    "example -> example n_5min_timesteps",
-                    n_5min_timesteps=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
+                    "example -> example num_5_min_timesteps",
+                    num_5_min_timesteps=num_5_min_timesteps,
                 ),
                 gsp_query.isnan().any(dim=2),
             ),
@@ -680,7 +691,7 @@ class FullModel(pl.LightningModule):
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
             "example (time n_pv_systems) mdn_features -> example time n_pv_systems mdn_features",
-            time=x[BatchKey.pv].shape[1],
+            time=num_5_min_timesteps,
             n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
             mdn_features=self.num_gaussians * 3,  # x3 for pi, mu, sigma.
         )
