@@ -427,7 +427,7 @@ class SatelliteTransformer(nn.Module):
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    d_model: int = D_MODEL + N_HEADS  # + N_HEADS for historical PV
+    d_model: int = D_MODEL
     pv_system_id_embedding_dim: int = 16
     num_heads: int = N_HEADS
     dropout: float = 0.1
