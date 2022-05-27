@@ -271,6 +271,7 @@ class SatellitePredictor(pl.LightningModule):
 
         assert data.isfinite().all()
         predicted_sat = self.satellite_predictor(data)
+        assert predicted_sat.isfinite().all()
         return predicted_sat  # Shape: example, time, y, x
 
 
