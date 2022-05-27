@@ -195,14 +195,14 @@ def get_dataloader(
     return dataloader
 
 
-train_dataloader = get_dataloader(
-    start_date="2020-01-01",
-    end_date="2020-12-31",
-    num_workers=2,
-    n_batches_per_epoch_per_worker=2,
-    load_subset_every_epoch=True,
-    train=True,
-)
+# train_dataloader = get_dataloader(
+#     start_date="2020-01-01",
+#     end_date="2020-12-31",
+#     num_workers=2,
+#     n_batches_per_epoch_per_worker=2,
+#     load_subset_every_epoch=True,
+#     train=True,
+# )
 
 N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
@@ -831,7 +831,7 @@ class FullModel(pl.LightningModule):
 
 # ---------------------------------- Training ----------------------------------
 
-model = FullModel.load_from_checkpoint("~/model_params/024.08/model.ckpt")
+model = FullModel()
 
 wandb_logger = WandbLogger(
     name="024.13: Get National PV for best model so far (24.08). GCP-1",
@@ -866,8 +866,8 @@ trainer = pl.Trainer(
     ],
 )
 
-trainer.fit(
+trainer.test(
     model=model,
-    train_dataloaders=train_dataloader,
-    val_dataloaders=val_dataloader,
+    ckpt_path="~/model_params/024.08/model.ckpt",
+    test_dataloaders=val_dataloader,
 )
