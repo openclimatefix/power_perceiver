@@ -794,14 +794,8 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
         # Total PV and GSP loss:
-        total_pv_and_gsp_mse_loss = gsp_mse_loss
-        total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss
-        # In rare cases, there will be no PV data at all. We need to handle these
-        # cases otherwise the loss will go to NaN (although it does recover in
-        # subsequent iterations!)
-        if pv_mse_loss.isfinite().all():
-            total_pv_and_gsp_mse_loss += pv_mse_loss + pv_from_sat_trans_mse_loss
-            total_pv_and_gsp_neg_log_prob_loss += pv_neg_log_prob_loss
+        total_pv_and_gsp_mse_loss = gsp_mse_loss + pv_mse_loss + pv_from_sat_trans_mse_loss
+        total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss + pv_neg_log_prob_loss
         self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
@@ -850,11 +844,8 @@ class FullModel(pl.LightningModule):
         else:
             sat_loss = ms_ssim_loss + sat_mse_loss
 
-        total_sat_pv_gsp_loss = sat_loss
-        total_sat_and_pv_gsp_neg_log_prob = sat_loss
-        if total_pv_and_gsp_mse_loss.isfinite().all():
-            total_sat_pv_gsp_loss += total_pv_and_gsp_mse_loss
-            total_sat_and_pv_gsp_neg_log_prob += total_pv_and_gsp_neg_log_prob_loss
+        total_sat_pv_gsp_loss = sat_loss + total_pv_and_gsp_mse_loss
+        total_sat_and_pv_gsp_neg_log_prob = sat_loss + total_pv_and_gsp_neg_log_prob_loss
         self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
         self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
 
@@ -874,7 +865,7 @@ class FullModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
+        optimizer = torch.optim.Adam(self.parameters(), lr=5e-6)  # TODO: Increase!
 
         def _lr_lambda(epoch):
             return 50 / (epoch + 50)
