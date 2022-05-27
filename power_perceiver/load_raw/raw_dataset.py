@@ -207,9 +207,9 @@ class RawDataset(torch.utils.data.IterableDataset):
         return self._xarray_to_numpy_example(xr_example)
 
     def _get_xr_example(self) -> XarrayBatch:
-        chosen_combo_name = self._randomly_choose_combo_name()
-        t0_datetime_utc = self.rng.choice(self._t0_datetimes_per_combo_for_epoch[chosen_combo_name])
-        location_osgb = self._randomly_choose_osgb_location(chosen_combo_name)
+        chosen_combo_name = self._choose_combo_name()
+        t0_datetime_utc = self._choose_t0_datetime(chosen_combo_name)
+        location_osgb = self._choose_osgb_location(chosen_combo_name)
 
         try:
             xr_example = self._get_specific_xr_example(
@@ -222,7 +222,7 @@ class RawDataset(torch.utils.data.IterableDataset):
 
         return xr_example
 
-    def _randomly_choose_combo_name(self) -> str:
+    def _choose_combo_name(self) -> str:
         """Pick a random ds_combo_name using the probabilities."""
         data_source_combo_names = list(self.data_source_combos.keys())
         if self.probability_of_each_combo is None:
@@ -234,7 +234,10 @@ class RawDataset(torch.utils.data.IterableDataset):
             ]
         return self.rng.choice(data_source_combo_names, p=prob_of_each_combo)
 
-    def _randomly_choose_osgb_location(self, chosen_combo_name: str) -> Location:
+    def _choose_t0_datetime(self, chosen_combo_name: str) -> datetime.datetime:
+        return self.rng.choice(self._t0_datetimes_per_combo_for_epoch[chosen_combo_name])
+
+    def _choose_osgb_location(self, chosen_combo_name: str) -> Location:
         data_source_combo = self.data_source_combos[chosen_combo_name]
         data_source_which_selects_location = data_source_combo[0]
         return data_source_which_selects_location.get_osgb_location_for_example()
