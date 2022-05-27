@@ -924,7 +924,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 
 
 if socket.gethostname() == "donatello":
-    GPUS = [2]
+    GPUS = [0]
 else:  # On GCP
     GPUS = [0]
 trainer = pl.Trainer(
