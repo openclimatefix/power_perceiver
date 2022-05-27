@@ -684,7 +684,9 @@ class FullModel(pl.LightningModule):
         assert not mask.all()
         self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
         time_attn_in = time_attn_in.nan_to_num(0)
-        time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
+        time_attn_out = self.time_transformer(
+            time_attn_in
+        )  # TODO PUT BACK MASK!, src_key_padding_mask=mask)
         # time_attn_out will be NaN for examples which are entirely masked (because this
         # example has no PV or GSP)
 
@@ -852,7 +854,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
 
         return {
-            "loss": sat_loss,  # total_sat_and_pv_gsp_neg_log_prob,
+            "loss": total_sat_and_pv_gsp_neg_log_prob,
             "predicted_gsp_power": predicted_gsp_power,
             "predicted_gsp_power_mean": gsp_distribution.mean,
             "actual_gsp_power": actual_gsp_power,
