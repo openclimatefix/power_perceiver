@@ -614,8 +614,7 @@ class FullModel(pl.LightningModule):
 
         # Now for the pv_rnn_future_decoder:
         future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, self.t0_idx_5_min + 1 :]
-        assert future_sat_trans_pv_attn_out.isfinite().all()
-        future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num()
+        future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num(0)
         pv_rnn_fut_dec_out, _ = self.pv_rnn_future_decoder(
             future_sat_trans_pv_attn_out,
             pv_rnn_hist_enc_hidden,
@@ -625,6 +624,7 @@ class FullModel(pl.LightningModule):
         # so each timestep and each PV system is a separate elements into `time_transformer`.
         pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
         # rnn_out shape: (example n_pv_systems), time, d_model
+        assert pv_rnn_out.isfinite().all()
         pv_rnn_out = einops.rearrange(
             pv_rnn_out,
             "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
