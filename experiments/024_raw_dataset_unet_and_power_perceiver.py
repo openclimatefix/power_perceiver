@@ -682,9 +682,9 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
-
         # time_attn_out will be NaN for examples which are entirely masked (because this
         # example has no PV or GSP)
+
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
         # Reshape the PV power predictions
@@ -749,27 +749,19 @@ class FullModel(pl.LightningModule):
         gsp_mask = actual_gsp_power.isfinite()
         gsp_mask_from_t0 = gsp_mask[:, T0_IDX_30_MIN + 1 :]
 
+        predicted_pv_power_from_t0 = predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
+        actual_pv_power_from_t0 = actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
+
         # PV negative log prob loss:
-        pv_distribution_masked = get_distribution(
-            predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
-        )
-        pv_neg_log_prob_loss = -pv_distribution_masked.log_prob(
-            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
-        ).mean()
+        pv_distribution = get_distribution(predicted_pv_power_from_t0)
+        pv_neg_log_prob_loss = -pv_distribution.log_prob(actual_pv_power_from_t0).mean()
         self.log(f"{self.tag}/pv_neg_log_prob", pv_neg_log_prob_loss)
 
         # PV power loss:
-        pv_distribution = get_distribution(predicted_pv_power)
-        pv_mse_loss = F.mse_loss(
-            pv_distribution.mean[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
-            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
-        )
+        pv_mse_loss = F.mse_loss(pv_distribution.mean, actual_pv_power_from_t0)
         self.log(f"{self.tag}/pv_mse", pv_mse_loss)
 
-        pv_nmae_loss = F.l1_loss(
-            pv_distribution.mean[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
-            actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0],
-        )
+        pv_nmae_loss = F.l1_loss(pv_distribution.mean, actual_pv_power_from_t0)
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
         # PV loss from satellite transformer:
