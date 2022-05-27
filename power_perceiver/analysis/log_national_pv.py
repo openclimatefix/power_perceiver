@@ -35,7 +35,7 @@ class LogNationalPV(pl.Callback):
         predicted_gsp_power = outputs["predicted_gsp_power_mean"].cpu().detach()  # (example, time)
         actual_gsp_power = batch[BatchKey.gsp].squeeze().cpu()  # shape: (example, time)
         gsp_datetimes = batch[BatchKey.gsp_time_utc].cpu()  # shape: (example, time)
-        gsp_capacity_mwp = batch[BatchKey.gsp_capacity_mwp].cpu()  # shape: (example,)
+        gsp_capacity_mwp = batch[BatchKey.gsp_capacity_mwp].squeeze().numpy()  # shape: (example,)
         num_examples = predicted_gsp_power.shape[0]
 
         for example_idx in range(num_examples):
