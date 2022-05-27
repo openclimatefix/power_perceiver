@@ -911,7 +911,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="025.01: RNN for PV. donatello-0",
+    name="025.02: RNN for PV. DPP. ReLU mu. donatello-0+2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -926,7 +926,7 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 
 
 if socket.gethostname() == "donatello":
-    GPUS = [0]
+    GPUS = [0, 2]
 else:  # On GCP
     GPUS = [0]
 trainer = pl.Trainer(
