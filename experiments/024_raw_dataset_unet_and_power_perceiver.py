@@ -683,7 +683,8 @@ class FullModel(pl.LightningModule):
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
 
-        assert time_attn_out.isfinite().all()
+        # time_attn_out will be NaN for examples which are entirely masked (because this
+        # example has no PV or GSP)
         power_out = self.pv_output_module(time_attn_out)  # (example, total_num_elements, 1)
 
         # Reshape the PV power predictions
