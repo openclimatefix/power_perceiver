@@ -865,7 +865,7 @@ class FullModel(pl.LightningModule):
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
-            "predicted_pv_power_mean": pv_distribution.mean,
+            "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
             "predicted_sat": predicted_sat,  # Shape: example, time, y, x
             "actual_sat": actual_sat,
             "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
