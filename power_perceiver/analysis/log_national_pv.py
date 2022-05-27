@@ -54,15 +54,13 @@ class LogNationalPV(pl.Callback):
             )
             df_for_example *= gsp_capacity_mwp[example_idx]
 
-            import ipdb; ipdb.set_trace()
-
             if self._national_pv_accumulator_mw is None:
                 self._national_pv_accumulator_mw = df_for_example
             elif np.array_equal(dt_for_example, self._national_pv_accumulator_mw.index):
                 self._national_pv_accumulator_mw += df_for_example
             else:
                 # This is the start of a new set of GSPs. First, log the national PV error:
-                self._log_national_pv_error(pl_module.logger.experiment)
+                self._log_national_pv_error(pl_module)
                 if self._national_batch_idx < 4:
                     self._plot_national_pv(pl_module.logger.experiment)
                 # And reset:
@@ -71,7 +69,7 @@ class LogNationalPV(pl.Callback):
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         super().on_validation_epoch_end(trainer, pl_module)
-        self._log_national_pv_error(pl_module.logger.experiment)
+        self._log_national_pv_error(pl_module)
 
     def _log_national_pv_error(self, logger) -> None:
         self._check_accumulator()
@@ -79,12 +77,13 @@ class LogNationalPV(pl.Callback):
             self._national_pv_accumulator_mw["actual"]
             - self._national_pv_accumulator_mw["predicted"]
         )
-        logger.log(
+        logger.log_dict(
             {
                 "validation/national_pv_mae_mw": error_mw.abs().mean(),
                 "validation/national_pv_mbe_mw": error_mw.mean(),
             },
             on_epoch=True,
+            on_step=True,
         )
 
     def _plot_national_pv(self, logger) -> None:
