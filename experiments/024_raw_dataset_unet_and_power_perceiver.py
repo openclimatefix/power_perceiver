@@ -850,7 +850,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
 
         return {
-            "loss": sat_loss,  # total_sat_and_pv_gsp_neg_log_prob,
+            "loss": total_sat_and_pv_gsp_neg_log_prob,
             "predicted_gsp_power": predicted_gsp_power,
             "predicted_gsp_power_mean": gsp_distribution.mean,
             "actual_gsp_power": actual_gsp_power,
