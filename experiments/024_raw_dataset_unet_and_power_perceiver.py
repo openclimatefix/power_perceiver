@@ -199,7 +199,7 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=2,
-    n_batches_per_epoch_per_worker=8,
+    n_batches_per_epoch_per_worker=2,
     load_subset_every_epoch=True,
     train=True,
 )
