@@ -655,7 +655,7 @@ class FullModel(pl.LightningModule):
         mask = torch.concat(
             (
                 x[BatchKey.pv].isnan().any(dim=2),
-                x[BatchKey.gsp].isnan(),
+                x[BatchKey.gsp].isnan().squeeze(),
                 gsp_query.isnan().any(dim=2),
             ),
             dim=1,

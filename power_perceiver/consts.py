@@ -87,7 +87,8 @@ class BatchKey(Enum):
     pv_time_utc_fourier_t0 = auto()  # Added by SaveT0Time. Shape: (batch_size, n_fourier_features)
 
     # -------------- GSP --------------------------------------------
-    gsp = auto()  # shape: (batch_size, time)
+    gsp = auto()  # shape: (batch_size, time, 1)  (the RawGSPDataSource include a '1',
+    # not sure if the prepared dataset does!)
     gsp_id = auto()  # shape: (batch_size)
 
     # GSP coordinates:
