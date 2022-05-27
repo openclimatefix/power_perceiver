@@ -662,6 +662,8 @@ class FullModel(pl.LightningModule):
         # Here, we set those to zero so the model trains without NaN loss, and mask them.
         # Examples with NaN PV or GSP power are masked in the objective function and
         # in the attention mechanism.
+        # TODO: Maybe we shouldn't actually be masking entire *examples*?
+        # That seems to break the downstream code.
         mask = torch.concat(
             (
                 einops.rearrange(
@@ -686,7 +688,7 @@ class FullModel(pl.LightningModule):
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(
             time_attn_in
-        )  # TODO PUT BACK MASK!, src_key_padding_mask=mask)
+        )  # TODO Put mask back in?, src_key_padding_mask=mask)
         # time_attn_out will be NaN for examples which are entirely masked (because this
         # example has no PV or GSP)
 
@@ -869,7 +871,7 @@ class FullModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-6)  # TODO: Increase!
+        optimizer = torch.optim.Adam(self.parameters(), lr=5e-5)
 
         def _lr_lambda(epoch):
             return 50 / (epoch + 50)
