@@ -10,7 +10,7 @@ from matplotlib import pyplot as plt
 from power_perceiver.consts import BatchKey
 
 
-class NationalPV(pl.Callback):
+class LogNationalPV(pl.Callback):
     """To be used in conjunction with the `NationalPVDataset`.
 
     Attributes:
@@ -34,10 +34,9 @@ class NationalPV(pl.Callback):
     ) -> None:
         predicted_gsp_power = outputs["predicted_gsp_power_mean"].cpu().detach()  # (example, time)
         actual_gsp_power = batch[BatchKey.gsp].squeeze().cpu()  # shape: (example, time)
-        gsp_id = batch[BatchKey.gsp_id].cpu()  # shape: (example,)
         gsp_datetimes = batch[BatchKey.gsp_time_utc].cpu()  # shape: (example, time)
         gsp_capacity_mwp = batch[BatchKey.gsp_capacity_mwp].cpu()  # shape: (example,)
-        num_examples = gsp_id.shape[0]
+        num_examples = predicted_gsp_power.shape[0]
 
         for example_idx in range(num_examples):
             dt_for_example = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
