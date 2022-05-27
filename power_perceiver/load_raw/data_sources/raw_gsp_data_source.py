@@ -147,6 +147,7 @@ class RawGSPDataSource(
 
         example[BatchKey.gsp] = xr_data.values
         example[BatchKey.gsp_id] = xr_data.gsp_id.values
+        example[BatchKey.gsp_capacity_mwp] = xr_data.isel(time_utc=0)["capacity_mwp"].values
 
         # Coordinates
         example[BatchKey.gsp_time_utc] = datetime64_to_float(xr_data["time_utc"].values)
