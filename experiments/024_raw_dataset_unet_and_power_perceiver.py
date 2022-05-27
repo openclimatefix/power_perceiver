@@ -670,6 +670,9 @@ class FullModel(pl.LightningModule):
     ) -> dict[str, object]:
         return self.validation_step(batch, batch_idx)
 
+    def test_step(self, batch: dict[BatchKey, torch.Tensor], batch_idx: int) -> dict[str, object]:
+        return self.validation_step(batch, batch_idx)
+
     def validation_step(
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
