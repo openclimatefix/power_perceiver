@@ -780,7 +780,7 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
 
         # GSP power loss:
-        gsp_distribution = get_distribution(predicted_gsp_power)
+        gsp_distribution = get_distribution(predicted_gsp_power.num_to_nan(0))
         gsp_mse_loss = F.mse_loss(gsp_distribution.mean[gsp_mask], actual_gsp_power[gsp_mask])
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
