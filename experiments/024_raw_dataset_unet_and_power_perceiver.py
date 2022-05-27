@@ -842,7 +842,9 @@ wandb_logger = WandbLogger(
 
 # log model only if validation loss decreases
 checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    monitor="validation/total_sat_and_pv_gsp_neg_log_prob", mode="min"
+    monitor="validation/gsp_nmae",
+    mode="min",
+    save_top_k=3,
 )
 
 
@@ -869,5 +871,5 @@ trainer = pl.Trainer(
 trainer.test(
     model=model,
     ckpt_path="~/model_params/024.08/model.ckpt",
-    test_dataloaders=val_dataloader,
+    dataloaders=val_dataloader,
 )
