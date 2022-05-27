@@ -18,7 +18,7 @@ class MixtureDensityNetwork(nn.Module):
         pi = self.pi(x)
         pi = F.softmax(pi, dim=-1)
         mu = self.mu(x)
-        mu = F.relu(mu)  # Guarantee that PV can't go negative!
+        # mu = F.relu(mu)  # Guarantee that PV can't go negative!
         sigma = self.sigma(x)
         sigma = torch.exp(sigma)
         return torch.concat((pi, mu, sigma), dim=-1)

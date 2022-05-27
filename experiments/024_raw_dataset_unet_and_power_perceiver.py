@@ -837,7 +837,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.13: Get National PV for best model so far (24.08). GCP-1",
+    name="024.13: Get National PV for best model so far (24.08). Linear mu. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
