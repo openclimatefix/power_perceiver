@@ -103,8 +103,8 @@ def get_dataloader(
             )
             if socket.gethostname() == "donatello"
             else (
-                "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
-                "eumetsat_seviri_hrv_uk.zarr"
+                "gs://solar-pv-nowcasting-data/"
+                "satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
             )
         ),
         roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
@@ -607,8 +607,8 @@ class FullModel(pl.LightningModule):
         # Now for the pv_rnn_future_decoder:
         future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, self.t0_idx_5_min + 1 :]
         pv_rnn_fut_dec_out = self.pv_rnn_future_decoder(
-            input=future_sat_trans_pv_attn_out,
-            h_0=pv_rnn_hist_enc_hidden,
+            future_sat_trans_pv_attn_out,
+            pv_rnn_hist_enc_hidden,
         )
 
         # Concatenate the output from the encoder and decoder RNNs, and reshape
