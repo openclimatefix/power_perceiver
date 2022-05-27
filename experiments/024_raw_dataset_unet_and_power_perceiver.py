@@ -614,6 +614,8 @@ class FullModel(pl.LightningModule):
 
         # Now for the pv_rnn_future_decoder:
         future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, self.t0_idx_5_min + 1 :]
+        assert future_sat_trans_pv_attn_out.isfinite().all()
+        future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num()
         pv_rnn_fut_dec_out, _ = self.pv_rnn_future_decoder(
             future_sat_trans_pv_attn_out,
             pv_rnn_hist_enc_hidden,
