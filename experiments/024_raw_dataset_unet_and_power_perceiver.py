@@ -208,7 +208,7 @@ N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
-    num_workers=1,
+    num_workers=2,
     n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
     load_subset_every_epoch=False,
     train=False,
@@ -871,7 +871,7 @@ trainer = pl.Trainer(
     ],
 )
 
-trainer.test(
+trainer.validate(
     model=model,
     ckpt_path="~/model_params/024.08/model.ckpt",
     dataloaders=val_dataloader,
