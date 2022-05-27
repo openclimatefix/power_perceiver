@@ -96,13 +96,8 @@ class LogTSNEPlot(SimpleCallback):
                 pv_system_id_embedding=query_generator.pv_system_id_embedding,
                 device=pl_module.device,
             )
-            wandb.log(
-                {
-                    # Need to convert to image to avoid bug in matplotlib to plotly conversion
-                    f"{tag}/tsne": wandb.Image(fig),
-                    "global_step": trainer.global_step,
-                },
-            )
+            # Need to convert to image to avoid bug in matplotlib to plotly conversion
+            pl_module.logger.experiment.log(f"{tag}/tsne", wandb.Image(fig))
             plt.close(fig)
 
 

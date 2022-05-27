@@ -161,9 +161,8 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     pv_id=batch[BatchKey.pv_id].cpu(),
                     gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
                 )
-                wandb.log(
-                    {
-                        f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig),
-                    },
+                pl_module.logger.experiment.log(
+                    f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}",
+                    wandb.Image(fig),
                 )
                 plt.close(fig)
