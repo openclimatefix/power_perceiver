@@ -850,6 +850,9 @@ class FullModel(pl.LightningModule):
         total_sat_and_pv_gsp_neg_log_prob = sat_loss + total_pv_and_gsp_neg_log_prob_loss
         self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
         self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
+        
+        if self.training:
+            import ipdb; ipdb.set_trace()
 
         return {
             "loss": total_sat_and_pv_gsp_neg_log_prob,
