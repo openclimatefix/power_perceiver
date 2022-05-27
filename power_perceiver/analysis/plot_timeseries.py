@@ -111,7 +111,7 @@ class LogTimeseriesPlots(SimpleCallback):
                     solar_azimuth=batch[BatchKey.solar_azimuth].cpu().detach(),
                     solar_elevation=batch[BatchKey.solar_elevation].cpu().detach(),
                 )
-                wandb.log(
+                pl_module.logger.experiment.log(
                     {
                         f"{tag}/pv_power/{batch_idx=};{example_idx=}": wandb.Image(fig),
                         "global_step": trainer.global_step,

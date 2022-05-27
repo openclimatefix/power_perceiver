@@ -97,7 +97,7 @@ class LogTSNEPlot(SimpleCallback):
                 device=pl_module.device,
             )
             # Need to convert to image to avoid bug in matplotlib to plotly conversion
-            pl_module.logger.experiment.log(f"{tag}/tsne", wandb.Image(fig))
+            pl_module.logger.experiment.log({f"{tag}/tsne": wandb.Image(fig)})
             plt.close(fig)
 
 

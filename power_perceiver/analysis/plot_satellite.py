@@ -71,7 +71,6 @@ class LogSatellitePlots(SimpleCallback):
                 pl_module.logger.experiment.log(
                     {
                         f"{tag}/satellite/{batch_idx=};{example_idx=}": wandb.Image(fig),
-                        "global_step": trainer.global_step,
                     },
                 )
                 plt.close(fig)
@@ -80,7 +79,6 @@ class LogSatellitePlots(SimpleCallback):
                 fig, ax = plt.subplots()
                 ax.imshow(batch[BatchKey.hrvsatellite_surface_height][example_idx].cpu())
                 pl_module.logger.experiment.log(
-                    f"{tag}/surface_height/{batch_idx=};{example_idx=}",
-                    wandb.Image(fig),
+                    {f"{tag}/surface_height/{batch_idx=};{example_idx=}": wandb.Image(fig)}
                 )
                 plt.close(fig)

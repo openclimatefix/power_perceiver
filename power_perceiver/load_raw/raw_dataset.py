@@ -131,10 +131,13 @@ class RawDataset(torch.utils.data.IterableDataset):
             ] = intersection_of_multiple_dataframes_of_periods(t0_periods_for_combo)
 
     def __iter__(self) -> Iterator[NumpyBatch]:  # noqa: D105
-        if self.load_subset_every_epoch or not self._t0_datetimes_per_combo_for_epoch:
-            self._set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram()
+        self._epoch_start()
         for _ in range(self.n_batches_per_epoch):
             yield self._get_np_batch()
+
+    def _epoch_start(self) -> None:
+        if self.load_subset_every_epoch or not self._t0_datetimes_per_combo_for_epoch:
+            self._set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram()
 
     def _set_t0_datetimes_per_combo_for_epoch_and_maybe_load_subset_into_ram(self):
         # Compute subset of contiguous t0 time periods for this epoch, and ask each unique
