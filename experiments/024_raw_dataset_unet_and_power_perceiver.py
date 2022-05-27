@@ -865,7 +865,7 @@ class FullModel(pl.LightningModule):
         }
 
     def configure_optimizers(self):
-        optimizer = torch.optim.Adam(self.parameters(), lr=5e-6)  # TODO: Increase!
+        optimizer = torch.optim.Adam(self.parameters(), lr=1e-5)  # TODO: Increase!
 
         def _lr_lambda(epoch):
             return 50 / (epoch + 50)
