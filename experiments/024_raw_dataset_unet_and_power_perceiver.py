@@ -145,7 +145,7 @@ def get_dataloader(
         ),
         # TODO: Increase to 48 for donatello:
         # TODO: Increase to ~12 for GCP!
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 16),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 24),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
@@ -887,7 +887,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="024.10: RNN for PV. donatello-2",
+    name="024.11: DDP. RNN for PV. GCP-1",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
@@ -900,11 +900,12 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 
 
 if socket.gethostname() == "donatello":
-    GPU = 2
+    GPUS = [2]
 else:  # On GCP
-    GPU = 0
+    GPUS = [0, 1]
 trainer = pl.Trainer(
-    gpus=[GPU],
+    gpus=GPUS,
+    accelerator="ddp" if len(GPUS) > 1 else None,
     max_epochs=200,
     logger=wandb_logger,
     callbacks=[
