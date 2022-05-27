@@ -654,8 +654,15 @@ class FullModel(pl.LightningModule):
         # in the attention mechanism.
         mask = torch.concat(
             (
-                x[BatchKey.pv].isnan().any(dim=2),
-                x[BatchKey.gsp].isnan().squeeze(),
+                einops.rearrange(
+                    x[BatchKey.pv].isnan(),
+                    "example time n_pv_systems -> example (time n_pv_systems)",
+                ),
+                einops.repeat(
+                    x[BatchKey.gsp_id].isnan().squeeze(),
+                    "example -> example n_5min_timesteps",
+                    n_5min_timesteps=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
+                ),
                 gsp_query.isnan().any(dim=2),
             ),
             dim=1,
