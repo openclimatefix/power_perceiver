@@ -41,6 +41,7 @@ from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEA
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSource
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
+from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
 from power_perceiver.load_raw.raw_dataset import RawDataset
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
@@ -85,7 +86,12 @@ torch.manual_seed(42)
 
 
 def get_dataloader(
-    start_date, end_date, num_workers, n_batches_per_epoch_per_worker, load_subset_every_epoch
+    start_date,
+    end_date,
+    num_workers,
+    n_batches_per_epoch_per_worker,
+    load_subset_every_epoch,
+    train: bool,
 ) -> torch.utils.data.DataLoader:
 
     data_source_kwargs = dict(
@@ -138,19 +144,31 @@ def get_dataloader(
     if USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
-    raw_dataset = RawDataset(
-        data_source_combos=dict(
-            sat_only=(sat_data_source,),
-            gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
-        ),
+    raw_dataset_kwargs = dict(
         # TODO: Increase to 48 for donatello:
         # TODO: Increase to ~12 for GCP!
-        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
+        min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),
         n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
     )
+
+    if train:
+        raw_dataset = RawDataset(
+            data_source_combos=dict(
+                sat_only=(sat_data_source,),
+                gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
+            ),
+            **raw_dataset_kwargs,
+        )
+    else:
+        raw_dataset = NationalPVDataset(
+            data_source_combos=dict(
+                gsp_pv_sat=(gsp_data_source, pv_data_source, sat_data_source),
+            ),
+            **raw_dataset_kwargs,
+        )
 
     if not num_workers:
         raw_dataset.per_worker_init(worker_id=0)
@@ -176,15 +194,19 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
     num_workers=2,
-    n_batches_per_epoch_per_worker=512,
+    n_batches_per_epoch_per_worker=8,
     load_subset_every_epoch=True,
+    train=True,
 )
+
+N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
-    num_workers=2,
-    n_batches_per_epoch_per_worker=64,
+    num_workers=1,
+    n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
     load_subset_every_epoch=False,
+    train=False,
 )
 
 
@@ -900,9 +922,9 @@ checkpoint_callback = pl.callbacks.ModelCheckpoint(
 
 
 if socket.gethostname() == "donatello":
-    GPUS = [2, 4]
+    GPUS = [2]
 else:  # On GCP
-    GPUS = [0, 1]
+    GPUS = [0]
 trainer = pl.Trainer(
     gpus=GPUS,
     strategy="ddp" if len(GPUS) > 1 else None,

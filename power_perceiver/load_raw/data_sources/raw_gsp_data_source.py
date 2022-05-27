@@ -105,10 +105,17 @@ class RawGSPDataSource(
 
         self._data_in_ram = data_array
 
+    @property
+    def num_gsps(self) -> int:
+        return len(self.data_in_ram.gsp_id)
+
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
         random_gsp_idx = self.rng.integers(low=0, high=len(self.data_in_ram.gsp_id))
-        random_gsp = self.data_in_ram.isel(gsp_id=random_gsp_idx)
+        return self.get_osgb_location_for_gsp_idx(random_gsp_idx)
+
+    def get_osgb_location_for_gsp_idx(self, gsp_idx: int) -> Location:
+        random_gsp = self.data_in_ram.isel(gsp_id=gsp_idx)
         return Location(x=random_gsp.x_osgb.item(), y=random_gsp.y_osgb.item())
 
     def _get_empty_example(self) -> xr.DataArray:
