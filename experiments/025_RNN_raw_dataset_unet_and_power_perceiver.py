@@ -911,7 +911,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="025.03: RNN for PV. ReLU mu. donatello-0+2",
+    name="025.04: RNN for PV. Linear mu. donatello-0+2",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
