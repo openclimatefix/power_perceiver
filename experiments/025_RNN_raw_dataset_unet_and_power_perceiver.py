@@ -205,7 +205,7 @@ N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
-    num_workers=2,
+    num_workers=1,  # MUST BE 1! OTHERWISE LogNationalPV BREAKS!
     n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
     load_subset_every_epoch=False,
     train=False,
@@ -929,6 +929,8 @@ if socket.gethostname() == "donatello":
     GPUS = [0, 2]
 else:  # On GCP
     GPUS = [0]
+
+# WARNING: Don't run multiple GPUs in ipython.
 trainer = pl.Trainer(
     gpus=GPUS,
     strategy="ddp" if len(GPUS) > 1 else None,

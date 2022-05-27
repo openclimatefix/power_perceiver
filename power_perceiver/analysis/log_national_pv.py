@@ -61,7 +61,7 @@ class LogNationalPV(pl.Callback):
             else:
                 # This is the start of a new set of GSPs. First, log the national PV error:
                 self._log_national_pv_error(pl_module)
-                if self._national_batch_idx < 4:
+                if self._national_batch_idx < 12:
                     self._plot_national_pv(pl_module.logger.experiment)
                 # And reset:
                 self._national_pv_accumulator_mw = df_for_example
@@ -69,9 +69,9 @@ class LogNationalPV(pl.Callback):
 
     def on_validation_epoch_end(self, trainer: pl.Trainer, pl_module: pl.LightningModule) -> None:
         super().on_validation_epoch_end(trainer, pl_module)
-        self._log_national_pv_error(pl_module)
+        self._log_national_pv_error(pl_module, on_step=False)
 
-    def _log_national_pv_error(self, logger) -> None:
+    def _log_national_pv_error(self, logger, on_step: bool = True) -> None:
         self._check_accumulator()
         error_mw = (
             self._national_pv_accumulator_mw["actual"]
@@ -83,7 +83,7 @@ class LogNationalPV(pl.Callback):
                 "validation/national_pv_mbe_mw": error_mw.mean(),
             },
             on_epoch=True,
-            on_step=True,
+            on_step=on_step,
         )
 
     def _plot_national_pv(self, logger) -> None:
