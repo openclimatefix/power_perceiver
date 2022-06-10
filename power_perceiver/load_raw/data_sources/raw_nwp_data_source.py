@@ -1,5 +1,6 @@
 import datetime
 import logging
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import ClassVar, Optional, Sequence
 
@@ -213,6 +214,15 @@ class RawNWPDataSource(
         xr_data = xr_data - NWP_MEAN
         xr_data = xr_data / NWP_STD
         return xr_data
+
+    def load_subset_into_ram(self, subset_of_contiguous_t0_time_periods: pd.DataFrame) -> None:
+        # Need to stretch the t0_time_periods by 6 hours at both ends because
+        # the init_time is only at 3 hour intervals, and we want some buffer.
+        time_periods = deepcopy(subset_of_contiguous_t0_time_periods)
+        del subset_of_contiguous_t0_time_periods
+        time_periods["start_dt"] -= datetime.timedelta(hours=6)
+        time_periods["end_dt"] += datetime.timedelta(hours=6)
+        return super().load_subset_into_ram(time_periods)
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:

@@ -213,6 +213,7 @@ class TimeseriesDataSource:
 
         Override in DataSources which can only fit a subset of the dataset into RAM.
         """
+        _log.info(f"{self.__class__.__name__} load_subset_into_ram().")
         # Delete any existing data in RAM while we're loading new data.
         self._data_in_ram = None
 
