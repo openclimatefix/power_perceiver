@@ -28,5 +28,4 @@ class NWPProcessor(nn.Module):
 
         # Concatenate time fourier on the final dimension:
         time_fourier = x[BatchKey.nwp_target_time_utc_fourier]  # (example, time, n_features)
-        time_fourier = time_fourier.float()
-        return torch.concat((nwp, time_fourier), dim=-1)
+        return torch.concat((nwp, time_fourier), dim=-1).float()
