@@ -234,6 +234,7 @@ class TimeseriesDataSource:
 
         # Load into RAM :)
         data_to_load = xr.concat(data_to_load, dim=self._time_dim_name)
+        data_to_load = data_to_load.drop_duplicates(dim=self._time_dim_name)
         self._data_in_ram = data_to_load.load()
 
     def get_contiguous_t0_time_periods(self) -> pd.DataFrame:
