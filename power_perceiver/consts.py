@@ -59,6 +59,19 @@ class BatchKey(Enum):
     #: Time shape: (batch_size, n_timesteps, n_fourier_features_per_dim)
     hrvsatellite_time_utc_fourier = auto()
 
+    # -------------- NWP --------------------------------------------
+    nwp = auto()  # shape: (batch_size, target_time_utc, channel, y_osgb, x_osgb)
+    nwp_init_time_utc = auto()  # shape: (batch_size,)
+    nwp_target_time_utc = auto()  # shape: (batch_size, target_time_utc)
+    nwp_y_osgb = auto()  # shape: (batch_size, y_osgb)
+    nwp_x_osgb = auto()  # shape: (batch_size,, x_osgb)
+
+    # NWP Fourier features:
+    nwp_init_time_utc_fourier = auto()
+    nwp_target_time_utc_fourier = auto()
+    nwp_y_osgb_fourier = auto()
+    nwp_x_osgb_fourier = auto()
+
     # -------------- PV ---------------------------------------------
     pv = auto()  # shape: (batch_size, time, n_pv_systems)
     pv_system_row_number = auto()  # shape: (batch_size, n_pv_systems)
@@ -126,6 +139,7 @@ class BatchKey(Enum):
     solar_azimuth_at_t0 = auto()
     solar_elevation_at_t0 = auto()
 
+    # ------------- REQUESTED NUMBER OF TIMESTEPS ---------------------
     # Added by `ReduceNumTimesteps`. Gives the indicies of the randomly selected timesteps.
     # Not used in the Raw data pipeline.
     requested_timesteps = auto()  # shape: (n_requested_timesteps)

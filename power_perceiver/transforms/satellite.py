@@ -27,6 +27,7 @@ class PatchSatellite:
         dataset = dataset.stack(patch=("y_patch", "x_patch"))
 
         # Downsample spatial coordinates
+        # TODO: I think this can be replaced by passing `coord_func='mean'` into `dataset.coarsen`
         COORD_NAMES = ["x_geostationary", "x_osgb", "y_geostationary", "y_osgb"]
         dataset[COORD_NAMES] = dataset[COORD_NAMES].mean(dim="patch")
 

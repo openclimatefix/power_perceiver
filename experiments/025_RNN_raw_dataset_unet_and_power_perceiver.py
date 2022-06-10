@@ -52,6 +52,7 @@ from power_perceiver.pytorch_modules.mixture_density_network import (
     MixtureDensityNetwork,
     get_distribution,
 )
+from power_perceiver.pytorch_modules.nwp_processor import NWPProcessor
 from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
@@ -480,6 +481,8 @@ class FullModel(pl.LightningModule):
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
 
+        self.nwp_processor = NWPProcessor()
+
         # Find temporal features, and help calibrate predictions using recent history:
         # TODO: Move the RNN into its own nn.Module.
         rnn_kwargs = dict(
@@ -679,8 +682,15 @@ class FullModel(pl.LightningModule):
         gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
+        # Prepare NWP inputs
+        nwp_query = self.nwp_processor(x)
+
         # Concatenate all the things we're going to feed into the "time transformer":
-        time_attn_in = torch.concat((pv_rnn_out, sat_trans_gsp_attn_out, gsp_query), dim=1)
+        # `pv_rnn_out` must be the first set of elements.
+        # `gsp_query` must be the last set of elements.
+        time_attn_in = torch.concat(
+            (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
+        )
 
         # Some whole examples don't include GSP (or PV) data.
         # Here, we set those to zero so the model trains without NaN loss, and mask them.
@@ -719,11 +729,10 @@ class FullModel(pl.LightningModule):
         # are entirely masked (because this example has no PV or GSP)
 
         # The MDN doesn't like NaNs:
-        power_out = self.pv_mixture_density_net(time_attn_out.nan_to_num(0))
-        # power_out is shape: (example, total_num_elements, 1)
+        time_attn_out = time_attn_out.nan_to_num(0)
 
         # Reshape the PV power predictions
-        predicted_pv_power = power_out[:, :n_pv_elements]
+        predicted_pv_power = self.pv_mixture_density_net(time_attn_out[:, :n_pv_elements])
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
             "example (time n_pv_systems) mdn_features -> example time n_pv_systems mdn_features",
@@ -734,7 +743,7 @@ class FullModel(pl.LightningModule):
 
         # GSP power. There's just 1 GSP. So each gsp element is a timestep.
         n_gsp_elements = gsp_query.shape[1]
-        predicted_gsp_power = power_out[:, -n_gsp_elements:]
+        predicted_gsp_power = self.pv_mixture_density_net(time_attn_out[:, -n_gsp_elements:])
 
         x.update(original_x)
 
@@ -918,7 +927,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="025.04: RNN for PV. Linear mu. donatello-0",
+    name="025.05: NWPs. SatTrans in obj function. RNN for PV. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

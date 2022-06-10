@@ -13,20 +13,20 @@ import xarray as xr
 from power_perceiver.geospatial import osgb_to_lat_lon
 
 
-def get_dates(xr_data: Union[xr.Dataset, xr.DataArray]) -> np.ndarray:  # noqa: D103
-    return np.sort(np.unique(pd.DatetimeIndex(xr_data.time_utc).date))
+def get_dates(time_index: pd.DatetimeIndex) -> np.ndarray:  # noqa: D103
+    return np.sort(np.unique(time_index.date))
 
 
-def num_days(xr_data: Union[xr.Dataset, xr.DataArray]) -> int:  # noqa: D103
-    dates = get_dates(xr_data)
+def num_days(time_index: pd.DatetimeIndex) -> int:  # noqa: D103
+    dates = get_dates(time_index)
     return len(dates)
 
 
-def date_summary_str(xr_data: Union[xr.Dataset, xr.DataArray]) -> str:
+def date_summary_str(time_index: pd.DatetimeIndex) -> str:
     """Convert to pd.DatetimeIndex to get prettier date string formatting."""
-    time_index = pd.DatetimeIndex(xr_data.time_utc)
+    time_index = pd.DatetimeIndex(time_index)
     return (
-        f"there are {num_days(xr_data):,d} days of data"
+        f"there are {num_days(time_index):,d} days of data"
         f" from {time_index[0]} to {time_index[-1]}."
         f" A total of {len(time_index):,d} timesteps."
     )

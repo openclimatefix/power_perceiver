@@ -163,6 +163,7 @@ class TimeseriesDataSource:
     start_date: datetime.datetime
     end_date: datetime.datetime
     sample_period_duration: ClassVar[datetime.timedelta]
+    _time_dim_name: ClassVar[str] = "time_utc"
 
     def __post_init__(self):  # noqa: D105
         # Sanity checks.
@@ -201,7 +202,7 @@ class TimeseriesDataSource:
             data = self.data_on_disk
         else:
             data = self.data_in_ram
-        return pd.DatetimeIndex(data.time_utc)
+        return pd.DatetimeIndex(data[self._time_dim_name])
 
     def load_subset_into_ram(self, subset_of_contiguous_t0_time_periods: pd.DataFrame) -> None:
         """Load a subset of `data_on_disk` into `data_in_ram`.
@@ -227,11 +228,11 @@ class TimeseriesDataSource:
         for _, row in time_periods.iterrows():
             start_dt = row["start_dt"]
             end_dt = row["end_dt"]
-            data_for_period = self._data_on_disk.sel(time_utc=slice(start_dt, end_dt))
+            data_for_period = self.data_on_disk.sel({self._time_dim_name: slice(start_dt, end_dt)})
             data_to_load.append(data_for_period)
-        data_to_load = xr.concat(data_to_load, dim="time_utc")
 
         # Load into RAM :)
+        data_to_load = xr.concat(data_to_load, dim=self._time_dim_name)
         self._data_in_ram = data_to_load.load()
 
     def get_contiguous_t0_time_periods(self) -> pd.DataFrame:
@@ -269,8 +270,8 @@ class TimeseriesDataSource:
 
         The returned data does not include an `example` dimension.
         """
-        start_dt_rounded = self._get_start_dt_rounded(t0_datetime_utc)
-        end_dt_rounded = self._get_end_dt_rounded(t0_datetime_utc)
+        start_dt_rounded = self._get_start_dt_ceil(t0_datetime_utc)
+        end_dt_rounded = self._get_end_dt_ceil(t0_datetime_utc)
 
         # Sanity check!
         assert (
@@ -281,29 +282,34 @@ class TimeseriesDataSource:
         ), f"{end_dt_rounded=} not in xr_data.time_utc! {t0_datetime_utc=}"
 
         # Get time slice:
-        time_slice = xr_data.sel(time_utc=slice(start_dt_rounded, end_dt_rounded))
+        time_slice = xr_data.sel({self._time_dim_name: slice(start_dt_rounded, end_dt_rounded)})
+        self._sanity_check_time_slice(time_slice, self._time_dim_name, t0_datetime_utc)
+        return time_slice
 
-        # More sanity checks!
+    def _sanity_check_time_slice(
+        self,
+        time_slice: xr.DataArray,
+        time_dim_name: str,
+        t0_datetime_utc: datetime.datetime,
+    ) -> None:
         assert (
-            len(time_slice.time_utc) == self.total_seq_length
-        ), f"{len(time_slice.time_utc)=} != {self.total_seq_length=} at {t0_datetime_utc=}"
+            len(time_slice[time_dim_name]) == self.total_seq_length
+        ), f"{len(time_slice[time_dim_name])=} != {self.total_seq_length=} at {t0_datetime_utc=}"
         time_slice_duration = np.timedelta64(
-            time_slice.time_utc[-1].values - time_slice.time_utc[0].values
+            time_slice[time_dim_name][-1].values - time_slice[time_dim_name][0].values
         )
         expected_duration = np.timedelta64(self.total_duration)
         assert (
             time_slice_duration == expected_duration
         ), f"{time_slice_duration=} != {expected_duration=} at {t0_datetime_utc=}"
 
-        return time_slice
-
-    def _get_start_dt_rounded(
+    def _get_start_dt_ceil(
         self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
     ) -> pd.Timestamp:
         start_dt = pd.Timestamp(t0_datetime_utc) - np.timedelta64(self.history_duration)
         return start_dt.ceil(self.sample_period_duration)
 
-    def _get_end_dt_rounded(
+    def _get_end_dt_ceil(
         self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
     ) -> pd.Timestamp:
         end_dt = pd.Timestamp(t0_datetime_utc) + np.timedelta64(self.forecast_duration)
@@ -407,7 +413,10 @@ class SpatialDataSource:
         assert bottom_idx <= data_height_pixels, f"{bottom_idx=} must be <= {data_height_pixels=}"
 
         selected = xr_data.isel(
-            x_geostationary=slice(left_idx, right_idx), y_geostationary=slice(top_idx, bottom_idx)
+            {
+                self._x_dim_name: slice(left_idx, right_idx),
+                self._y_dim_name: slice(top_idx, bottom_idx),
+            }
         )
 
         # Sanity check:
@@ -420,7 +429,12 @@ class SpatialDataSource:
         self, xr_data: xr.DataArray, center_osgb: Location
     ) -> Location:
         """Return x and y index location of pixel at center of region of interest."""
-        raise NotImplementedError("Must be implemented by child class!")
+        y_index = xr_data.get_index(self._y_dim_name)
+        x_index = xr_data.get_index(self._x_dim_name)
+        return Location(
+            y=y_index.get_indexer([center_osgb.y], method="nearest")[0],
+            x=x_index.get_indexer([center_osgb.x], method="nearest")[0],
+        )
 
 
 @dataclass(kw_only=True)

@@ -11,7 +11,8 @@ from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
 
 
 class LogNationalPV(pl.Callback):
-    """To be used in conjunction with the `NationalPVDataset`.
+    """To be used in conjunction with the `NationalPVDataset`. Must be used with a single
+    validation data loader worker!
 
     Attributes:
         _national_pv_accumulator_mw: A pd.DataFrame with columns "actual" and "predicted"
