@@ -197,7 +197,10 @@ class RawNWPDataSource(
 
         # Select only the timesteps we want:
         self._data_on_disk = self.data_on_disk.sel(
-            init_time_utc=slice(self.start_date, self.end_date)
+            init_time_utc=slice(self.start_date, self.end_date),
+            step=slice(
+                None, datetime.timedelta(hours=5)
+            ),  # TODO: Remove this when we want more data!
         )
         # Downsample spatially:
         self._data_on_disk = self.data_on_disk.coarsen(
