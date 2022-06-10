@@ -706,6 +706,7 @@ class FullModel(pl.LightningModule):
 
         # Prepare NWP inputs
         nwp_query = self.nwp_processor(x)
+        nwp_query = maybe_pad_with_zeros(nwp_query, requested_dim=self.d_model)
 
         # Concatenate all the things we're going to feed into the "time transformer":
         # `pv_rnn_out` must be the first set of elements.
