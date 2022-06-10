@@ -133,6 +133,42 @@ class RawNWPDataSource(
         SpatialDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
         ZarrDataSource.__post_init__(self)
+        self.empty_example = self._get_empty_example()
+
+    def _get_empty_example(self) -> xr.DataArray:
+        target_time_utc = pd.DatetimeIndex([np.NaN] * self.total_seq_length)
+        channels = self.channels if self.channels else NWP_CHANNEL_NAMES
+        n_channels = len(channels)
+        data = np.full(
+            shape=(
+                self.total_seq_length,
+                n_channels,
+                self.roi_height_pixels,
+                self.roi_width_pixels,
+            ),
+            fill_value=np.NaN,
+            dtype=np.float32,
+        )
+        y = np.full(
+            shape=self.roi_height_pixels,
+            fill_value=np.NaN,
+            dtype=np.float32,
+        )
+        x = np.full(
+            shape=self.roi_width_pixels,
+            fill_value=np.NaN,
+            dtype=np.float32,
+        )
+        data_array = xr.DataArray(
+            data,
+            coords=(
+                ("target_time_utc", target_time_utc),
+                ("channel", channels),
+                ("y_osgb", y),
+                ("x_osgb", x),
+            ),
+        )
+        return data_array
 
     def per_worker_init(self, worker_id: int) -> None:  # noqa: D102
         super().per_worker_init(worker_id)
@@ -222,7 +258,7 @@ class RawNWPDataSource(
         del subset_of_contiguous_t0_time_periods
         time_periods["start_dt"] -= datetime.timedelta(hours=6)
         time_periods["end_dt"] += datetime.timedelta(hours=6)
-        return super().load_subset_into_ram(time_periods)
+        super().load_subset_into_ram(time_periods)
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:
@@ -233,7 +269,6 @@ class RawNWPDataSource(
         example: NumpyBatch = {}
 
         example[BatchKey.nwp] = xr_data.values
-        example[BatchKey.nwp_init_time_utc] = datetime64_to_float(xr_data.init_time_utc.values)
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(xr_data.target_time_utc.values)
 
         for batch_key, dataset_key in (
