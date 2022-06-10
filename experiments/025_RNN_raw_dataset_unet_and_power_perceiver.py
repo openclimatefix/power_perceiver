@@ -40,6 +40,7 @@ from power_perceiver.consts import (
 )
 from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
+from power_perceiver.load_raw.data_sources.raw_nwp_data_source import RawNWPDataSource
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSource
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
@@ -137,6 +138,22 @@ def get_dataloader(
         **data_source_kwargs,
     )
 
+    nwp_data_source = RawNWPDataSource(
+        zarr_path=(
+            "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+            "NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
+        ),
+        roi_height_pixels=4,
+        roi_width_pixels=4,
+        history_duration=datetime.timedelta(hours=1),
+        forecast_duration=datetime.timedelta(hours=2),
+        start_date=start_date,
+        end_date=end_date,
+        y_coarsen=16,
+        x_coarsen=16,
+        channels=["dswrf", "t", "si10", "prate"],
+    )
+
     np_batch_processors = [
         EncodeSpaceTime(),
         SaveT0Time(pv_t0_idx=NUM_HIST_SAT_IMAGES - 1, gsp_t0_idx=T0_IDX_30_MIN),
@@ -157,17 +174,22 @@ def get_dataloader(
         raw_dataset = RawDataset(
             data_source_combos=dict(
                 sat_only=(sat_data_source,),
-                gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
+                gsp_pv_nwp_sat=(
+                    gsp_data_source,
+                    pv_data_source,
+                    nwp_data_source,
+                    deepcopy(sat_data_source),
+                ),
             ),
-            # TODO: Increase to 48 for donatello:
-            # TODO: Increase to ~12 for GCP!
+            # Set to about 12 x 48 for donatello
+            # Set to about 12 x 12 for GCP:
             min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
             **raw_dataset_kwargs,
         )
     else:
         raw_dataset = NationalPVDataset(
             data_source_combos=dict(
-                gsp_pv_sat=(gsp_data_source, pv_data_source, sat_data_source),
+                gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
             ),
             min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
             **raw_dataset_kwargs,
