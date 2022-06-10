@@ -1,4 +1,5 @@
 import einops
+import numpy as np
 import torch
 from torch import nn
 
@@ -28,4 +29,5 @@ class NWPProcessor(nn.Module):
 
         # Concatenate time fourier on the final dimension:
         time_fourier = x[BatchKey.nwp_target_time_utc_fourier]  # (example, time, n_features)
+        time_fourier = time_fourier.astype(np.float32)
         return torch.concat((nwp, time_fourier), dim=-1)
