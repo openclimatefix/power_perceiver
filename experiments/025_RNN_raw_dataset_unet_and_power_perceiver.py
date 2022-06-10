@@ -880,9 +880,16 @@ class FullModel(pl.LightningModule):
         total_sat_and_pv_gsp_neg_log_prob = sat_loss + total_pv_and_gsp_neg_log_prob_loss
         self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
         self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
+        total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse = (
+            total_sat_and_pv_gsp_neg_log_prob + pv_from_sat_trans_mse_loss
+        )
+        self.log(
+            f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse",
+            total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse,
+        )
 
         return {
-            "loss": total_sat_and_pv_gsp_neg_log_prob,
+            "loss": total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse,
             "predicted_gsp_power": predicted_gsp_power,
             "predicted_gsp_power_mean": gsp_distribution.mean,
             "actual_gsp_power": actual_gsp_power,
@@ -911,7 +918,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="025.04: RNN for PV. Linear mu. donatello-0+2",
+    name="025.04: RNN for PV. Linear mu. donatello-0",
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",
