@@ -123,6 +123,7 @@ class RawNWPDataSource(
 
     # Attributes which are intended to be set for the whole class:
     sample_period_duration: ClassVar[datetime.timedelta] = datetime.timedelta(hours=1)
+    duration_between_nwp_inits: ClassVar[datetime.timedelta] = datetime.timedelta(hours=3)
     needs_to_load_subset_into_ram: ClassVar[bool] = True
     _y_dim_name: ClassVar[str] = "y_osgb"
     _x_dim_name: ClassVar[str] = "x_osgb"
@@ -197,10 +198,7 @@ class RawNWPDataSource(
 
         # Select only the timesteps we want:
         self._data_on_disk = self.data_on_disk.sel(
-            init_time_utc=slice(self.start_date, self.end_date),
-            step=slice(
-                None, datetime.timedelta(hours=5)
-            ),  # TODO: Remove this when we want more data!
+            init_time_utc=slice(self.start_date, self.end_date)
         )
         # Downsample spatially:
         self._data_on_disk = self.data_on_disk.coarsen(
@@ -218,7 +216,8 @@ class RawNWPDataSource(
         The `target_time` is the `init_time_utc` plus the forecast horizon `step`.
         `step` is an array of timedeltas, so we can just add `init_time_utc` to `step`.
         """
-        target_times = self.data_on_disk.init_time_utc + self.data_on_disk.step
+        data = self.data_on_disk.sel(step=slice(None, self.total_duration))
+        target_times = data.init_time_utc + data.step
         target_times = target_times.values.flatten()
         target_times = np.unique(target_times)
         target_times = np.sort(target_times)
