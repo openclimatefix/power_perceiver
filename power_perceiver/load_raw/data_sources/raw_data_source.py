@@ -218,10 +218,9 @@ class TimeseriesDataSource:
         self._data_in_ram = None
 
         # Convert t0_time_periods back into the complete time periods we want to load:
-        time_periods = deepcopy(subset_of_contiguous_t0_time_periods)
-        del subset_of_contiguous_t0_time_periods
-        time_periods["start_dt"] -= self.history_duration
-        time_periods["end_dt"] += self.forecast_duration
+        time_periods = self._convert_t0_time_periods_to_periods_to_load(
+            subset_of_contiguous_t0_time_periods
+        )
         assert (time_periods["start_dt"] < time_periods["end_dt"]).all()
 
         # Lazily create a new DataArray with just the data we want.
@@ -236,6 +235,16 @@ class TimeseriesDataSource:
         data_to_load = xr.concat(data_to_load, dim=self._time_dim_name)
         data_to_load = data_to_load.drop_duplicates(dim=self._time_dim_name)
         self._data_in_ram = data_to_load.load()
+
+    def _convert_t0_time_periods_to_periods_to_load(
+        self, subset_of_contiguous_t0_time_periods: pd.DataFrame
+    ) -> pd.DataFrame:
+        """Convert t0_time_periods back into the complete time periods we want to load."""
+        time_periods = deepcopy(subset_of_contiguous_t0_time_periods)
+        del subset_of_contiguous_t0_time_periods
+        time_periods["start_dt"] -= self.history_duration
+        time_periods["end_dt"] += self.forecast_duration
+        return time_periods
 
     def get_contiguous_t0_time_periods(self) -> pd.DataFrame:
         """Get all time periods which contain valid t0 datetimes.
