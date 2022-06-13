@@ -4,7 +4,7 @@ import einops
 import torch
 from torch import nn
 
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
 from power_perceiver.utils import assert_num_dims
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -118,7 +118,7 @@ class GSPQueryGenerator(nn.Module):
         """Create query for GSP PV forecasts.
 
         Args:
-            x: The batch. Requires BatchKeys: gsp_y_osgb_fourier, gsp_x_osgb_fourier,
+            x: The batch. Requires BatchKeys: gsp, gsp_y_osgb_fourier, gsp_x_osgb_fourier,
                 gsp_id, gsp_time_utc_fourier, solar_azimuth
             for_satellite_transformer: The query for the SatelliteTransformer uses 5-minutely
                 data. The query for the time_transformer uses 30-minutely data.
@@ -171,6 +171,14 @@ class GSPQueryGenerator(nn.Module):
                 "example 1 features -> example time features",
                 time=n_timesteps,
             )
-            gsp_query = torch.concat((gsp_query, time_fourier, time_fourier_t0), dim=2)
+            # Get the recent history of GSP power: Take a copy because we modify the tensor:
+            gsp_power = x[BatchKey.gsp].detach().clone()  # shape: batch, time, 1
+            gsp_power[:, T0_IDX_30_MIN + 1 :] = 0
+            gsp_history_mask = torch.ones_like(gsp_power)
+            gsp_history_mask[:, T0_IDX_30_MIN + 1 :] = 0
+
+            gsp_query = torch.concat(
+                (gsp_query, time_fourier, time_fourier_t0, gsp_power, gsp_history_mask), dim=2
+            )
 
         return gsp_query

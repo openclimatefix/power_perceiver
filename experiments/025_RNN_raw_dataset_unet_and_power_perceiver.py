@@ -500,6 +500,14 @@ class FullModel(pl.LightningModule):
         # Predict future satellite images:
         self.satellite_predictor = SatellitePredictor()
 
+        # Load SatellitePredictor weights
+        self.satellite_predictor.load_state_dict(
+            torch.load(
+                "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
+                "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+            )
+        )
+
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
 
@@ -670,7 +678,7 @@ class FullModel(pl.LightningModule):
         )
 
         # Concatenate the output from the encoder and decoder RNNs, and reshape
-        # so each timestep and each PV system is a separate elements into `time_transformer`.
+        # so each timestep and each PV system is a separate element into `time_transformer`.
         pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
         # rnn_out shape: (example n_pv_systems), time, d_model
         assert pv_rnn_out.isfinite().all()
@@ -686,7 +694,8 @@ class FullModel(pl.LightningModule):
         del hist_pv, pv_rnn_hist_enc_hidden
 
         # Reshape gsp attention outputs so each timestep is
-        # seen as a separate element into the `time transformer`.
+        # seen as a separate element into the `time transformer`. Remember that, at this stage,
+        # the sat_trans_gsp_attn_out is 5-minutely.
         sat_trans_gsp_attn_out = einops.rearrange(
             sat_trans_gsp_attn_out, "example time 1 d_model -> example time d_model"
         )
@@ -819,6 +828,9 @@ class FullModel(pl.LightningModule):
         predicted_pv_power_from_t0 = predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
         actual_pv_power_from_t0 = actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
 
+        predicted_gsp_power_from_t0 = predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0]
+        actual_gsp_power_from_t0 = actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0]
+
         # PV negative log prob loss:
         pv_distribution = get_distribution(predicted_pv_power_from_t0)
         pv_neg_log_prob_loss = -pv_distribution.log_prob(actual_pv_power_from_t0).mean()
@@ -842,19 +854,15 @@ class FullModel(pl.LightningModule):
         self.log(f"{self.tag}/pv_from_sat_trans_mse_loss", pv_from_sat_trans_mse_loss)
 
         # GSP negative log prob loss:
-        gsp_distribution_masked = get_distribution(predicted_gsp_power[gsp_mask])
-        gsp_neg_log_prob_loss = -gsp_distribution_masked.log_prob(actual_gsp_power[gsp_mask]).mean()
+        gsp_distribution_masked = get_distribution(predicted_gsp_power_from_t0)
+        gsp_neg_log_prob_loss = -gsp_distribution_masked.log_prob(actual_gsp_power_from_t0).mean()
         self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
 
         # GSP power loss:
-        gsp_distribution = get_distribution(predicted_gsp_power)
-        gsp_mse_loss = F.mse_loss(gsp_distribution.mean[gsp_mask], actual_gsp_power[gsp_mask])
+        gsp_mse_loss = F.mse_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
-        gsp_nmae_loss = F.l1_loss(
-            gsp_distribution.mean[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0],
-            actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0],
-        )
+        gsp_nmae_loss = F.l1_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
         # Total PV and GSP loss:
@@ -923,7 +931,7 @@ class FullModel(pl.LightningModule):
         return {
             "loss": total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse,
             "predicted_gsp_power": predicted_gsp_power,
-            "predicted_gsp_power_mean": gsp_distribution.mean,
+            "predicted_gsp_power_mean": get_distribution(predicted_gsp_power).mean,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
             "actual_pv_power": actual_pv_power,
