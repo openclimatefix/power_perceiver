@@ -956,13 +956,6 @@ wandb_logger = WandbLogger(
     log_model="all",
 )
 
-# log model only if validation loss decreases
-checkpoint_callback = pl.callbacks.ModelCheckpoint(
-    monitor="validation/gsp_nmae",
-    mode="min",
-    save_top_k=3,
-)
-
 
 if socket.gethostname() == "donatello":
     GPUS = [0]
@@ -976,8 +969,14 @@ trainer = pl.Trainer(
     max_epochs=200,
     logger=wandb_logger,
     callbacks=[
-        # LogSatellitePlots(),
-        checkpoint_callback,
+        # Save the top 3 model params
+        pl.callbacks.ModelCheckpoint(
+            monitor="validation/gsp_nmae",
+            mode="min",
+            save_top_k=3,
+        ),
+        # Always save the most recent model (so we can resume training)
+        pl.callbacks.ModelCheckpoint(filename="{epoch}_{gsp_nmae:.3f}"),
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
         LogProbabilityTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
