@@ -958,7 +958,10 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name="025.05: NWPs. SatTrans in obj function. RNN for PV. donatello-0",
+    name=(
+        "025.06: Hist GSP. Use pretrained SatPred weights. NWPs. SatTrans in obj function."
+        " RNN for PV. donatello-0"
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model="all",

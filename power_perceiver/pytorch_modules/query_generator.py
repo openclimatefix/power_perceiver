@@ -172,6 +172,8 @@ class GSPQueryGenerator(nn.Module):
                 time=n_timesteps,
             )
             # Get the recent history of GSP power: Take a copy because we modify the tensor:
+            # See this discussion for why we use `tensor.detach().clone()` to copy the tensor:
+            # https://stackoverflow.com/questions/55266154/pytorch-preferred-way-to-copy-a-tensor
             gsp_power = x[BatchKey.gsp].detach().clone()  # shape: batch, time, 1
             gsp_power[:, T0_IDX_30_MIN + 1 :] = 0
             gsp_history_mask = torch.ones_like(gsp_power)
