@@ -949,6 +949,6 @@ model = FullModel.load_from_checkpoint(
 # See: https://stackoverflow.com/questions/42703500/best-way-to-save-a-trained-model-in-pytorch
 torch.save(
     model.satellite_predictor.state_dict(),
-    "~/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/checkpoints/"
-    "epoch=170-step=175104-just-satellite-predictor.ckpt",
+    "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/checkpoints/"
+    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth",
 )
