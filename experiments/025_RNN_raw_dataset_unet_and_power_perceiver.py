@@ -610,6 +610,10 @@ class FullModel(pl.LightningModule):
         else:
             num_5_min_timesteps = NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES
 
+        # Detach because it looks like it hurts performance to let the gradients go backwards
+        # from here
+        hrvsatellite = hrvsatellite.detach()
+
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
         # a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
@@ -959,8 +963,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "025.06: Hist GSP. Use pretrained SatPred weights. NWPs. SatTrans in obj function."
-        " RNN for PV. donatello-0"
+        "025.07: Hist GSP. Use pretrained SatPred weights but detach. NWPs."
+        " SatTrans in obj function. RNN for PV. donatello-2"
     ),
     project="power_perceiver",
     entity="openclimatefix",
@@ -969,7 +973,7 @@ wandb_logger = WandbLogger(
 
 
 if socket.gethostname() == "donatello":
-    GPUS = [0]
+    GPUS = [2]
 else:  # On GCP
     GPUS = [0]
 
