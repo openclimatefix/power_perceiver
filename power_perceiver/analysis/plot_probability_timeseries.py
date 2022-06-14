@@ -42,6 +42,7 @@ def plot_pv_power(
 
     if random_timestep_indexes is not None:
         # We're training, and we're sub-selecting timestep indexes.
+        random_timestep_indexes = random_timestep_indexes.cpu().detach()
         pv_datetimes = pv_datetimes[:, random_timestep_indexes]
 
     if pd.isnull(pv_datetimes[0]):
@@ -174,7 +175,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     .detach(),
                     pv_id=batch[BatchKey.pv_id].cpu(),
                     gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
-                    random_timestep_indexes=outputs["random_timestep_indexes"].cpu().detach(),
+                    random_timestep_indexes=outputs["random_timestep_indexes"],
                 )
                 pl_module.logger.experiment.log(
                     {f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig)}
