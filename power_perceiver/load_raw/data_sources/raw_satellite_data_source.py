@@ -111,7 +111,7 @@ class RawSatelliteDataSource(
         return example
 
     def _load_geostationary_area_definition_and_transform(self) -> None:
-        area_definition_yaml = self._data_on_disk.attrs["area"]
+        area_definition_yaml = self.data_on_disk.attrs["area"]
         geostationary_area_definition = pyresample.area_config.load_area_from_string(
             area_definition_yaml
         )
@@ -195,7 +195,7 @@ def open_sat_data(
 
     if convert_to_uint8:
         data_array = data_array.clip(min=0, max=1023)
-        data_array = (data_array.astype(np.float32) / 4.0).round().astype(np.uint8)
+        data_array.data = (data_array.astype(np.float32).data / 4.0).round().astype(np.uint8)
 
     # Sanity checks!
     assert data_array.dims == ("time_utc", "channel", "y_geostationary", "x_geostationary")
