@@ -8,7 +8,6 @@ See this issue for a diagram: https://github.com/openclimatefix/power_perceiver/
 import datetime
 import logging
 import socket
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
 
@@ -174,29 +173,16 @@ def get_dataloader(
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
-        min_duration_to_load_per_epoch=(12 * 48) if ON_DONATELLO else (12 * 12),
+        min_duration_to_load_per_epoch=(12 * 48) if ON_DONATELLO else (12 * 24),
+        data_source_combos=dict(
+            gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
+        ),
     )
 
     if train:
-        raw_dataset = RawDataset(
-            data_source_combos=dict(
-                sat_only=(sat_data_source,),
-                gsp_pv_nwp_sat=(
-                    gsp_data_source,
-                    pv_data_source,
-                    nwp_data_source,
-                    deepcopy(sat_data_source),
-                ),
-            ),
-            **raw_dataset_kwargs,
-        )
+        raw_dataset = RawDataset(**raw_dataset_kwargs)
     else:
-        raw_dataset = NationalPVDataset(
-            data_source_combos=dict(
-                gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
-            ),
-            **raw_dataset_kwargs,
-        )
+        raw_dataset = NationalPVDataset(**raw_dataset_kwargs)
 
     if not num_workers:
         raw_dataset.per_worker_init(worker_id=0)
@@ -320,6 +306,54 @@ class SatellitePredictor(pl.LightningModule):
         predicted_sat = self.satellite_predictor(data)
         assert predicted_sat.isfinite().all()
         return predicted_sat  # Shape: example, time, y, x
+
+    def validation_step(
+        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
+    ) -> dict[str, object]:
+        predicted_sat = self(batch)
+        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+
+        sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
+        self.log(f"{self.tag}/sat_mse", sat_mse_loss)
+
+        # MS-SSIM. Requires images to be de-normalised:
+        actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
+        predicted_sat_denorm = (predicted_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
+        ms_ssim_loss = 1 - ms_ssim(
+            predicted_sat_denorm,
+            actual_sat_denorm,
+            data_range=1023.0,
+            size_average=True,  # Return a scalar.
+            win_size=3,  # ClimateHack folks used win_size=3.
+        )
+        self.log(f"{self.tag}/ms_ssim", ms_ssim_loss)
+        self.log(f"{self.tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
+
+        if self.crop_sat_before_sat_predictor_loss:
+            # Loss on a central crop:
+            # The cropped image has to be larger than 32x32 otherwise ms-ssim complains:
+            # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
+            sat_mse_loss_crop = F.mse_loss(
+                predicted_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
+                actual_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
+            )
+            self.log(f"{self.tag}/sat_mse_crop", sat_mse_loss_crop)
+            ms_ssim_loss_crop = 1 - ms_ssim(
+                predicted_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
+                actual_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
+                data_range=1023.0,
+                size_average=True,  # Return a scalar.
+                win_size=3,  # The Illinois ClimateHack folks used win_size=3.
+            )
+            self.log(f"{self.tag}/ms_ssim_crop", ms_ssim_loss_crop)
+            self.log(f"{self.tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
+            sat_loss = ms_ssim_loss_crop + sat_mse_loss_crop
+        else:
+            sat_loss = ms_ssim_loss + sat_mse_loss
+
+        return dict(
+            lost=sat_loss,
+        )
 
 
 # ---------------------------------- SatelliteTransformer ----------------------------------
@@ -483,9 +517,7 @@ class FullModel(pl.LightningModule):
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 4
     cheat: bool = False  #: Use real satellite imagery of the future.
-    stop_gradients_before_unet: bool = False
     #: Compute the loss on a central crop of the imagery.
-    crop_sat_before_sat_predictor_loss: bool = False
     num_5_min_history_timesteps_during_training: Optional[int] = 4
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
     num_gaussians: int = 2
@@ -570,9 +602,6 @@ class FullModel(pl.LightningModule):
             predicted_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
         else:
             predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
-
-        if self.stop_gradients_before_unet:
-            predicted_sat = predicted_sat.detach()
 
         hrvsatellite = torch.concat(
             (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
@@ -737,41 +766,8 @@ class FullModel(pl.LightningModule):
             (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
         )
 
-        # Some whole examples don't include GSP (or PV) data.
-        # Here, we set those to zero so the model trains without NaN loss, and mask them.
-        # Examples with NaN PV or GSP power are masked in the objective function and
-        # in the attention mechanism.
-        # TODO: Maybe we shouldn't actually be masking entire *examples*?
-        # Masking entire examples seems to break the downstream code.
-        # Maybe it's sufficient to mask the loss?
-        # If so, we can remove the block of code below :) See issue #103.
-        # mask = torch.concat(
-        #     (
-        #         einops.rearrange(
-        #             x[BatchKey.pv].isnan(),
-        #             "example time n_pv_systems -> example (time n_pv_systems)",
-        #         ),
-        #         # Remember that `sat_trans_gsp_attn_out` is at *5 minute* intervals!
-        #         # So we need to repeat the GSP mask for each 5 minute interval.
-        #         # And the might have less 5 minute intervals if we're training and
-        #         # subsampling 5-min intervals!
-        #         einops.repeat(
-        #             x[BatchKey.gsp_id].isnan().squeeze(),
-        #             "example -> example num_5_min_timesteps",
-        #             num_5_min_timesteps=num_5_min_timesteps,
-        #         ),
-        #         gsp_query.isnan().any(dim=2),
-        #     ),
-        #     dim=1,
-        # )
-        # assert not mask.all()
-        # self.log(f"{self.tag}/time_transformer_mask_mean", mask.float().mean())
         time_attn_in = time_attn_in.nan_to_num(0)
-        time_attn_out = self.time_transformer(
-            time_attn_in
-        )  # TODO Put mask back in?, src_key_padding_mask=mask)
-        # If we're using `mask` then time_attn_out will be NaN for examples which
-        # are entirely masked (because this example has no PV or GSP)
+        time_attn_out = self.time_transformer(time_attn_in)
 
         # The MDN doesn't like NaNs:
         time_attn_out = time_attn_out.nan_to_num(0)
@@ -888,62 +884,12 @@ class FullModel(pl.LightningModule):
         total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
         self.log(f"{self.tag}/total_nmae", total_nmae_loss)
 
-        # SATELLITE PREDICTOR LOSS ################
-        predicted_sat = network_out["predicted_sat"]
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
-
-        sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
-        self.log(f"{self.tag}/sat_mse", sat_mse_loss)
-
-        # MS-SSIM. Requires images to be de-normalised:
-        actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
-        predicted_sat_denorm = (predicted_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
-        ms_ssim_loss = 1 - ms_ssim(
-            predicted_sat_denorm,
-            actual_sat_denorm,
-            data_range=1023.0,
-            size_average=True,  # Return a scalar.
-            win_size=3,  # ClimateHack folks used win_size=3.
-        )
-        self.log(f"{self.tag}/ms_ssim", ms_ssim_loss)
-        self.log(f"{self.tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
-
-        if self.crop_sat_before_sat_predictor_loss:
-            # Loss on a central crop:
-            # The cropped image has to be larger than 32x32 otherwise ms-ssim complains:
-            # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
-            sat_mse_loss_crop = F.mse_loss(
-                predicted_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-                actual_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-            )
-            self.log(f"{self.tag}/sat_mse_crop", sat_mse_loss_crop)
-            ms_ssim_loss_crop = 1 - ms_ssim(
-                predicted_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-                actual_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-                data_range=1023.0,
-                size_average=True,  # Return a scalar.
-                win_size=3,  # The Illinois ClimateHack folks used win_size=3.
-            )
-            self.log(f"{self.tag}/ms_ssim_crop", ms_ssim_loss_crop)
-            self.log(f"{self.tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
-            sat_loss = ms_ssim_loss_crop + sat_mse_loss_crop
-        else:
-            sat_loss = ms_ssim_loss + sat_mse_loss
-
-        total_sat_pv_gsp_loss = sat_loss + total_pv_and_gsp_mse_loss
-        total_sat_and_pv_gsp_neg_log_prob = sat_loss + total_pv_and_gsp_neg_log_prob_loss
-        self.log(f"{self.tag}/total_sat_pv_gsp_loss", total_sat_pv_gsp_loss)
-        self.log(f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob", total_sat_and_pv_gsp_neg_log_prob)
-        total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse = (
-            total_sat_and_pv_gsp_neg_log_prob + pv_from_sat_trans_mse_loss
-        )
         self.log(
-            f"{self.tag}/total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse",
-            total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse,
+            f"{self.tag}/total_pv_and_gsp_neg_log_prob_loss", total_pv_and_gsp_neg_log_prob_loss
         )
 
         return {
-            "loss": total_sat_and_pv_gsp_neg_log_prob_and_sat_trans_mse,
+            "loss": total_pv_and_gsp_neg_log_prob_loss,
             "predicted_gsp_power": predicted_gsp_power,
             "predicted_gsp_power_mean": get_distribution(predicted_gsp_power).mean,
             "actual_gsp_power": actual_gsp_power,
@@ -951,8 +897,8 @@ class FullModel(pl.LightningModule):
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
             "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
-            "predicted_sat": predicted_sat,  # Shape: example, time, y, x
-            "actual_sat": actual_sat,
+            "predicted_sat": network_out["predicted_sat"],  # Shape: example, time, y, x
+            "actual_sat": batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0],
             "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
             "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
             "random_timestep_indexes": network_out["random_timestep_indexes"],
@@ -974,8 +920,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "025.08: Hist GSP. Use pretrained SatPred weights but detach. NWPs."
-        " SatTrans in obj function. RNN for PV. GCP-1 with dual GPU."
+        "026.01: Don't train unet. NWPs. SatTrans NOT in obj function."
+        " RNN for PV. GCP-1 with dual GPU."
     ),
     project="power_perceiver",
     entity="openclimatefix",
