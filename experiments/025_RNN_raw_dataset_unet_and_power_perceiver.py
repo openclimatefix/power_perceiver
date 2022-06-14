@@ -988,7 +988,7 @@ wandb_logger = WandbLogger(
 if ON_DONATELLO:
     GPUS = [0, 2]
 else:  # On GCP
-    GPUS = [0, 1]
+    GPUS = [0]
 
 # WARNING: Don't run multiple GPUs in ipython.
 trainer = pl.Trainer(
