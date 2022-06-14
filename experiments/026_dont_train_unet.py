@@ -943,7 +943,7 @@ wandb_logger = WandbLogger(
     name=(
         "026.04: Double num_latent_transformer_encoders. uint8 sat. Don't train unet."
         " NWPs. SatTrans NOT in obj function."
-        " RNN for PV. Fix NationalPV. GCP-1 with dual GPU."
+        " RNN for PV. Fix NationalPV. donatello with dual GPU."
     ),
     project="power_perceiver",
     entity="openclimatefix",
