@@ -42,7 +42,7 @@ def plot_pv_power(
 
     if random_timestep_indexes is not None:
         # We're training, and we're sub-selecting timestep indexes.
-        pv_datetimes = pv_datetimes[:, random_timestep_indexes]
+        pv_datetimes = pv_datetimes[random_timestep_indexes]
 
     if pd.isnull(pv_datetimes[0]):
         # This example has no PV data.
