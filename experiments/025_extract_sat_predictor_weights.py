@@ -5,10 +5,7 @@ See this issue for a diagram: https://github.com/openclimatefix/power_perceiver/
 """
 
 # General imports
-import datetime
 import logging
-import socket
-from copy import deepcopy
 from dataclasses import dataclass
 from typing import Optional
 
@@ -33,16 +30,6 @@ from power_perceiver.consts import (
     BatchKey,
 )
 from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
-from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
-from power_perceiver.load_raw.data_sources.raw_nwp_data_source import RawNWPDataSource
-from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSource
-from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
-from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
-from power_perceiver.load_raw.raw_dataset import RawDataset
-from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
-from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
-from power_perceiver.np_batch_processor.sun_position import SunPosition
-from power_perceiver.np_batch_processor.topography import Topography
 from power_perceiver.pytorch_modules.mixture_density_network import (
     MixtureDensityNetwork,
     get_distribution,
@@ -52,7 +39,6 @@ from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, P
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
-from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
 
 logging.basicConfig()
@@ -77,156 +63,6 @@ N_PV_SYSTEMS_PER_EXAMPLE = 8
 # PowerPerceiver options
 D_MODEL = 128
 N_HEADS = 16
-
-
-torch.manual_seed(42)
-
-
-def get_dataloader(
-    start_date,
-    end_date,
-    num_workers,
-    n_batches_per_epoch_per_worker,
-    load_subset_every_epoch,
-    train: bool,
-) -> torch.utils.data.DataLoader:
-
-    data_source_kwargs = dict(
-        start_date=start_date,
-        end_date=end_date,
-        history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
-    )
-
-    sat_data_source = RawSatelliteDataSource(
-        zarr_path=(
-            (
-                "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-                "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
-            )
-            if socket.gethostname() == "donatello"
-            else (
-                "gs://solar-pv-nowcasting-data/"
-                "satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
-            )
-        ),
-        roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
-        roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
-        **data_source_kwargs,
-    )
-
-    pv_data_source = RawPVDataSource(
-        pv_power_filename="~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf",
-        pv_metadata_filename="~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv",
-        roi_height_meters=96_000,
-        roi_width_meters=96_000,
-        n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
-        transforms=[PVPowerRollingWindow(expect_dataset=False)],
-        **data_source_kwargs,
-    )
-
-    gsp_data_source = RawGSPDataSource(
-        gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
-        gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
-        sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        **data_source_kwargs,
-    )
-
-    nwp_data_source = RawNWPDataSource(
-        zarr_path=(
-            "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-            "NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
-        ),
-        roi_height_pixels=4,
-        roi_width_pixels=4,
-        history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
-        start_date=start_date,
-        end_date=end_date,
-        y_coarsen=16,
-        x_coarsen=16,
-        channels=["dswrf", "t", "si10", "prate"],
-    )
-
-    np_batch_processors = [
-        EncodeSpaceTime(),
-        SaveT0Time(pv_t0_idx=NUM_HIST_SAT_IMAGES - 1, gsp_t0_idx=T0_IDX_30_MIN),
-    ]
-    if USE_SUN_POSITION:
-        np_batch_processors.append(SunPosition())
-    if USE_TOPOGRAPHY:
-        np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
-
-    raw_dataset_kwargs = dict(
-        n_examples_per_batch=32,
-        n_batches_per_epoch=n_batches_per_epoch_per_worker,
-        np_batch_processors=np_batch_processors,
-        load_subset_every_epoch=load_subset_every_epoch,
-    )
-
-    if train:
-        raw_dataset = RawDataset(
-            data_source_combos=dict(
-                sat_only=(sat_data_source,),
-                gsp_pv_nwp_sat=(
-                    gsp_data_source,
-                    pv_data_source,
-                    nwp_data_source,
-                    deepcopy(sat_data_source),
-                ),
-            ),
-            # Set to about 12 x 48 for donatello
-            # Set to about 12 x 12 for GCP:
-            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
-            **raw_dataset_kwargs,
-        )
-    else:
-        raw_dataset = NationalPVDataset(
-            data_source_combos=dict(
-                gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
-            ),
-            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
-            **raw_dataset_kwargs,
-        )
-
-    if not num_workers:
-        raw_dataset.per_worker_init(worker_id=0)
-
-    def _worker_init_fn(worker_id: int):
-        worker_info = torch.utils.data.get_worker_info()
-        dataset_obj = worker_info.dataset
-        dataset_obj.per_worker_init(worker_id=worker_id)
-
-    dataloader = torch.utils.data.DataLoader(
-        raw_dataset,
-        batch_size=None,
-        num_workers=num_workers,
-        pin_memory=True,
-        worker_init_fn=_worker_init_fn,
-        persistent_workers=True,
-    )
-
-    return dataloader
-
-
-train_dataloader = get_dataloader(
-    start_date="2020-01-01",
-    end_date="2020-12-31",
-    num_workers=2,
-    n_batches_per_epoch_per_worker=512,
-    load_subset_every_epoch=True,
-    train=True,
-)
-
-N_GSPS_AFTER_FILTERING = 313
-val_dataloader = get_dataloader(
-    start_date="2021-01-01",
-    end_date="2021-12-31",
-    num_workers=1,  # MUST BE 1! OTHERWISE LogNationalPV BREAKS!
-    n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
-    load_subset_every_epoch=False,
-    train=False,
-)
 
 
 # ---------------------------------- SatellitePredictor ----------------------------------

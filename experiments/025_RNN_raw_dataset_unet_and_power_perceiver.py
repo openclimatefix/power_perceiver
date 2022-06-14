@@ -87,6 +87,8 @@ N_HEADS = 16
 
 torch.manual_seed(42)
 
+ON_DONATELLO = socket.gethostname() == "donatello"
+
 
 def get_dataloader(
     start_date,
@@ -110,7 +112,7 @@ def get_dataloader(
                 "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
                 "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
             )
-            if socket.gethostname() == "donatello"
+            if ON_DONATELLO
             else (
                 "gs://solar-pv-nowcasting-data/"
                 "satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
@@ -140,8 +142,12 @@ def get_dataloader(
 
     nwp_data_source = RawNWPDataSource(
         zarr_path=(
-            "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-            "NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
+            (
+                "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+                "NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
+            )
+            if ON_DONATELLO
+            else ("gs://solar-pv-nowcasting-data/NWP/UK_Met_Office/UKV_intermediate_version_3.zarr")
         ),
         roi_height_pixels=4,
         roi_width_pixels=4,
@@ -503,8 +509,15 @@ class FullModel(pl.LightningModule):
         # Load SatellitePredictor weights
         self.satellite_predictor.load_state_dict(
             torch.load(
-                "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
-                "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                (
+                    "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
+                    "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                )
+                if ON_DONATELLO
+                else (
+                    "/home/jack/model_params/satellite_predictor/"
+                    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                )
             )
         )
 
@@ -963,19 +976,19 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "025.07: Hist GSP. Use pretrained SatPred weights but detach. NWPs."
-        " SatTrans in obj function. RNN for PV. donatello-2"
+        "025.08: Hist GSP. Use pretrained SatPred weights but detach. NWPs."
+        " SatTrans in obj function. RNN for PV. GCP-1 with dual GPU."
     ),
     project="power_perceiver",
     entity="openclimatefix",
-    log_model="all",
+    log_model=True,
 )
 
 
-if socket.gethostname() == "donatello":
-    GPUS = [2]
-else:  # On GCP
+if ON_DONATELLO:
     GPUS = [0]
+else:  # On GCP
+    GPUS = [0, 1]
 
 # WARNING: Don't run multiple GPUs in ipython.
 trainer = pl.Trainer(
@@ -991,7 +1004,7 @@ trainer = pl.Trainer(
             save_top_k=3,
         ),
         # Always save the most recent model (so we can resume training)
-        pl.callbacks.ModelCheckpoint(filename="{epoch}_{gsp_nmae:.3f}"),
+        pl.callbacks.ModelCheckpoint(filename="{epoch}"),
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
         LogProbabilityTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
