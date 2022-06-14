@@ -606,11 +606,12 @@ class FullModel(pl.LightningModule):
                 # compute the loss for the SatellitePredictor!
                 # Don't include BatchKey.hrvsatellite_time_utc because all it's used for
                 # is plotting satellite predictions, and we need all timesteps for that!
+                # Don't subselect pv_time_utc here, because we subselect that in
+                # `plot_probabability_timeseries.plot_pv_power`.
                 # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
                 # satellite_transformer.
                 BatchKey.hrvsatellite_time_utc_fourier,
                 BatchKey.pv,
-                BatchKey.pv_time_utc,
                 BatchKey.pv_time_utc_fourier,
                 BatchKey.solar_azimuth,
                 BatchKey.solar_elevation,
@@ -622,6 +623,7 @@ class FullModel(pl.LightningModule):
             )
         else:
             num_5_min_timesteps = NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES
+            random_timestep_indexes = None
 
         # Detach because it looks like it hurts performance to let the gradients go backwards
         # from here
@@ -804,6 +806,7 @@ class FullModel(pl.LightningModule):
             pv_power_from_sat_transformer=sat_trans_out["pv_power_out"],
             # shape: (example, 5_min_time):
             gsp_power_from_sat_transformer=sat_trans_out["gsp_power_out"],
+            random_timestep_indexes=random_timestep_indexes,
         )
 
     @property
@@ -958,6 +961,7 @@ class FullModel(pl.LightningModule):
             "actual_sat": actual_sat,
             "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
             "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
+            "random_timestep_indexes": network_out["random_timestep_indexes"],
         }
 
     def configure_optimizers(self):

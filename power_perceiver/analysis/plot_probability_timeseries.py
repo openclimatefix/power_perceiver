@@ -32,12 +32,17 @@ def plot_pv_power(
     predicted_gsp_power_mean: torch.Tensor,
     gsp_id: torch.Tensor,
     pv_id: torch.Tensor,
+    random_timestep_indexes: Optional[torch.Tensor],
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
     axes = np.array(axes).flatten()
 
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
     gsp_datetimes = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
+
+    if random_timestep_indexes is not None:
+        # We're training, and we're sub-selecting timestep indexes.
+        pv_datetimes = pv_datetimes[:, random_timestep_indexes]
 
     if pd.isnull(pv_datetimes[0]):
         # This example has no PV data.
@@ -54,12 +59,11 @@ def plot_pv_power(
         ax.set_title("PV power for {:.0f}".format(pv_id[example_idx, pv_idx]))
         try:
             ax.plot(pv_datetimes, actual_pv_power[example_idx, :, pv_idx], label="Actual PV")
-        except:
-            _log.info(
+        except Exception as e:
+            raise e.__class__(
                 f"{pv_datetimes.shape=}; {gsp_datetimes.shape=};"
                 f" {actual_pv_power.shape=}; {predicted_pv_power.shape=}"
-            )
-            raise
+            ) from e
         ax.plot(
             pv_datetimes,
             pv_power_from_sat_transformer[example_idx, :, pv_idx],
@@ -170,6 +174,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                     .detach(),
                     pv_id=batch[BatchKey.pv_id].cpu(),
                     gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
+                    random_timestep_indexes=outputs["random_timestep_indexes"].cpu().detach(),
                 )
                 pl_module.logger.experiment.log(
                     {f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig)}
