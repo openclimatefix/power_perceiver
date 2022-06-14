@@ -49,7 +49,10 @@ def plot_pv_power(
             right=pv_datetimes[-1],
         )
         ax.set_title("PV power for {:.0f}".format(pv_id[example_idx, pv_idx]))
-        ax.plot(pv_datetimes, actual_pv_power[example_idx, :, pv_idx], label="Actual PV")
+        try:
+            ax.plot(pv_datetimes, actual_pv_power[example_idx, :, pv_idx], label="Actual PV")
+        except:
+            import ipdb; ipdb.set_trace()
         ax.plot(
             pv_datetimes,
             pv_power_from_sat_transformer[example_idx, :, pv_idx],
