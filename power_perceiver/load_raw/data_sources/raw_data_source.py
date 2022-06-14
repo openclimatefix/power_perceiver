@@ -59,7 +59,7 @@ class RawDataSource:
             raise RuntimeError("Please open the dataset before accessing `data_on_disk`!")
         return self._data_on_disk
 
-    def per_worker_init(self, worker_id: int, seed) -> None:  # noqa: D102
+    def per_worker_init(self, worker_id: int, seed: int) -> None:  # noqa: D102
         self.worker_id = worker_id
         # Each worker must have a different seed for its random number generator.
         # Otherwise all the workers will output exactly the same data!

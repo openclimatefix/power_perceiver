@@ -51,8 +51,8 @@ class RawSatelliteDataSource(
         TimeseriesDataSource.__post_init__(self)
         ZarrDataSource.__post_init__(self)
 
-    def per_worker_init(self, worker_id: int) -> None:  # noqa: D102
-        super().per_worker_init(worker_id)
+    def per_worker_init(self, *args, **kwargs) -> None:  # noqa: D102
+        super().per_worker_init(*args, **kwargs)
         self.open()
 
     def open(self) -> None:
