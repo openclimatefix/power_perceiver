@@ -106,7 +106,8 @@ class RawDataset(torch.utils.data.IterableDataset):
         self.worker_id = worker_id
         # Each worker must have a different seed for its random number generator.
         # Otherwise all the workers will output exactly the same data!
-        seed = torch.initial_seed()
+        # The worker ID will be different for each worker process for each GPU.
+        seed = torch.initial_seed() + (worker_id * 64)
         _log.info(f"{worker_id=} has random number generator {seed=:,d}")
         self.rng = np.random.default_rng(seed=seed)
 
@@ -192,7 +193,7 @@ class RawDataset(torch.utils.data.IterableDataset):
 
         random_t0_periods = pd.DataFrame(random_t0_periods).sort_values("start_dt")
         _log.info(
-            f"Selected {len(random_t0_periods):,d} random periods,"
+            f"{self.worker_id=}. Selected {len(random_t0_periods):,d} random periods,"
             f" with total duration = {total_duration_of_periods},"
             f"from {random_t0_periods.iloc[0].start_dt} to {random_t0_periods.iloc[-1].end_dt}"
         )
