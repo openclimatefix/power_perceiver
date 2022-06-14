@@ -205,7 +205,8 @@ def get_dataloader(
         _log.info(f"{num_workers=} {worker_id=} {rank=}")
         # We set the worker_id to be unique across all GPUs, so each worker
         # sets a unique (but repeatable) random number generator seed.
-        dataset_obj.per_worker_init(worker_id=worker_id + (rank * num_workers))
+        seed = worker_info.seed + worker_id + (rank * num_workers)
+        dataset_obj.per_worker_init(worker_id=worker_id, seed=seed)
 
     dataloader = torch.utils.data.DataLoader(
         raw_dataset,

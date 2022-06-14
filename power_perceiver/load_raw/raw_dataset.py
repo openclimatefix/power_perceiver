@@ -99,7 +99,7 @@ class RawDataset(torch.utils.data.IterableDataset):
             assert self.min_duration_to_load_per_epoch > pd.Timedelta(self.t0_freq)
         assert self.n_batches_per_epoch > 0
 
-    def per_worker_init(self, worker_id: int = 0) -> None:
+    def per_worker_init(self, worker_id: int = 0, seed: int = 42) -> None:
         """Called by worker_init_fn on each copy of this dataset after the
         worker process has been spawned."""
         set_fsspec_for_multiprocess()
@@ -107,12 +107,11 @@ class RawDataset(torch.utils.data.IterableDataset):
         # Each worker must have a different seed for its random number generator.
         # Otherwise all the workers will output exactly the same data!
         # The worker ID will be different for each worker process for each GPU.
-        seed = torch.initial_seed() + (worker_id * 64)
         _log.info(f"{worker_id=} has random number generator {seed=:,d}")
         self.rng = np.random.default_rng(seed=seed)
 
         for data_source in self._unique_data_sources:
-            data_source.per_worker_init(worker_id=worker_id)
+            data_source.per_worker_init(worker_id=worker_id, seed=seed)
 
         self._get_intersection_of_all_t0_periods_per_combo()
 
