@@ -13,6 +13,9 @@ from power_perceiver.analysis.simple_callback import SimpleCallback
 from power_perceiver.consts import BatchKey
 from power_perceiver.pytorch_modules.mixture_density_network import plot_probs
 
+import logging
+
+_log = logging.getLogger(__name__)
 
 def plot_pv_power(
     actual_pv_power: torch.Tensor,  # shape: example, time, n_pv_systems
@@ -52,7 +55,7 @@ def plot_pv_power(
         try:
             ax.plot(pv_datetimes, actual_pv_power[example_idx, :, pv_idx], label="Actual PV")
         except:
-            import ipdb; ipdb.set_trace()
+            _log.info(f"{pv_datetimes.shape=}; {actual_pv_power.shape=}")
         ax.plot(
             pv_datetimes,
             pv_power_from_sat_transformer[example_idx, :, pv_idx],
