@@ -83,10 +83,14 @@ N_PV_SYSTEMS_PER_EXAMPLE = 8
 D_MODEL = 128
 N_HEADS = 16
 
+ON_DONATELLO = socket.gethostname() == "donatello"
+
+if ON_DONATELLO:
+    GPUS = [0, 2]
+else:  # On GCP
+    GPUS = [0, 1]
 
 torch.manual_seed(42)
-
-ON_DONATELLO = socket.gethostname() == "donatello"
 
 
 def get_dataloader(
@@ -209,8 +213,8 @@ def get_dataloader(
 train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-12-31",
-    num_workers=2,
-    n_batches_per_epoch_per_worker=2048,
+    num_workers=4,
+    n_batches_per_epoch_per_worker=512,
     load_subset_every_epoch=True,
     train=True,
 )
@@ -219,7 +223,10 @@ N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
-    num_workers=1,  # MUST BE 1! OTHERWISE LogNationalPV BREAKS!
+    # num_workers for NationalPVDataset MUST BE SAME AS THE NUM OF GPUS!
+    # OTHERWISE LogNationalPV BREAKS! See:
+    # https://github.com/openclimatefix/power_perceiver/issues/130
+    num_workers=len(GPUS),
     n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
     load_subset_every_epoch=False,
     train=False,
@@ -922,7 +929,7 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "026.01: Don't train unet. NWPs. SatTrans NOT in obj function."
+        "026.02: uint8 sat. Don't train unet. NWPs. SatTrans NOT in obj function."
         " RNN for PV. GCP-1 with dual GPU."
     ),
     project="power_perceiver",
@@ -930,11 +937,6 @@ wandb_logger = WandbLogger(
     log_model=True,
 )
 
-
-if ON_DONATELLO:
-    GPUS = [0, 2]
-else:  # On GCP
-    GPUS = [0, 1]
 
 # WARNING: Don't run multiple GPUs in ipython.
 trainer = pl.Trainer(
