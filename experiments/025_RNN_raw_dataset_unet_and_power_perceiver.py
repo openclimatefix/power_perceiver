@@ -993,7 +993,7 @@ else:  # On GCP
 # WARNING: Don't run multiple GPUs in ipython.
 trainer = pl.Trainer(
     gpus=GPUS,
-    strategy="dp" if len(GPUS) > 1 else None,
+    strategy="ddp" if len(GPUS) > 1 else None,
     max_epochs=200,
     logger=wandb_logger,
     callbacks=[
