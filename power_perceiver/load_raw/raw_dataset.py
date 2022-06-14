@@ -190,11 +190,13 @@ class RawDataset(torch.utils.data.IterableDataset):
             if all_t0_periods_for_combo.empty:
                 break
 
+        random_t0_periods = pd.DataFrame(random_t0_periods).sort_values("start_dt")
         _log.info(
             f"Selected {len(random_t0_periods):,d} random periods,"
-            f" with total duration = {total_duration_of_periods}"
+            f" with total duration = {total_duration_of_periods},"
+            f"from {random_t0_periods.iloc[0].start_dt} to {random_t0_periods.iloc[-1].end_dt}"
         )
-        return pd.DataFrame(random_t0_periods).sort_values("start_dt")
+        return random_t0_periods
 
     def _get_np_batch(self) -> NumpyBatch:
         np_examples = [self._get_np_example() for _ in range(self.n_examples_per_batch)]

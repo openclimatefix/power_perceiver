@@ -90,7 +90,12 @@ if ON_DONATELLO:
 else:  # On GCP
     GPUS = [0, 1]
 
-torch.manual_seed(42)
+
+# Important to seed the models when using DistributedDataProcessing, so the
+# models on different GPUs are initialised the same way. But we *do* want
+# to seed our data loader workers differently for each GPU, so we do that
+# in our own worker_init_fn.
+pl.seed_everything(42)
 
 
 def get_dataloader(
@@ -196,7 +201,8 @@ def get_dataloader(
     def _worker_init_fn(worker_id: int):
         worker_info = torch.utils.data.get_worker_info()
         dataset_obj = worker_info.dataset
-        dataset_obj.per_worker_init(worker_id=worker_id)
+        rank = torch.distributed.get_rank()
+        dataset_obj.per_worker_init(worker_id=worker_id + (rank * len(GPUS)))
 
     dataloader = torch.utils.data.DataLoader(
         raw_dataset,
