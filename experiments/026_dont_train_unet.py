@@ -202,6 +202,7 @@ def get_dataloader(
         worker_info = torch.utils.data.get_worker_info()
         dataset_obj = worker_info.dataset
         rank = torch.distributed.get_rank()
+        _log.info(f"{worker_id=} {rank=}")
         dataset_obj.per_worker_init(worker_id=worker_id + (rank * len(GPUS)))
 
     dataloader = torch.utils.data.DataLoader(
