@@ -205,6 +205,8 @@ def get_dataloader(
         _log.info(f"{num_workers=} {worker_id=} {rank=} {worker_info.seed=}")
         # We set the worker_id to be unique across all GPUs, so each worker
         # sets a unique (but repeatable) random number generator seed.
+        # We times by 16 just to really make sure that the random seeds
+        # are different for each GPU.
         seed = worker_info.seed + worker_id + (rank * num_workers * 16)
         dataset_obj.per_worker_init(worker_id=worker_id, seed=seed)
 
@@ -233,10 +235,10 @@ N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
     end_date="2021-12-31",
-    # num_workers for NationalPVDataset MUST BE SAME AS THE NUM OF GPUS!
+    # num_workers for NationalPVDataset MUST BE SAME 1!
     # OTHERWISE LogNationalPV BREAKS! See:
     # https://github.com/openclimatefix/power_perceiver/issues/130
-    num_workers=len(GPUS),
+    num_workers=1,
     n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
     load_subset_every_epoch=False,
     train=False,
@@ -939,8 +941,8 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "026.02: uint8 sat. Don't train unet. NWPs. SatTrans NOT in obj function."
-        " RNN for PV. GCP-1 with dual GPU."
+        "026.03: uint8 sat. Don't train unet. NWPs. SatTrans NOT in obj function."
+        " RNN for PV. Fix NationalPV. GCP-1 with dual GPU."
     ),
     project="power_perceiver",
     entity="openclimatefix",
