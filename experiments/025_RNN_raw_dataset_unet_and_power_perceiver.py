@@ -170,7 +170,7 @@ def get_dataloader(
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=16,  # TODO: Increase to more like 32!
+        n_examples_per_batch=24,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
@@ -189,7 +189,7 @@ def get_dataloader(
             ),
             # Set to about 12 x 48 for donatello
             # Set to about 12 x 12 for GCP:
-            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),
+            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
             **raw_dataset_kwargs,
         )
     else:
@@ -197,7 +197,7 @@ def get_dataloader(
             data_source_combos=dict(
                 gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
             ),
-            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 2),
+            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
             **raw_dataset_kwargs,
         )
 
