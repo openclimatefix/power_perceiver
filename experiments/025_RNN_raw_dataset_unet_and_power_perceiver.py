@@ -189,7 +189,7 @@ def get_dataloader(
             ),
             # Set to about 12 x 48 for donatello
             # Set to about 12 x 12 for GCP:
-            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
+            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
             **raw_dataset_kwargs,
         )
     else:
@@ -197,7 +197,7 @@ def get_dataloader(
             data_source_combos=dict(
                 gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
             ),
-            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 48),
+            min_duration_to_load_per_epoch=datetime.timedelta(hours=12 * 12),
             **raw_dataset_kwargs,
         )
 
@@ -986,7 +986,7 @@ wandb_logger = WandbLogger(
 
 
 if ON_DONATELLO:
-    GPUS = [0]
+    GPUS = [0, 2]
 else:  # On GCP
     GPUS = [0, 1]
 
