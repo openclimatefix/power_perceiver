@@ -32,7 +32,7 @@ def plot_pv_power(
     predicted_gsp_power_mean: torch.Tensor,
     gsp_id: torch.Tensor,
     pv_id: torch.Tensor,
-    random_timestep_indexes: Optional[torch.Tensor],
+    random_timestep_indexes: Optional[np.ndarray],
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
     axes = np.array(axes).flatten()
@@ -42,7 +42,6 @@ def plot_pv_power(
 
     if random_timestep_indexes is not None:
         # We're training, and we're sub-selecting timestep indexes.
-        random_timestep_indexes = random_timestep_indexes.cpu().detach()
         pv_datetimes = pv_datetimes[:, random_timestep_indexes]
 
     if pd.isnull(pv_datetimes[0]):
