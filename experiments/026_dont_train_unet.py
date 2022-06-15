@@ -87,7 +87,9 @@ ON_DONATELLO = socket.gethostname() == "donatello"
 
 TESTING = True
 
-if ON_DONATELLO:
+if TESTING:
+    GPUS = [0]
+elif ON_DONATELLO:
     GPUS = [0, 1, 2, 4]
 else:  # On GCP
     GPUS = [0, 1]
