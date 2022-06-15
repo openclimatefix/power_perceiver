@@ -185,12 +185,12 @@ def get_dataloader(
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=24,  # TODO: Increase to more like 32!
+        n_examples_per_batch=16,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
         min_duration_to_load_per_epoch=datetime.timedelta(
-            hours=12 if TESTING else ((12 * 48) if ON_DONATELLO else (12 * 24))
+            hours=24 if TESTING else ((12 * 48) if ON_DONATELLO else (12 * 24))
         ),
         data_source_combos=dict(
             gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
@@ -949,12 +949,15 @@ class FullModel(pl.LightningModule):
 
 model = FullModel()
 
-wandb_logger = WandbLogger(
-    name=("026.06: 8 hr GSP fcst. num_latent_transformer_encoders=8." " GCP-1 with dual GPU."),
-    project="power_perceiver",
-    entity="openclimatefix",
-    log_model=True,
-)
+if TESTING:
+    wandb_logger = None
+else:
+    wandb_logger = WandbLogger(
+        name=("026.06: 8 hr GSP fcst. num_latent_transformer_encoders=8." " GCP-1 with dual GPU."),
+        project="power_perceiver",
+        entity="openclimatefix",
+        log_model=True,
+    )
 
 
 # WARNING: Don't run multiple GPUs in ipython.
