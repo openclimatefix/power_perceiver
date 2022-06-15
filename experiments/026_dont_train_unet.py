@@ -418,7 +418,7 @@ class SatelliteTransformer(nn.Module):
     num_heads: int = N_HEADS
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 8
+    num_latent_transformer_encoders: int = 16
 
     def __post_init__(self):
         super().__init__()
@@ -536,7 +536,7 @@ class FullModel(pl.LightningModule):
     num_heads: int = N_HEADS
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 8
+    num_latent_transformer_encoders: int = 16
     cheat: bool = False  #: Use real satellite imagery of the future.
     #: Compute the loss on a central crop of the imagery.
     num_5_min_history_timesteps_during_training: Optional[int] = 4
@@ -941,9 +941,9 @@ model = FullModel()
 
 wandb_logger = WandbLogger(
     name=(
-        "026.04: Double num_latent_transformer_encoders. uint8 sat. Don't train unet."
+        "026.05: num_latent_transformer_encoders=16. uint8 sat. Don't train unet."
         " NWPs. SatTrans NOT in obj function."
-        " RNN for PV. Fix NationalPV. donatello with dual GPU."
+        " RNN for PV. Fix NationalPV. GCP-1 with dual GPU."
     ),
     project="power_perceiver",
     entity="openclimatefix",
