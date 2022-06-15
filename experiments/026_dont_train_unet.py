@@ -145,7 +145,10 @@ def get_dataloader(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        **data_source_kwargs,
+        start_date=start_date,
+        end_date=end_date,
+        history_duration=datetime.timedelta(hours=1),
+        forecast_duration=datetime.timedelta(hours=8),
     )
 
     nwp_data_source = RawNWPDataSource(
@@ -166,6 +169,10 @@ def get_dataloader(
         y_coarsen=16,
         x_coarsen=16,
         channels=["dswrf", "t", "si10", "prate"],
+        start_date=start_date,
+        end_date=end_date,
+        history_duration=datetime.timedelta(hours=1),
+        forecast_duration=datetime.timedelta(hours=8),
     )
 
     np_batch_processors = [
@@ -178,7 +185,7 @@ def get_dataloader(
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=16,  # TODO: Increase to more like 32!
+        n_examples_per_batch=24,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
@@ -414,7 +421,7 @@ class SatelliteTransformer(nn.Module):
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
     d_model: int = D_MODEL
-    pv_system_id_embedding_dim: int = 16
+    pv_system_id_embedding_dim: int = 8
     num_heads: int = N_HEADS
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
@@ -536,7 +543,7 @@ class FullModel(pl.LightningModule):
     num_heads: int = N_HEADS
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 16
+    num_latent_transformer_encoders: int = 8
     cheat: bool = False  #: Use real satellite imagery of the future.
     #: Compute the loss on a central crop of the imagery.
     num_5_min_history_timesteps_during_training: Optional[int] = 4
@@ -940,11 +947,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name=(
-        "026.05: num_latent_transformer_encoders=16. uint8 sat. Don't train unet."
-        " NWPs. SatTrans NOT in obj function."
-        " RNN for PV. Fix NationalPV. GCP-1 with dual GPU."
-    ),
+    name=("026.06: 8 hr GSP. num_latent_transformer_encoders=8. GCP-1 with dual GPU."),
     project="power_perceiver",
     entity="openclimatefix",
     log_model=True,
