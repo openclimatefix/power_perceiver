@@ -86,9 +86,9 @@ N_HEADS = 16
 ON_DONATELLO = socket.gethostname() == "donatello"
 
 if ON_DONATELLO:
-    GPUS = [0, 2]
+    GPUS = [0, 1, 2, 4]
 else:  # On GCP
-    GPUS = [0, 1]
+    GPUS = [0, 1, 2, 3]
 
 
 # Important to seed the models when using DistributedDataProcessing, so the
@@ -147,7 +147,7 @@ def get_dataloader(
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
         start_date=start_date,
         end_date=end_date,
-        history_duration=datetime.timedelta(hours=1),
+        history_duration=datetime.timedelta(hours=12),
         forecast_duration=datetime.timedelta(hours=8),
     )
 
@@ -167,7 +167,7 @@ def get_dataloader(
         channels=["dswrf", "t", "si10", "prate"],
         start_date=start_date,
         end_date=end_date,
-        history_duration=datetime.timedelta(hours=1),
+        history_duration=datetime.timedelta(hours=12),
         forecast_duration=datetime.timedelta(hours=8),
     )
 
@@ -943,7 +943,10 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 wandb_logger = WandbLogger(
-    name=("026.06: 8 hr GSP. num_latent_transformer_encoders=8. GCP-1 with dual GPU."),
+    name=(
+        "026.07: 12 hr GSP & NWP hist. 8 hr GSP fcst. num_latent_transformer_encoders=8."
+        " GCP-2 with dual GPU."
+    ),
     project="power_perceiver",
     entity="openclimatefix",
     log_model=True,
