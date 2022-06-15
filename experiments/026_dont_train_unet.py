@@ -950,7 +950,7 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 if TESTING:
-    wandb_logger = None
+    wandb_logger = False
 else:
     wandb_logger = WandbLogger(
         name=("026.06: 8 hr GSP fcst. num_latent_transformer_encoders=8." " GCP-1 with dual GPU."),
