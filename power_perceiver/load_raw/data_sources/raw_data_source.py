@@ -301,16 +301,17 @@ class TimeseriesDataSource:
         time_dim_name: str,
         t0_datetime_utc: datetime.datetime,
     ) -> None:
+        info_str = f"Context: {t0_datetime_utc=}; {time_dim_name=}; {time_slice=}"
         assert (
             len(time_slice[time_dim_name]) == self.total_seq_length
-        ), f"{len(time_slice[time_dim_name])=} != {self.total_seq_length=} at {t0_datetime_utc=}"
+        ), f"{len(time_slice[time_dim_name])=} != {self.total_seq_length=} {info_str}"
         time_slice_duration = np.timedelta64(
             time_slice[time_dim_name][-1].values - time_slice[time_dim_name][0].values
         )
         expected_duration = np.timedelta64(self.total_duration)
         assert (
             time_slice_duration == expected_duration
-        ), f"{time_slice_duration=} != {expected_duration=} at {t0_datetime_utc=}"
+        ), f"{time_slice_duration=} != {expected_duration=} {info_str}"
 
     def _get_start_dt_ceil(
         self, t0_datetime_utc: Union[datetime.datetime, np.datetime64, pd.Timestamp]
