@@ -183,8 +183,8 @@ class GSPQueryGenerator(nn.Module):
             gsp_history_mask = torch.ones_like(gsp_power)
             gsp_history_mask[:, T0_IDX_30_MIN + 1 :] = 0
 
-            gsp_solar_elevation = x[BatchKey.gsp_solar_elevation]
-            gsp_solar_azimuth = x[BatchKey.gsp_solar_azimuth]
+            gsp_solar_elevation = x[BatchKey.gsp_solar_elevation].unsqueeze(-1)
+            gsp_solar_azimuth = x[BatchKey.gsp_solar_azimuth].unsqueeze(-1)
 
             gsp_query = torch.concat(
                 (
