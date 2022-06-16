@@ -90,9 +90,9 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-TESTING = False
+DEBUG = False
 
-if TESTING:
+if DEBUG:
     GPUS = [0]
 elif ON_DONATELLO:
     GPUS = [0, 1, 2, 4]
@@ -208,7 +208,7 @@ def get_dataloader(
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
         min_duration_to_load_per_epoch=datetime.timedelta(
-            hours=24 if TESTING else ((12 * 48) if ON_DONATELLO else (12 * 24))
+            hours=24 if DEBUG else ((12 * 48) if ON_DONATELLO else (12 * 24))
         ),
         data_source_combos=dict(
             gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
@@ -969,7 +969,7 @@ class FullModel(pl.LightningModule):
 
 model = FullModel()
 
-if TESTING:
+if DEBUG:
     wandb_logger = False
 else:
     wandb_logger = WandbLogger(
