@@ -88,8 +88,10 @@ def plot_pv_power(
     ax_gsp.set_xlabel(pv_datetimes[0].date().strftime("%Y-%m-%d"))
     ax_gsp.legend(framealpha=0.4)
 
+    # Format all the timeseries plots (PV and GSP)
     for ax in axes[:-3]:
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H%M"))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+        ax.tick_params(axis="x", labelsize="small")
 
     # Satellite
     sat_axes = [ax.twinx().twiny() for ax in axes[-3:]]
