@@ -300,7 +300,10 @@ class TimeseriesDataSource:
 
         # Get time slice:
         time_slice = xr_data.sel({self._time_dim_name: slice(start_dt_ceil, end_dt_ceil)})
-        self._sanity_check_time_slice(time_slice, self._time_dim_name, t0_datetime_utc)
+        try:
+            self._sanity_check_time_slice(time_slice, self._time_dim_name, t0_datetime_utc)
+        except:
+            import ipdb; ipdb.set_trace()
         return time_slice
 
     def _sanity_check_time_slice(

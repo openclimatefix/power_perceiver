@@ -85,7 +85,7 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
+DEBUG = True
 
 if DEBUG:
     GPUS = [0]
@@ -234,9 +234,9 @@ def get_dataloader(
 
 train_dataloader = get_dataloader(
     start_date="2020-01-01",
-    end_date="2020-12-31",
+    end_date="2020-02-29" if DEBUG else "2020-12-31",
     num_workers=0 if DEBUG else 4,
-    n_batches_per_epoch_per_worker=512,
+    n_batches_per_epoch_per_worker=64 if DEBUG else 512,
     load_subset_every_epoch=True,
     train=True,
 )
@@ -244,12 +244,12 @@ train_dataloader = get_dataloader(
 N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
-    end_date="2021-12-31",
+    end_date="2021-02-29" if DEBUG else "2021-12-31",
     # num_workers for NationalPVDataset MUST BE SAME 1!
     # OTHERWISE LogNationalPV BREAKS! See:
     # https://github.com/openclimatefix/power_perceiver/issues/130
     num_workers=0 if DEBUG else 1,
-    n_batches_per_epoch_per_worker=N_GSPS_AFTER_FILTERING,
+    n_batches_per_epoch_per_worker=64 if DEBUG else N_GSPS_AFTER_FILTERING,
     load_subset_every_epoch=False,
     train=False,
 )
