@@ -234,7 +234,7 @@ def get_dataloader(
 
 train_dataloader = get_dataloader(
     start_date="2020-01-01",
-    end_date="2020-02-01" if DEBUG else "2020-12-31",
+    end_date="2020-12-31",
     num_workers=0 if DEBUG else 4,
     n_batches_per_epoch_per_worker=512,
     load_subset_every_epoch=True,
@@ -244,7 +244,7 @@ train_dataloader = get_dataloader(
 N_GSPS_AFTER_FILTERING = 313
 val_dataloader = get_dataloader(
     start_date="2021-01-01",
-    end_date="2021-02-01" if DEBUG else "2021-12-31",
+    end_date="2021-12-31",
     # num_workers for NationalPVDataset MUST BE SAME 1!
     # OTHERWISE LogNationalPV BREAKS! See:
     # https://github.com/openclimatefix/power_perceiver/issues/130
