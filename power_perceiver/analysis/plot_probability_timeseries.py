@@ -144,7 +144,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
             outputs: The output from Model.training_step
             tag: train or validation
         """
-        if batch_idx in [0, 16, 32, 48]:
+        if batch_idx in range(0, 128, 16):
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
             actual_pv_power = outputs["actual_pv_power"].cpu().detach()
             # TODO: Generate pv_datetimes upstream and pass it into this function, just like
@@ -156,27 +156,27 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                 for example_idx in range(n_examples_per_batch)
                 if batch[BatchKey.pv_time_utc][example_idx].isfinite().all()
             ]
-            for example_idx in examples_with_gsp_data[:4]:
-                fig = plot_pv_power(
-                    actual_pv_power=actual_pv_power,
-                    predicted_pv_power=predicted_pv_power,
-                    predicted_pv_power_mean=outputs["predicted_pv_power_mean"].cpu().detach(),
-                    actual_gsp_power=outputs["actual_gsp_power"].cpu().detach(),
-                    predicted_gsp_power=outputs["predicted_gsp_power"].cpu().detach(),
-                    predicted_gsp_power_mean=outputs["predicted_gsp_power_mean"].cpu().detach(),
-                    gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
-                    example_idx=example_idx,
-                    pv_datetimes=pv_datetimes,
-                    actual_satellite=batch[BatchKey.hrvsatellite].cpu(),
-                    surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
-                    pv_power_from_sat_transformer=outputs["pv_power_from_sat_transformer"]
-                    .cpu()
-                    .detach(),
-                    pv_id=batch[BatchKey.pv_id].cpu(),
-                    gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
-                    random_timestep_indexes=outputs["random_timestep_indexes"],
-                )
-                pl_module.logger.experiment.log(
-                    {f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig)}
-                )
-                plt.close(fig)
+            example_idx = examples_with_gsp_data[0]
+            fig = plot_pv_power(
+                actual_pv_power=actual_pv_power,
+                predicted_pv_power=predicted_pv_power,
+                predicted_pv_power_mean=outputs["predicted_pv_power_mean"].cpu().detach(),
+                actual_gsp_power=outputs["actual_gsp_power"].cpu().detach(),
+                predicted_gsp_power=outputs["predicted_gsp_power"].cpu().detach(),
+                predicted_gsp_power_mean=outputs["predicted_gsp_power_mean"].cpu().detach(),
+                gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
+                example_idx=example_idx,
+                pv_datetimes=pv_datetimes,
+                actual_satellite=batch[BatchKey.hrvsatellite].cpu(),
+                surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
+                pv_power_from_sat_transformer=outputs["pv_power_from_sat_transformer"]
+                .cpu()
+                .detach(),
+                pv_id=batch[BatchKey.pv_id].cpu(),
+                gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
+                random_timestep_indexes=outputs["random_timestep_indexes"],
+            )
+            pl_module.logger.experiment.log(
+                {f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig)}
+            )
+            plt.close(fig)
