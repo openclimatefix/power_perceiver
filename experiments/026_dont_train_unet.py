@@ -185,7 +185,7 @@ def get_dataloader(
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=24,  # TODO: Increase to more like 32!
+        n_examples_per_batch=20,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
