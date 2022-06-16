@@ -85,14 +85,14 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = True
+DEBUG = False
 
 if DEBUG:
     GPUS = [0]
 elif ON_DONATELLO:
     GPUS = [0, 1, 2, 4]
 else:  # On GCP
-    GPUS = [0, 1]
+    GPUS = [0]
 
 
 # Important to seed the models when using DistributedDataProcessing, so the
@@ -954,7 +954,7 @@ if DEBUG:
     callbacks = None
 else:
     wandb_logger = WandbLogger(
-        name=("026.06: 8 hr GSP fcst. num_latent_transformer_encoders=8." " GCP-1 with dual GPU."),
+        name=("027.00: 8 hr GSP fcst. num_latent_transformer_encoders=8. GCP-2 with single GPU."),
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
