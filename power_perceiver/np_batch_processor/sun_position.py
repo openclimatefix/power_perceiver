@@ -46,8 +46,8 @@ class SunPosition:
             y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
             x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
         elif self.satellite_or_gsp == "gsp":
-            y_osgb = np_batch[BatchKey.gsp_y_osgb]
-            x_osgb = np_batch[BatchKey.gsp_x_osgb]
+            y_osgb_centre = np_batch[BatchKey.gsp_y_osgb]
+            x_osgb_centre = np_batch[BatchKey.gsp_x_osgb]
             time_utc = np_batch[BatchKey.gsp_time_utc]
 
         # Convert to the units that pvlib expects: lat, lon.
