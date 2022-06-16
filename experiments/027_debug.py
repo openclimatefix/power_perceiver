@@ -77,7 +77,7 @@ SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS = 256
 SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS = 128
 
 SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
-N_PV_SYSTEMS_PER_EXAMPLE = 16
+N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 # PowerPerceiver options
 D_MODEL = 128
@@ -85,7 +85,7 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-TESTING = False
+TESTING = True
 
 if TESTING:
     GPUS = [0]
@@ -152,7 +152,7 @@ def get_dataloader(
         start_date=start_date,
         end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
+        forecast_duration=datetime.timedelta(hours=8),
     )
 
     nwp_data_source = RawNWPDataSource(
@@ -172,7 +172,7 @@ def get_dataloader(
         start_date=start_date,
         end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
+        forecast_duration=datetime.timedelta(hours=8),
     )
 
     np_batch_processors = [
@@ -185,7 +185,7 @@ def get_dataloader(
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=24,  # TODO: Increase to more like 32!
+        n_examples_per_batch=16,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
@@ -953,7 +953,7 @@ if TESTING:
     wandb_logger = False
 else:
     wandb_logger = WandbLogger(
-        name=("026.08: 16 PV systems. num_latent_transformer_encoders=8. GCP-1 with dual GPU."),
+        name=("026.06: 8 hr GSP fcst. num_latent_transformer_encoders=8." " GCP-1 with dual GPU."),
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
