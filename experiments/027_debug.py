@@ -226,7 +226,7 @@ def get_dataloader(
         num_workers=num_workers,
         pin_memory=True,
         worker_init_fn=_worker_init_fn,
-        persistent_workers=True,
+        persistent_workers=num_workers > 0,
     )
 
     return dataloader
