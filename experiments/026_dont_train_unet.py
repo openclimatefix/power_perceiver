@@ -42,6 +42,9 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSo
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
 from power_perceiver.load_raw.raw_dataset import RawDataset
+from power_perceiver.np_batch_processor.delete_forecast_satellite_imagery import (
+    DeleteForecastSatelliteImagery,
+)
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
 from power_perceiver.np_batch_processor.sun_position import SunPosition
@@ -137,7 +140,8 @@ def get_dataloader(
         start_date=start_date,
         end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=0),
+        # We delete the future satellite imagery in the np_batch_processors.
+        forecast_duration=datetime.timedelta(hours=2),
     )
 
     pv_data_source = RawPVDataSource(
@@ -188,6 +192,14 @@ def get_dataloader(
         np_batch_processors.append(SunPosition())
     if USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
+
+    # Delete imagery of the future, because we're not training the U-Net,
+    # and we want to save GPU RAM.
+    # But we do want hrvsatellite_time_utc to continue into the future by 2 hours because
+    # downstream code relies on hrvsatellite_time_utc.
+    np_batch_processors.append(
+        DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
+    )
 
     raw_dataset_kwargs = dict(
         n_examples_per_batch=20,  # TODO: Increase to more like 32!

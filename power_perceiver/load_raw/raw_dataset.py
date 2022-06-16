@@ -264,9 +264,10 @@ class RawDataset(torch.utils.data.IterableDataset):
             else:
                 try:
                     xr_example[data_source.__class__] = data_source.empty_example
-                except AttributeError:
-                    # This is probably a duplicate data_source. Ignore.
-                    pass
+                except AttributeError as e:
+                    raise AttributeError(
+                        "If this is a duplicate data_source then we should ignore."
+                    ) from e
 
         return xr_example
 

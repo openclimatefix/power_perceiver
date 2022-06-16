@@ -76,9 +76,7 @@ class RawDataSource:
         The returned Dataset must not include an `example` dimension.
         """
         self._allow_nans = False
-        xr_data = self.data_in_ram
-        xr_data = self._get_time_slice(xr_data, t0_datetime_utc=t0_datetime_utc)
-        xr_data = self._get_spatial_slice(xr_data, center_osgb=center_osgb)
+        xr_data = self._get_slice(t0_datetime_utc=t0_datetime_utc, center_osgb=center_osgb)
         xr_data = self._post_process(xr_data)
         xr_data = self._transform(xr_data)
         try:
@@ -87,6 +85,16 @@ class RawDataSource:
             raise e.__class__(
                 f"Exception raised when checking xr data! {t0_datetime_utc=} {center_osgb=}"
             ) from e
+        return xr_data
+
+    def _get_slice(self, t0_datetime_utc: datetime.datetime, center_osgb: Location) -> xr.DataArray:
+        """Can be overridden by child classes.
+
+        The returned Dataset must not include an `example` dimension.
+        """
+        xr_data = self.data_in_ram
+        xr_data = self._get_time_slice(xr_data, t0_datetime_utc=t0_datetime_utc)
+        xr_data = self._get_spatial_slice(xr_data, center_osgb=center_osgb)
         return xr_data
 
     def check_xarray_data(self, xr_data: xr.DataArray):  # noqa: D102
@@ -279,19 +287,19 @@ class TimeseriesDataSource:
 
         The returned data does not include an `example` dimension.
         """
-        start_dt_rounded = self._get_start_dt_ceil(t0_datetime_utc)
-        end_dt_rounded = self._get_end_dt_ceil(t0_datetime_utc)
+        start_dt_ceil = self._get_start_dt_ceil(t0_datetime_utc)
+        end_dt_ceil = self._get_end_dt_ceil(t0_datetime_utc)
 
         # Sanity check!
         assert (
-            start_dt_rounded in xr_data.time_utc
-        ), f"{start_dt_rounded=} not in xr_data.time_utc! {t0_datetime_utc=}"
+            start_dt_ceil in xr_data.time_utc
+        ), f"{start_dt_ceil=} not in xr_data.time_utc! {t0_datetime_utc=}"
         assert (
-            end_dt_rounded in xr_data.time_utc
-        ), f"{end_dt_rounded=} not in xr_data.time_utc! {t0_datetime_utc=}"
+            end_dt_ceil in xr_data.time_utc
+        ), f"{end_dt_ceil=} not in xr_data.time_utc! {t0_datetime_utc=}"
 
         # Get time slice:
-        time_slice = xr_data.sel({self._time_dim_name: slice(start_dt_rounded, end_dt_rounded)})
+        time_slice = xr_data.sel({self._time_dim_name: slice(start_dt_ceil, end_dt_ceil)})
         self._sanity_check_time_slice(time_slice, self._time_dim_name, t0_datetime_utc)
         return time_slice
 

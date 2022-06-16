@@ -17,14 +17,16 @@ from power_perceiver.load_prepared_batches.data_sources.sun import (
 
 @dataclass
 class SunPosition:
-    """This is kind of a duplicate of the info in the Sun pre-prepared batch.
+    """Append the the Sun's azimuth and elevation.
+
+    This is a duplicate of the info in the Sun pre-prepared batch.
 
     But we don't have access to those pre-prepared batches when training directly
     from the Zarr! Hence we need this when training directly from Zarr!
     """
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
-        """Sets `BatchKey.solar_azimuth_at_t0` and `BatchKey.solar_elevation_at_t0`."""
+        """Set `BatchKey.solar_azimuth` and `BatchKey.solar_elevation`."""
         y_osgb = np_batch[BatchKey.hrvsatellite_y_osgb]  # example, y, x
         x_osgb = np_batch[BatchKey.hrvsatellite_x_osgb]  # example, y, x
         time_utc = np_batch[BatchKey.hrvsatellite_time_utc]  # example, time
