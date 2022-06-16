@@ -25,8 +25,6 @@ from torch import nn
 
 from power_perceiver.analysis.log_national_pv import LogNationalPV
 from power_perceiver.analysis.plot_probability_timeseries import LogProbabilityTimeseriesPlots
-from power_perceiver.analysis.plot_satellite import LogSatellitePlots
-from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 
 # power_perceiver imports
 from power_perceiver.consts import (
@@ -59,6 +57,10 @@ from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProc
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
+
+# from power_perceiver.analysis.plot_satellite import LogSatellitePlots
+# from power_perceiver.analysis.plot_tsne import LogTSNEPlot
+
 
 logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
@@ -132,7 +134,10 @@ def get_dataloader(
         ),
         roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
         roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
-        **data_source_kwargs,
+        start_date=start_date,
+        end_date=end_date,
+        history_duration=datetime.timedelta(hours=1),
+        forecast_duration=datetime.timedelta(hours=0),
     )
 
     pv_data_source = RawPVDataSource(
@@ -635,7 +640,13 @@ class FullModel(pl.LightningModule):
             predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
         hrvsatellite = torch.concat(
-            (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
+            (
+                x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0],
+                # Detach because it looks like it hurts performance to let the gradients go
+                # backwards from here.
+                predicted_sat.detach(),
+            ),
+            dim=1,
         )
         assert hrvsatellite.isfinite().all()
 
@@ -678,10 +689,6 @@ class FullModel(pl.LightningModule):
         else:
             num_5_min_timesteps = NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES
             random_timestep_indexes = None
-
-        # Detach because it looks like it hurts performance to let the gradients go backwards
-        # from here
-        hrvsatellite = hrvsatellite.detach()
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
@@ -953,7 +960,10 @@ if TESTING:
     wandb_logger = False
 else:
     wandb_logger = WandbLogger(
-        name=("026.08: 16 PV systems. num_latent_transformer_encoders=8. GCP-1 with dual GPU."),
+        name=(
+            "026.08: 16 PV systems. No future sat. num_latent_transformer_encoders=8."
+            " GCP-1 with dual GPU."
+        ),
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
@@ -977,8 +987,8 @@ trainer = pl.Trainer(
         pl.callbacks.ModelCheckpoint(filename="{epoch}"),
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
         LogProbabilityTimeseriesPlots(),
-        LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
-        LogSatellitePlots(),
+        # LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
+        # LogSatellitePlots(),
         LogNationalPV(),
     ],
 )
