@@ -197,6 +197,7 @@ def get_dataloader(
     # and we want to save GPU RAM.
     # But we do want hrvsatellite_time_utc to continue into the future by 2 hours because
     # downstream code relies on hrvsatellite_time_utc.
+    # This must come last.
     np_batch_processors.append(
         DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
     )

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
+from power_perceiver.utils import assert_num_dims
 
 
 @dataclass
@@ -17,8 +18,9 @@ class DeleteForecastSatelliteImagery:
     num_hist_sat_images: int
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
-        # Shape: time, channels, y, x
+        # Shape: example, time, channels, y, x
+        assert_num_dims(np_batch[BatchKey.hrvsatellite], 5)
         np_batch[BatchKey.hrvsatellite] = np_batch[BatchKey.hrvsatellite][
-            : self.num_hist_sat_images
+            :, : self.num_hist_sat_images
         ]
         return np_batch
