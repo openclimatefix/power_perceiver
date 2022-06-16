@@ -86,8 +86,10 @@ class HRVSatelliteProcessor(nn.Module):
                 x=hrvsatellite.shape[2],
             )
 
-        solar_azimuth = _repeat_solar_feature_over_x_and_y(x[BatchKey.solar_azimuth])
-        solar_elevation = _repeat_solar_feature_over_x_and_y(x[BatchKey.solar_elevation])
+        solar_azimuth = _repeat_solar_feature_over_x_and_y(x[BatchKey.hrvsatellite_solar_azimuth])
+        solar_elevation = _repeat_solar_feature_over_x_and_y(
+            x[BatchKey.hrvsatellite_solar_elevation]
+        )
 
         # Concatenate spatial features and solar features onto satellite imagery:
         byte_array = torch.concat(

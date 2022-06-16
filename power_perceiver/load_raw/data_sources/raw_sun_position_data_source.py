@@ -98,6 +98,6 @@ class RawSunPositionDataSource(
     def to_numpy(xr_data: xr.Dataset) -> NumpyBatch:
         """Return a single example in a `NumpyBatch`."""
         example: NumpyBatch = {}
-        example[BatchKey.solar_azimuth] = xr_data["azimuth"].values
-        example[BatchKey.solar_elevation] = xr_data["elevation"].values
+        example[BatchKey.hrvsatellite_solar_azimuth] = xr_data["azimuth"].values
+        example[BatchKey.hrvsatellite_solar_elevation] = xr_data["elevation"].values
         return example

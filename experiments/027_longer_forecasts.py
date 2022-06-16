@@ -85,7 +85,8 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
+DEBUG = True
+ENABLE_WANDB = True
 
 if DEBUG:
     GPUS = [0]
@@ -180,7 +181,8 @@ def get_dataloader(
         SaveT0Time(pv_t0_idx=NUM_HIST_SAT_IMAGES - 1, gsp_t0_idx=T0_IDX_30_MIN),
     ]
     if USE_SUN_POSITION:
-        np_batch_processors.append(SunPosition())
+        for satellite_or_gsp in ["satellite", "gsp"]:
+            np_batch_processors.append(SunPosition(satellite_or_gsp=satellite_or_gsp))
     if USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
@@ -325,8 +327,8 @@ class SatellitePredictor(pl.LightningModule):
             data = torch.concat((data, surface_height), dim=1)
 
         if self.use_sun_position:
-            azimuth_at_t0 = x[BatchKey.solar_azimuth][:, NUM_HIST_SAT_IMAGES]
-            elevation_at_t0 = x[BatchKey.solar_elevation][:, NUM_HIST_SAT_IMAGES]
+            azimuth_at_t0 = x[BatchKey.hrvsatellite_solar_azimuth][:, NUM_HIST_SAT_IMAGES]
+            elevation_at_t0 = x[BatchKey.hrvsatellite_solar_elevation][:, NUM_HIST_SAT_IMAGES]
             sun_pos = torch.stack((azimuth_at_t0, elevation_at_t0), dim=1)  # Shape: (example, 2)
             del azimuth_at_t0, elevation_at_t0
             # Repeat over y and x:
@@ -478,8 +480,8 @@ class SatelliteTransformer(nn.Module):
         for batch_key in (
             # BatchKey.gsp_5_min_time_utc_fourier,
             BatchKey.pv_time_utc_fourier,
-            BatchKey.solar_azimuth,
-            BatchKey.solar_elevation,
+            BatchKey.hrvsatellite_solar_azimuth,
+            BatchKey.hrvsatellite_solar_elevation,
             BatchKey.hrvsatellite_time_utc_fourier,
         ):
             original_x[batch_key] = x[batch_key]
@@ -667,8 +669,8 @@ class FullModel(pl.LightningModule):
                 BatchKey.hrvsatellite_time_utc_fourier,
                 BatchKey.pv,
                 BatchKey.pv_time_utc_fourier,
-                BatchKey.solar_azimuth,
-                BatchKey.solar_elevation,
+                BatchKey.hrvsatellite_solar_azimuth,
+                BatchKey.hrvsatellite_solar_elevation,
             ):
                 x[batch_key] = x[batch_key][:, random_timestep_indexes]
             num_5_min_timesteps = (
@@ -949,12 +951,15 @@ class FullModel(pl.LightningModule):
 
 model = FullModel()
 
-if DEBUG:
+if ENABLE_WANDB:
     wandb_logger = False
     callbacks = None
 else:
     wandb_logger = WandbLogger(
-        name=("027.00: 8 hr GSP fcst. num_latent_transformer_encoders=8. GCP-2 with dual GPU."),
+        name=(
+            "027.01: Fix plots. Sun elev & az in GSP query. 8 hr GSP fcst."
+            " num_latent_transformer_encoders=8. GCP-2 with dual GPU."
+        ),
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,

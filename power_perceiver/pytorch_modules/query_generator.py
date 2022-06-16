@@ -77,8 +77,12 @@ class PVQueryGenerator(nn.Module):
                 n_pv_systems=n_pv_systems,
             )
 
-        solar_azimuth = _repeat_solar_feature_over_pv_systems(x[BatchKey.solar_azimuth])
-        solar_elevation = _repeat_solar_feature_over_pv_systems(x[BatchKey.solar_elevation])
+        solar_azimuth = _repeat_solar_feature_over_pv_systems(
+            x[BatchKey.hrvsatellite_solar_azimuth]
+        )
+        solar_elevation = _repeat_solar_feature_over_pv_systems(
+            x[BatchKey.hrvsatellite_solar_elevation]
+        )
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         pv_marker = torch.zeros_like(y_fourier)
@@ -152,7 +156,7 @@ class GSPQueryGenerator(nn.Module):
             # NaNs will be masked in `SatelliteTransformer.forward`.
             # solar_azimuth is reshaped upstream.
             # TODO: Include "5-minutely" GSP time in the Satellite Transformer query.
-            n_new_examples = x[BatchKey.solar_azimuth].shape[0]
+            n_new_examples = x[BatchKey.hrvsatellite_solar_azimuth].shape[0]
             n_repeats = int(n_new_examples / n_original_examples)
             gsp_query = gsp_query.repeat_interleave(repeats=n_repeats, dim=0)
         else:
@@ -179,8 +183,20 @@ class GSPQueryGenerator(nn.Module):
             gsp_history_mask = torch.ones_like(gsp_power)
             gsp_history_mask[:, T0_IDX_30_MIN + 1 :] = 0
 
+            gsp_solar_elevation = x[BatchKey.gsp_solar_elevation]
+            gsp_solar_azimuth = x[BatchKey.gsp_solar_azimuth]
+
             gsp_query = torch.concat(
-                (gsp_query, time_fourier, time_fourier_t0, gsp_power, gsp_history_mask), dim=2
+                (
+                    gsp_query,
+                    time_fourier,
+                    time_fourier_t0,
+                    gsp_power,
+                    gsp_history_mask,
+                    gsp_solar_azimuth,
+                    gsp_solar_elevation,
+                ),
+                dim=2,
             )
 
         return gsp_query

@@ -371,8 +371,8 @@ class SatelliteTransformer(nn.Module):
         for batch_key in (
             BatchKey.gsp_5_min_time_utc_fourier,
             BatchKey.pv_time_utc_fourier,
-            BatchKey.solar_azimuth,
-            BatchKey.solar_elevation,
+            BatchKey.hrvsatellite_solar_azimuth,
+            BatchKey.hrvsatellite_solar_elevation,
             BatchKey.hrvsatellite,
             BatchKey.hrvsatellite_time_utc_fourier,
         ):

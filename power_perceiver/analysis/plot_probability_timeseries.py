@@ -34,7 +34,7 @@ def plot_pv_power(
     pv_id: torch.Tensor,
     random_timestep_indexes: Optional[np.ndarray],
 ) -> plt.Figure:
-    fig, axes = plt.subplots(nrows=3, ncols=4, sharex=True, sharey=True)
+    fig, axes = plt.subplots(nrows=3, ncols=4)
     axes = np.array(axes).flatten()
 
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")

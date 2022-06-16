@@ -48,11 +48,11 @@ class Sun(PreparedDataSource):
         solar_azimuth = dataset["azimuth"].astype(np.float32).values
         solar_azimuth -= AZIMUTH_MEAN
         solar_azimuth /= AZIMUTH_STD
-        batch[BatchKey.solar_azimuth] = solar_azimuth
+        batch[BatchKey.hrvsatellite_solar_azimuth] = solar_azimuth
 
         solar_elevation = dataset["elevation"].astype(np.float32).values
         solar_elevation -= ELEVATION_MEAN
         solar_elevation /= ELEVATION_STD
-        batch[BatchKey.solar_elevation] = solar_elevation
+        batch[BatchKey.hrvsatellite_solar_elevation] = solar_elevation
 
         return batch

@@ -108,8 +108,8 @@ class LogTimeseriesPlots(SimpleCallback):
                     gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
                     example_idx=example_idx,
                     pv_datetimes=pv_datetimes,
-                    solar_azimuth=batch[BatchKey.solar_azimuth].cpu().detach(),
-                    solar_elevation=batch[BatchKey.solar_elevation].cpu().detach(),
+                    solar_azimuth=batch[BatchKey.hrvsatellite_solar_azimuth].cpu().detach(),
+                    solar_elevation=batch[BatchKey.hrvsatellite_solar_elevation].cpu().detach(),
                 )
                 pl_module.logger.experiment.log(
                     {

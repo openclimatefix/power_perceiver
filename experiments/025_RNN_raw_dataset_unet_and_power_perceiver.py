@@ -308,8 +308,8 @@ class SatellitePredictor(pl.LightningModule):
             data = torch.concat((data, surface_height), dim=1)
 
         if self.use_sun_position:
-            azimuth_at_t0 = x[BatchKey.solar_azimuth][:, NUM_HIST_SAT_IMAGES]
-            elevation_at_t0 = x[BatchKey.solar_elevation][:, NUM_HIST_SAT_IMAGES]
+            azimuth_at_t0 = x[BatchKey.hrvsatellite_solar_azimuth][:, NUM_HIST_SAT_IMAGES]
+            elevation_at_t0 = x[BatchKey.hrvsatellite_solar_elevation][:, NUM_HIST_SAT_IMAGES]
             sun_pos = torch.stack((azimuth_at_t0, elevation_at_t0), dim=1)  # Shape: (example, 2)
             del azimuth_at_t0, elevation_at_t0
             # Repeat over y and x:
@@ -413,8 +413,8 @@ class SatelliteTransformer(nn.Module):
         for batch_key in (
             # BatchKey.gsp_5_min_time_utc_fourier,
             BatchKey.pv_time_utc_fourier,
-            BatchKey.solar_azimuth,
-            BatchKey.solar_elevation,
+            BatchKey.hrvsatellite_solar_azimuth,
+            BatchKey.hrvsatellite_solar_elevation,
             BatchKey.hrvsatellite_time_utc_fourier,
         ):
             original_x[batch_key] = x[batch_key]
@@ -607,8 +607,8 @@ class FullModel(pl.LightningModule):
                 BatchKey.hrvsatellite_time_utc_fourier,
                 BatchKey.pv,
                 BatchKey.pv_time_utc_fourier,
-                BatchKey.solar_azimuth,
-                BatchKey.solar_elevation,
+                BatchKey.hrvsatellite_solar_azimuth,
+                BatchKey.hrvsatellite_solar_elevation,
             ):
                 x[batch_key] = x[batch_key][:, random_timestep_indexes]
             num_5_min_timesteps = (

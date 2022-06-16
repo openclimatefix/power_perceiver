@@ -25,17 +25,30 @@ class SunPosition:
     from the Zarr! Hence we need this when training directly from Zarr!
     """
 
-    def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
-        """Set `BatchKey.solar_azimuth` and `BatchKey.solar_elevation`."""
-        y_osgb = np_batch[BatchKey.hrvsatellite_y_osgb]  # example, y, x
-        x_osgb = np_batch[BatchKey.hrvsatellite_x_osgb]  # example, y, x
-        time_utc = np_batch[BatchKey.hrvsatellite_time_utc]  # example, time
+    satellite_or_gsp: str
 
-        # Get the time and position for the centre of the t0 frame:
-        y_centre_idx = int(y_osgb.shape[1] // 2)
-        x_centre_idx = int(y_osgb.shape[2] // 2)
-        y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
-        x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
+    def __post_init__(self):
+        assert self.satellite_or_gsp in ["satellite", "gsp"]
+
+    def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
+        """Set `BatchKey.hrvsatellite_solar_azimuth` and `BatchKey.hrvsatellite_solar_elevation`.
+
+        Or `BatchKey.gsp_solar_azimuth` or `BatchKey.gsp_solar_elevation`.
+        """
+        if self.satellite_or_gsp == "satellite":
+            y_osgb = np_batch[BatchKey.hrvsatellite_y_osgb]  # example, y, x
+            x_osgb = np_batch[BatchKey.hrvsatellite_x_osgb]  # example, y, x
+            time_utc = np_batch[BatchKey.hrvsatellite_time_utc]  # example, time
+
+            # Get the time and position for the centre of the t0 frame:
+            y_centre_idx = int(y_osgb.shape[1] // 2)
+            x_centre_idx = int(y_osgb.shape[2] // 2)
+            y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
+            x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
+        elif self.satellite_or_gsp == "gsp":
+            y_osgb = np_batch[BatchKey.gsp_y_osgb]
+            x_osgb = np_batch[BatchKey.gsp_x_osgb]
+            time_utc = np_batch[BatchKey.gsp_time_utc]
 
         # Convert to the units that pvlib expects: lat, lon.
         lats, lons = osgb_to_lat_lon(x=x_osgb_centre, y=y_osgb_centre)
@@ -68,6 +81,10 @@ class SunPosition:
         assert np.isfinite(elevation).all()
 
         # Store.
-        np_batch[BatchKey.solar_azimuth] = azimuth
-        np_batch[BatchKey.solar_elevation] = elevation
+        if self.satellite_or_gsp == "satellite":
+            np_batch[BatchKey.hrvsatellite_solar_azimuth] = azimuth
+            np_batch[BatchKey.hrvsatellite_solar_elevation] = elevation
+        elif self.satellite_or_gsp == "gsp":
+            np_batch[BatchKey.gsp_solar_azimuth] = azimuth
+            np_batch[BatchKey.gsp_solar_elevation] = elevation
         return np_batch

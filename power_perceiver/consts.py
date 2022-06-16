@@ -127,8 +127,10 @@ class BatchKey(Enum):
     # Solar position at every timestep. shape = (batch_size, n_timesteps)
     # The solar position data comes from two alternative sources: either the Sun pre-prepared
     # batches, or the SunPosition np_batch_processor for the RawDataset.
-    solar_azimuth = auto()
-    solar_elevation = auto()
+    hrvsatellite_solar_azimuth = auto()
+    hrvsatellite_solar_elevation = auto()
+    gsp_solar_azimuth = auto()
+    gsp_solar_elevation = auto()
 
     # Solar position at the centre of the HRV image at t0
     # (from `power_perceiver.np_batch_processor.SunPosition`)
