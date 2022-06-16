@@ -952,9 +952,6 @@ class FullModel(pl.LightningModule):
 model = FullModel()
 
 if ENABLE_WANDB:
-    wandb_logger = False
-    callbacks = None
-else:
     wandb_logger = WandbLogger(
         name=(
             "027.01: Fix plots. Sun elev & az in GSP query. 8 hr GSP fcst."
@@ -979,6 +976,9 @@ else:
         LogSatellitePlots(),
         LogNationalPV(),
     ]
+else:
+    wandb_logger = False
+    callbacks = None
 
 # WARNING: Don't run multiple GPUs in ipython.
 trainer = pl.Trainer(
