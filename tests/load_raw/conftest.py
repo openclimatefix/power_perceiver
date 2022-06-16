@@ -4,6 +4,7 @@ from copy import deepcopy
 import pytest
 
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
+from power_perceiver.load_raw.data_sources.raw_nwp_data_source import RawNWPDataSource
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSource
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.raw_dataset import RawDataset
@@ -13,15 +14,51 @@ SAT_WIDTH_IN_PIXELS = 256
 SAT_N_EXPECTED_TIMESTEPS = 37  # 12 steps of history + 1 for t0 + 24 of forecast
 N_EXAMPLES_PER_BATCH = 16
 
+USE_LOCAL_FILES = True
+
 # TODO: Use public data :)
 PV_METADATA_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv"
 PV_POWER_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf"
 N_PV_SYSTEMS_PER_EXAMPLE = 8
 
+NWP_ZARR_PATH = (
+    "/media/jack/wd_18tb/data/ocf/NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
+)
+
+
+def _get_nwp_data_source(
+    zarr_path=NWP_ZARR_PATH,
+    height_in_pixels=4,
+    width_in_pixels=4,
+    history_duration=datetime.timedelta(hours=1),
+    forecast_duration=datetime.timedelta(hours=8),
+    start_date="2020-01-01",
+    end_date="2020-12-31 12:59",
+) -> RawNWPDataSource:
+    return RawNWPDataSource(
+        zarr_path=zarr_path,
+        roi_height_pixels=height_in_pixels,
+        roi_width_pixels=width_in_pixels,
+        history_duration=history_duration,
+        forecast_duration=forecast_duration,
+        start_date=start_date,
+        end_date=end_date,
+        y_coarsen=16,
+        x_coarsen=16,
+        channels=["dswrf", "t", "si10", "prate"],
+    )
+
+
+@pytest.fixture(scope="session")
+def nwp_data_source() -> RawNWPDataSource:
+    return _get_nwp_data_source()
+
 
 def _get_sat_data_source(
     zarr_path=(
-        "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
+        "/media/jack/wd_18tb/data/ocf/satellite/v3/eumetsat_seviri_hrv_uk.zarr"
+        if USE_LOCAL_FILES
+        else "gs://public-datasets-eumetsat-solar-forecasting/satellite/EUMETSAT/SEVIRI_RSS/v3/"
         "eumetsat_seviri_hrv_uk.zarr"
     ),
     height_in_pixels=SAT_HEIGHT_IN_PIXELS,

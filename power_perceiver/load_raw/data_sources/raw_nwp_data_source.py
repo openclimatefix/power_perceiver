@@ -268,12 +268,10 @@ class RawNWPDataSource(
         time_periods = super()._convert_t0_time_periods_to_periods_to_load(
             subset_of_contiguous_t0_time_periods
         )
-        time_periods["start_dt"] = pd.DatetimeIndex(time_periods["start_dt"]).floor(
-            self.duration_between_nwp_inits
-        )
-        time_periods["end_dt"] = pd.DatetimeIndex(time_periods["end_dt"]).ceil(
-            self.duration_between_nwp_inits
-        )
+        # Get the init time that's most recent to each start_dt.
+        time_periods["start_dt"] = self.data_on_disk.sel(
+            init_time_utc=time_periods.start_dt.values, method="pad"
+        ).init_time_utc
         return time_periods
 
     @staticmethod

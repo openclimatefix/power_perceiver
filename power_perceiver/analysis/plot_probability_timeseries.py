@@ -49,7 +49,7 @@ def plot_pv_power(
         return fig
 
     # PV
-    for pv_idx, ax in enumerate(axes[:-5]):
+    for pv_idx, ax in enumerate(axes[:-4]):
         plot_probs(
             ax=ax,
             network_output=predicted_pv_power[example_idx, :, pv_idx],
@@ -144,7 +144,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
             outputs: The output from Model.training_step
             tag: train or validation
         """
-        if batch_idx < 4:
+        if batch_idx in [0, 16, 32, 48]:
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
             actual_pv_power = outputs["actual_pv_power"].cpu().detach()
             # TODO: Generate pv_datetimes upstream and pass it into this function, just like
