@@ -85,7 +85,7 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = True
+DEBUG = False
 ENABLE_WANDB = True
 
 if DEBUG:

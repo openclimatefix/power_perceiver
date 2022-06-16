@@ -89,7 +89,7 @@ def plot_pv_power(
     ax_gsp.legend(framealpha=0.4)
 
     for ax in axes[:-3]:
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%H%M"))
 
     # Satellite
     sat_axes = [ax.twinx().twiny() for ax in axes[-3:]]
