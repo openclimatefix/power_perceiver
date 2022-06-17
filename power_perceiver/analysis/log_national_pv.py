@@ -7,7 +7,7 @@ import torch
 import wandb
 from matplotlib import pyplot as plt
 
-from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
+from power_perceiver.consts import BatchKey
 
 
 class LogNationalPV(pl.Callback):
@@ -39,10 +39,12 @@ class LogNationalPV(pl.Callback):
         gsp_capacity_mwp = batch[BatchKey.gsp_capacity_mwp].squeeze().cpu().numpy()  # (example,)
         num_examples = predicted_gsp_power.shape[0]
 
+        gsp_t0_idx = batch[BatchKey.gsp_t0_idx].cpu()
+
         # Select just the forecast timesteps:
-        predicted_gsp_power = predicted_gsp_power[:, T0_IDX_30_MIN + 1 :]
-        actual_gsp_power = actual_gsp_power[:, T0_IDX_30_MIN + 1 :]
-        gsp_datetimes = gsp_datetimes[:, T0_IDX_30_MIN + 1 :]
+        predicted_gsp_power = predicted_gsp_power[:, gsp_t0_idx + 1 :]
+        actual_gsp_power = actual_gsp_power[:, gsp_t0_idx + 1 :]
+        gsp_datetimes = gsp_datetimes[:, gsp_t0_idx + 1 :]
 
         for example_idx in range(num_examples):
             dt_for_example = pd.to_datetime(gsp_datetimes[example_idx], unit="s")

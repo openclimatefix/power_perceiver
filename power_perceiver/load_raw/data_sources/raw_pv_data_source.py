@@ -98,6 +98,8 @@ class RawPVDataSource(
             x_osgb=pv_metadata.x_osgb.astype(np.float32),
             capacity_wp=pv_capacity_wp,
             pv_system_row_number=pv_system_row_number,
+            t0_idx=self.t0_idx,
+            sample_period_duration=self.sample_period_duration,
         )
 
     def get_osgb_location_for_example(self) -> Location:
@@ -196,6 +198,8 @@ class RawPVDataSource(
             x_osgb=empty_metadata,
             capacity_wp=empty_metadata,
             pv_system_row_number=pv_system_row_number,
+            t0_idx=self.t0_idx,
+            sample_period_duration=self.sample_period_duration,
         )
         return data_array
 
@@ -209,6 +213,7 @@ class RawPVDataSource(
         example: NumpyBatch = {}
 
         example[BatchKey.pv] = xr_data.values  # PV is normalised in RawPVDataSource._post_process
+        example[BatchKey.pv_t0_idx] = xr_data.attrs["t0_idx"]
         example[BatchKey.pv_system_row_number] = xr_data["pv_system_row_number"].values
         example[BatchKey.pv_id] = xr_data["pv_system_id"].values.astype(np.float32)
         example[BatchKey.pv_capacity_wp] = xr_data["capacity_wp"].values
@@ -388,6 +393,8 @@ def _put_pv_data_into_an_xr_dataarray(
     x_osgb: pd.Series,
     capacity_wp: pd.Series,
     pv_system_row_number: pd.Series,
+    t0_idx: int,
+    sample_period_duration: datetime.timedelta,
 ) -> xr.DataArray:
     """Convert to an xarray DataArray.
 
@@ -417,4 +424,8 @@ def _put_pv_data_into_an_xr_dataarray(
         capacity_wp=("pv_system_id", capacity_wp),
         pv_system_row_number=("pv_system_id", pv_system_row_number),
     )
+    data_array.attrs["t0_idx"] = t0_idx
+    # Sample period duration is required so PVDownsample transform knows by how much
+    # to change the pv_t0_idx:
+    data_array.attrs["sample_period_duration"] = sample_period_duration
     return data_array

@@ -168,6 +168,7 @@ class RawNWPDataSource(
                 ("x_osgb", x),
             ),
         )
+        data_array.attrs["t0_idx"] = self.t0_idx
         return data_array
 
     def per_worker_init(self, *args, **kwargs) -> None:  # noqa: D102
@@ -205,6 +206,7 @@ class RawNWPDataSource(
             x_osgb=self.x_coarsen,
             boundary="trim",
         ).mean()
+        self._data_on_disk.attrs["t0_idx"] = self.t0_idx
         _log.info("After filtering: " + date_summary_str(self.data_on_disk.init_time_utc))
 
     @property
@@ -283,6 +285,7 @@ class RawNWPDataSource(
         example: NumpyBatch = {}
 
         example[BatchKey.nwp] = xr_data.values
+        example[BatchKey.nwp_t0_idx] = xr_data.attrs["t0_idx"]
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(xr_data.target_time_utc.values)
 
         for batch_key, dataset_key in (

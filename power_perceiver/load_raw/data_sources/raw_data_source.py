@@ -198,6 +198,11 @@ class TimeseriesDataSource:
         return self.history_duration + self.forecast_duration
 
     @property
+    def t0_idx(self) -> int:
+        """The index into the array for the most recent observation (t0)."""
+        return int(self.history_duration / self.sample_period_duration)
+
+    @property
     def datetime_index(self) -> pd.DatetimeIndex:
         """Return a pd.DatetimeIndex of all available datetimes.
 

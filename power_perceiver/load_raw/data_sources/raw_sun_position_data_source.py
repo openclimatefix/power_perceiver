@@ -85,8 +85,9 @@ class RawSunPositionDataSource(
             # nrel_c is probably fastest but requires C code to be manually compiled:
             # https://midcdmz.nrel.gov/spa/
         )
-
-        return solpos[["azimuth", "elevation"]].to_xarray()
+        xr_dataset = solpos[["azimuth", "elevation"]].to_xarray()
+        xr_dataset.attrs["t0_idx"] = self.t0_idx
+        return xr_dataset
 
     def _post_process(self, xr_data: xr.Dataset) -> xr.Dataset:
         # Normalise.

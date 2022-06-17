@@ -8,8 +8,6 @@ from pathy import Pathy
 
 PV_TIME_AXIS = 1
 PV_SYSTEM_AXIS = 2
-# The index into the time dimension which marks the most recent observation.
-T0_IDX_30_MIN = 1
 
 Y_OSGB_MEAN = 357021.38
 Y_OSGB_STD = 612920.2
@@ -41,6 +39,7 @@ class BatchKey(Enum):
     # is the *total* number of pixels,
     # i.e. n_pixels_per_patch_along_height * n_pixels_per_patch_along_width.
     hrvsatellite = auto()
+    hrvsatellite_t0_idx = auto()  # shape: scalar
 
     # HRV satellite coordinates:
     hrvsatellite_y_osgb = auto()  # shape: (batch_size, y, x)
@@ -61,6 +60,7 @@ class BatchKey(Enum):
 
     # -------------- NWP --------------------------------------------
     nwp = auto()  # shape: (batch_size, target_time_utc, channel, y_osgb, x_osgb)
+    nwp_t0_idx = auto()  # shape: scalar
     nwp_target_time_utc = auto()  # shape: (batch_size, target_time_utc)
     nwp_y_osgb = auto()  # shape: (batch_size, y_osgb)
     nwp_x_osgb = auto()  # shape: (batch_size,, x_osgb)
@@ -72,6 +72,7 @@ class BatchKey(Enum):
 
     # -------------- PV ---------------------------------------------
     pv = auto()  # shape: (batch_size, time, n_pv_systems)
+    pv_t0_idx = auto()  # shape: scalar
     pv_system_row_number = auto()  # shape: (batch_size, n_pv_systems)
     pv_id = auto()  # shape: (batch_size, n_pv_systems)
     # PV AC system capacity in watts peak.
@@ -100,6 +101,7 @@ class BatchKey(Enum):
     # -------------- GSP --------------------------------------------
     gsp = auto()  # shape: (batch_size, time, 1)  (the RawGSPDataSource include a '1',
     # not sure if the prepared dataset does!)
+    gsp_t0_idx = auto()  # shape: scalar
     gsp_id = auto()  # shape: (batch_size)
 
     # GSP coordinates:
@@ -131,6 +133,8 @@ class BatchKey(Enum):
     hrvsatellite_solar_elevation = auto()
     gsp_solar_azimuth = auto()
     gsp_solar_elevation = auto()
+    pv_solar_azimuth = auto()
+    pv_solar_elevation = auto()
 
     # Solar position at the centre of the HRV image at t0
     # (from `power_perceiver.np_batch_processor.SunPosition`)

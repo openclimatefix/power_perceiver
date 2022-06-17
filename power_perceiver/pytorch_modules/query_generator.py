@@ -4,7 +4,7 @@ import einops
 import torch
 from torch import nn
 
-from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
+from power_perceiver.consts import BatchKey
 from power_perceiver.utils import assert_num_dims
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -123,7 +123,7 @@ class GSPQueryGenerator(nn.Module):
 
         Args:
             x: The batch. Requires BatchKeys: gsp, gsp_y_osgb_fourier, gsp_x_osgb_fourier,
-                gsp_id, gsp_time_utc_fourier, solar_azimuth
+                gsp_id, gsp_time_utc_fourier, solar_azimuth, gsp_t0_idx
             for_satellite_transformer: The query for the SatelliteTransformer uses 5-minutely
                 data. The query for the time_transformer uses 30-minutely data.
 
@@ -179,9 +179,10 @@ class GSPQueryGenerator(nn.Module):
             # See this discussion for why we use `tensor.detach().clone()` to copy the tensor:
             # https://stackoverflow.com/questions/55266154/pytorch-preferred-way-to-copy-a-tensor
             gsp_power = x[BatchKey.gsp].detach().clone()  # shape: batch, time, 1
-            gsp_power[:, T0_IDX_30_MIN + 1 :] = 0
+            gsp_t0_idx = x[BatchKey.gsp_t0_idx]
+            gsp_power[:, gsp_t0_idx + 1 :] = 0
             gsp_history_mask = torch.ones_like(gsp_power)
-            gsp_history_mask[:, T0_IDX_30_MIN + 1 :] = 0
+            gsp_history_mask[:, gsp_t0_idx + 1 :] = 0
 
             gsp_solar_elevation = x[BatchKey.gsp_solar_elevation].unsqueeze(-1)
             gsp_solar_azimuth = x[BatchKey.gsp_solar_azimuth].unsqueeze(-1)

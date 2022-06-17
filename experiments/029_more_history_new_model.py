@@ -29,14 +29,7 @@ from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 
 # power_perceiver imports
-from power_perceiver.consts import (
-    T0_IDX_30_MIN,
-    X_OSGB_MEAN,
-    X_OSGB_STD,
-    Y_OSGB_MEAN,
-    Y_OSGB_STD,
-    BatchKey,
-)
+from power_perceiver.consts import X_OSGB_MEAN, X_OSGB_STD, Y_OSGB_MEAN, Y_OSGB_STD, BatchKey
 from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
 from power_perceiver.load_raw.data_sources.raw_nwp_data_source import RawNWPDataSource
@@ -44,6 +37,9 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSo
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
 from power_perceiver.load_raw.raw_dataset import RawDataset
+from power_perceiver.np_batch_processor.delete_forecast_satellite_imagery import (
+    DeleteForecastSatelliteImagery,
+)
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
 from power_perceiver.np_batch_processor.sun_position import SunPosition
@@ -115,8 +111,6 @@ def get_dataloader(
     data_source_kwargs = dict(
         start_date=start_date,
         end_date=end_date,
-        history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
     )
 
     sat_data_source = RawSatelliteDataSource(
@@ -133,6 +127,8 @@ def get_dataloader(
         ),
         roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
         roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
+        history_duration=datetime.timedelta(hours=1),
+        forecast_duration=datetime.timedelta(hours=2),
         **data_source_kwargs,
     )
 
@@ -143,6 +139,8 @@ def get_dataloader(
         roi_width_meters=96_000,
         n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
         transforms=[PVDownsample(freq="30T", expect_dataset=False)],
+        history_duration=datetime.timedelta(hours=1),
+        forecast_duration=datetime.timedelta(hours=8),
         **data_source_kwargs,
     )
 
@@ -150,10 +148,9 @@ def get_dataloader(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        start_date=start_date,
-        end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
+        **data_source_kwargs,
     )
 
     nwp_data_source = RawNWPDataSource(
@@ -170,24 +167,29 @@ def get_dataloader(
         y_coarsen=16,
         x_coarsen=16,
         channels=["dswrf", "t", "si10", "prate"],
-        start_date=start_date,
-        end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
+        **data_source_kwargs,
     )
 
-    np_batch_processors = [
-        EncodeSpaceTime(),
-        SaveT0Time(pv_t0_idx=NUM_HIST_SAT_IMAGES - 1, gsp_t0_idx=T0_IDX_30_MIN),
-    ]
+    np_batch_processors = [EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
         for satellite_or_gsp in ["satellite", "gsp"]:
             np_batch_processors.append(SunPosition(satellite_or_gsp=satellite_or_gsp))
     if USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
+    # Delete imagery of the future, because we're not training the U-Net,
+    # and we want to save GPU RAM.
+    # But we do want hrvsatellite_time_utc to continue into the future by 2 hours because
+    # downstream code relies on hrvsatellite_time_utc.
+    # This must come last.
+    np_batch_processors.append(
+        DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
+    )
+
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=16,  # TODO: Increase to more like 32!
+        n_examples_per_batch=32,
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
@@ -197,6 +199,7 @@ def get_dataloader(
         data_source_combos=dict(
             gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
         ),
+        t0_freq="30T",
     )
 
     if train:
@@ -703,11 +706,12 @@ class FullModel(pl.LightningModule):
         historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
         # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
         # And use nan_to_num later in this function.
-        historical_pv[:, : self.t0_idx_5_min + 1] = x[BatchKey.pv][:, : self.t0_idx_5_min + 1]
+        pv_t0_idx = x[BatchKey.pv_t0_idx]
+        historical_pv[:, : pv_t0_idx + 1] = x[BatchKey.pv][:, : pv_t0_idx + 1]
         historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
         # Now append a "marker" to indicate which timesteps are history:
         hist_pv_marker = torch.zeros_like(historical_pv)
-        hist_pv_marker[:, : self.t0_idx_5_min + 1] = 1
+        hist_pv_marker[:, : pv_t0_idx + 1] = 1
         sat_trans_pv_attn_out = torch.concat(
             (sat_trans_pv_attn_out, historical_pv, hist_pv_marker), dim=3
         )
@@ -780,13 +784,6 @@ class FullModel(pl.LightningModule):
         )
 
     @property
-    def t0_idx_5_min(self) -> int:
-        if self.training and self.num_5_min_history_timesteps_during_training:
-            return self.num_5_min_history_timesteps_during_training - 1
-        else:
-            return NUM_HIST_SAT_IMAGES - 1
-
-    @property
     def tag(self) -> str:
         return "train" if self.training else "validation"
 
@@ -810,16 +807,19 @@ class FullModel(pl.LightningModule):
         # Mask predicted and actual PV and GSP (some examples don't have PV and/or GSP)
         # For more discussion of how to mask losses in pytorch, see:
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
+        pv_t0_idx = batch[BatchKey.pv_t0_idx]
         pv_mask = actual_pv_power.isfinite()
-        pv_mask_from_t0 = pv_mask[:, self.t0_idx_5_min + 1 :]
+        pv_mask_from_t0 = pv_mask[:, pv_t0_idx + 1 :]
+
+        gsp_t0_idx = batch[BatchKey.gsp_t0_idx]
         gsp_mask = actual_gsp_power.isfinite()
-        gsp_mask_from_t0 = gsp_mask[:, T0_IDX_30_MIN + 1 :]
+        gsp_mask_from_t0 = gsp_mask[:, gsp_t0_idx + 1 :]
 
-        predicted_pv_power_from_t0 = predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
-        actual_pv_power_from_t0 = actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
+        predicted_pv_power_from_t0 = predicted_pv_power[:, pv_t0_idx + 1 :][pv_mask_from_t0]
+        actual_pv_power_from_t0 = actual_pv_power[:, pv_t0_idx + 1 :][pv_mask_from_t0]
 
-        predicted_gsp_power_from_t0 = predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0]
-        actual_gsp_power_from_t0 = actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0]
+        predicted_gsp_power_from_t0 = predicted_gsp_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
+        actual_gsp_power_from_t0 = actual_gsp_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
 
         # PV negative log prob loss:
         pv_distribution = get_distribution(predicted_pv_power_from_t0)

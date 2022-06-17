@@ -95,6 +95,7 @@ class RawGSPDataSource(
         gsp_id_mask = data_array.capacity_mwp.max(dim="time_utc") > self.threshold_mw
         data_array = data_array.isel(gsp_id=gsp_id_mask)
         data_array = data_array.dropna(dim="time_utc", how="all")
+        data_array.attrs["t0_idx"] = self.t0_idx
 
         _log.debug(
             f"There are {len(data_array.gsp_id)} GSPs left after we dropped"
@@ -137,6 +138,7 @@ class RawGSPDataSource(
             x_osgb=gsp_meta,
             y_osgb=gsp_meta,
             capacity_mwp=gsp_pv_power_mw,
+            t0_idx=self.t0_idx,
         )
 
     def _get_spatial_slice(self, xr_data: xr.DataArray, center_osgb: Location) -> xr.DataArray:
@@ -153,6 +155,7 @@ class RawGSPDataSource(
         example: NumpyBatch = {}
 
         example[BatchKey.gsp] = xr_data.values
+        example[BatchKey.gsp_t0_idx] = xr_data.attrs["gsp_t0_idx"]
         example[BatchKey.gsp_id] = xr_data.gsp_id.values
         example[BatchKey.gsp_capacity_mwp] = xr_data.isel(time_utc=0)["capacity_mwp"].values
 
@@ -203,6 +206,7 @@ def _put_gsp_data_into_an_xr_dataarray(
     x_osgb: np.ndarray,
     y_osgb: np.ndarray,
     capacity_mwp: np.ndarray,
+    t0_idx: int,
 ) -> xr.DataArray:
     # Convert to xr.DataArray:
     data_array = xr.DataArray(
@@ -215,4 +219,5 @@ def _put_gsp_data_into_an_xr_dataarray(
         y_osgb=("gsp_id", y_osgb),
         capacity_mwp=(("time_utc", "gsp_id"), capacity_mwp),
     )
+    data_array.attrs["t0_idx"] = t0_idx
     return data_array

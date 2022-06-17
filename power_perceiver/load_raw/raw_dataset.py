@@ -203,8 +203,13 @@ class RawDataset(torch.utils.data.IterableDataset):
         np_batch: NumpyBatch = {}
         batch_keys = np_examples[0]  # Batch keys should be the same across all examples.
         for batch_key in batch_keys:
-            examples_for_key = [np_example[batch_key] for np_example in np_examples]
-            np_batch[batch_key] = np.stack(examples_for_key)
+            if batch_key.name.endswith("t0_idx"):
+                # The t0_idx is always the same for all examples. So keep it as a scalar:
+                np_batch[batch_key] = np_examples[0][batch_key]
+            else:
+                # All batch keys except *_t0_idx:
+                examples_for_key = [np_example[batch_key] for np_example in np_examples]
+                np_batch[batch_key] = np.stack(examples_for_key)
         return self._process_np_batch(np_batch)
 
     def _get_np_example(self) -> NumpyBatch:

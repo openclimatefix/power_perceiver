@@ -78,6 +78,7 @@ class RawSatelliteDataSource(
         # Select only the timesteps we want:
         self._data_on_disk = self._data_on_disk.sel(time_utc=slice(self.start_date, self.end_date))
         self._data_on_disk = select_data_in_daylight(self._data_on_disk)
+        self._data_on_disk.attrs["t0_idx"] = self.t0_idx
         _log.info("After filtering: " + date_summary_str(self.data_on_disk.time_utc))
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
@@ -98,6 +99,7 @@ class RawSatelliteDataSource(
         example: NumpyBatch = {}
 
         example[BatchKey.hrvsatellite] = xr_data.values
+        example[BatchKey.hrvsatellite_t0_idx] = xr_data.attrs["t0_idx"]
         example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(xr_data["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),
