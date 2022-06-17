@@ -95,7 +95,6 @@ class RawGSPDataSource(
         gsp_id_mask = data_array.capacity_mwp.max(dim="time_utc") > self.threshold_mw
         data_array = data_array.isel(gsp_id=gsp_id_mask)
         data_array = data_array.dropna(dim="time_utc", how="all")
-        data_array.attrs["t0_idx"] = self.t0_idx
 
         _log.debug(
             f"There are {len(data_array.gsp_id)} GSPs left after we dropped"
@@ -147,7 +146,8 @@ class RawGSPDataSource(
         return xr_data.isel(gsp_id=mask)
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
-        return xr_data / xr_data.capacity_mwp
+        xr_data = xr_data / xr_data.capacity_mwp
+        return xr_data
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:

@@ -86,7 +86,6 @@ class RawSunPositionDataSource(
             # https://midcdmz.nrel.gov/spa/
         )
         xr_dataset = solpos[["azimuth", "elevation"]].to_xarray()
-        xr_dataset.attrs["t0_idx"] = self.t0_idx
         return xr_dataset
 
     def _post_process(self, xr_data: xr.Dataset) -> xr.Dataset:

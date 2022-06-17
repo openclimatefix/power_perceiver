@@ -272,10 +272,6 @@ class RawNWPDataSource(
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         xr_data = xr_data - NWP_MEAN
         xr_data = xr_data / NWP_STD
-
-        # Append attributes:
-        xr_data.attrs["t0_idx"] = self.t0_idx
-        xr_data.attrs["sample_period_duration"] = self.sample_period_duration
         return xr_data
 
     def _convert_t0_time_periods_to_periods_to_load(

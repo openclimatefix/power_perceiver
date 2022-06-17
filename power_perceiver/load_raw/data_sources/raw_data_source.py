@@ -78,6 +78,7 @@ class RawDataSource:
         self._allow_nans = False
         xr_data = self._get_slice(t0_datetime_utc=t0_datetime_utc, center_osgb=center_osgb)
         xr_data = self._post_process(xr_data)
+        xr_data = self._set_attributes(xr_data)
         xr_data = self._transform(xr_data)
         try:
             self.check_xarray_data(xr_data)
@@ -100,6 +101,11 @@ class RawDataSource:
     def check_xarray_data(self, xr_data: xr.DataArray):  # noqa: D102
         if not self._allow_nans:
             assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
+
+    def _set_attributes(self, xr_data: xr.DataArray) -> xr.DataArray:
+        xr_data.attrs["t0_idx"] = self.t0_idx
+        xr_data.attrs["sample_period_duration"] = self.sample_period_duration
+        return xr_data
 
     @staticmethod
     def to_numpy(xr_data: xr.DataArray) -> NumpyBatch:

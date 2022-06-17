@@ -78,7 +78,6 @@ class RawSatelliteDataSource(
         # Select only the timesteps we want:
         self._data_on_disk = self._data_on_disk.sel(time_utc=slice(self.start_date, self.end_date))
         self._data_on_disk = select_data_in_daylight(self._data_on_disk)
-        self._data_on_disk.attrs["t0_idx"] = self.t0_idx
         _log.info("After filtering: " + date_summary_str(self.data_on_disk.time_utc))
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
