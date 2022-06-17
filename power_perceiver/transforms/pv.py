@@ -61,3 +61,32 @@ class PVPowerRollingWindow:
             return xr_data
         else:
             return resampled
+
+
+@dataclass
+class PVDownsample:
+    """Downsample PV.
+
+    The xr.Dataset is modified in-place, and is returned.
+
+    Initialisation arguments:
+        freq:
+        expect_dataset:
+    """
+
+    freq: str = "30T"
+    expect_dataset: bool = True
+
+    def __call__(self, xr_data: Union[xr.Dataset, xr.DataArray]) -> Union[xr.Dataset, xr.DataArray]:
+        if self.expect_dataset:
+            data_to_resample = xr_data["power_w"]
+        else:
+            data_to_resample = xr_data
+
+        resampled = data_to_resample.resample(time_utc=self.freq, label="right").mean()
+
+        if self.expect_dataset:
+            xr_data["power_w"] = resampled
+            return xr_data
+        else:
+            return resampled
