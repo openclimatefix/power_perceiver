@@ -25,17 +25,17 @@ class SunPosition:
     from the Zarr! Hence we need this when training directly from Zarr!
     """
 
-    satellite_or_gsp: str
+    modality_name: str
 
     def __post_init__(self):
-        assert self.satellite_or_gsp in ["satellite", "gsp", "pv"]
+        assert self.modality_name in ["satellite", "gsp", "pv"]
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         """Set `BatchKey.hrvsatellite_solar_azimuth` and `BatchKey.hrvsatellite_solar_elevation`.
 
         Or `BatchKey.gsp_solar_azimuth` or `BatchKey.gsp_solar_elevation`.
         """
-        if self.satellite_or_gsp == "satellite":
+        if self.modality_name == "satellite":
             y_osgb = np_batch[BatchKey.hrvsatellite_y_osgb]  # example, y, x
             x_osgb = np_batch[BatchKey.hrvsatellite_x_osgb]  # example, y, x
             time_utc = np_batch[BatchKey.hrvsatellite_time_utc]  # example, time
@@ -45,13 +45,13 @@ class SunPosition:
             x_centre_idx = int(y_osgb.shape[2] // 2)
             y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
             x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
-        elif self.satellite_or_gsp == "gsp":
+        elif self.modality_name == "gsp":
             y_osgb_centre = np_batch[BatchKey.gsp_y_osgb]
             x_osgb_centre = np_batch[BatchKey.gsp_x_osgb]
             time_utc = np_batch[BatchKey.gsp_time_utc]
-        elif self.satellite_or_gsp == "pv":
-            y_osgb_centre = np_batch[BatchKey.pv_y_osgb]
-            x_osgb_centre = np_batch[BatchKey.pv_x_osgb]
+        elif self.modality_name == "pv":
+            y_osgb_centre = np.nanmean(np_batch[BatchKey.pv_y_osgb], axis=1)
+            x_osgb_centre = np.nanmean(np_batch[BatchKey.pv_x_osgb], axis=1)
             time_utc = np_batch[BatchKey.pv_time_utc]
 
         # Convert to the units that pvlib expects: lat, lon.
@@ -85,13 +85,13 @@ class SunPosition:
         assert np.isfinite(elevation).all()
 
         # Store.
-        if self.satellite_or_gsp == "satellite":
+        if self.modality_name == "satellite":
             np_batch[BatchKey.hrvsatellite_solar_azimuth] = azimuth
             np_batch[BatchKey.hrvsatellite_solar_elevation] = elevation
-        elif self.satellite_or_gsp == "gsp":
+        elif self.modality_name == "gsp":
             np_batch[BatchKey.gsp_solar_azimuth] = azimuth
             np_batch[BatchKey.gsp_solar_elevation] = elevation
-        elif self.satellite_or_gsp == "pv":
+        elif self.modality_name == "pv":
             np_batch[BatchKey.pv_solar_azimuth] = azimuth
             np_batch[BatchKey.pv_solar_elevation] = elevation
         return np_batch
