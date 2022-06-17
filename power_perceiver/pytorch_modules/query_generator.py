@@ -95,6 +95,8 @@ class PVQueryGenerator(nn.Module):
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         pv_marker = torch.zeros_like(solar_azimuth)
+        
+        import ipdb; ipdb.set_trace()
 
         return torch.concat(
             (
