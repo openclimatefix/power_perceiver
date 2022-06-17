@@ -28,7 +28,7 @@ class SunPosition:
     satellite_or_gsp: str
 
     def __post_init__(self):
-        assert self.satellite_or_gsp in ["satellite", "gsp"]
+        assert self.satellite_or_gsp in ["satellite", "gsp", "pv"]
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         """Set `BatchKey.hrvsatellite_solar_azimuth` and `BatchKey.hrvsatellite_solar_elevation`.
@@ -49,6 +49,10 @@ class SunPosition:
             y_osgb_centre = np_batch[BatchKey.gsp_y_osgb]
             x_osgb_centre = np_batch[BatchKey.gsp_x_osgb]
             time_utc = np_batch[BatchKey.gsp_time_utc]
+        elif self.satellite_or_gsp == "pv":
+            y_osgb_centre = np_batch[BatchKey.pv_y_osgb]
+            x_osgb_centre = np_batch[BatchKey.pv_x_osgb]
+            time_utc = np_batch[BatchKey.pv_time_utc]
 
         # Convert to the units that pvlib expects: lat, lon.
         lats, lons = osgb_to_lat_lon(x=x_osgb_centre, y=y_osgb_centre)
@@ -87,4 +91,7 @@ class SunPosition:
         elif self.satellite_or_gsp == "gsp":
             np_batch[BatchKey.gsp_solar_azimuth] = azimuth
             np_batch[BatchKey.gsp_solar_elevation] = elevation
+        elif self.satellite_or_gsp == "pv":
+            np_batch[BatchKey.pv_solar_azimuth] = azimuth
+            np_batch[BatchKey.pv_solar_elevation] = elevation
         return np_batch

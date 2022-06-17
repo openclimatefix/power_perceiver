@@ -180,6 +180,7 @@ def get_dataloader(
     np_batch_processors = [EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
         np_batch_processors.append(SunPosition(satellite_or_gsp="gsp"))
+        np_batch_processors.append(SunPosition(satellite_or_gsp="pv"))
         if USE_SATELLITE:
             np_batch_processors.append(SunPosition(satellite_or_gsp="satellite"))
     if USE_SATELLITE and USE_TOPOGRAPHY:
