@@ -175,22 +175,20 @@ class GSPQueryGenerator(nn.Module):
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         gsp_marker = torch.ones_like(solar_azimuth)
 
-        gsp_query = torch.concat(
-            (
-                gsp_marker,
-                y_fourier,
-                x_fourier,
-                time_fourier,
-                time_fourier_t0,
-                solar_azimuth,
-                solar_elevation,
-                gsp_id_embedding,
-            )
-            + (timeless_x[BatchKey.gsp].unsqueeze(-1),)
-            if include_history
-            else (),
-            dim=2,
+        gsp_query_tuple = (
+            gsp_marker,
+            y_fourier,
+            x_fourier,
+            time_fourier,
+            time_fourier_t0,
+            solar_azimuth,
+            solar_elevation,
+            gsp_id_embedding,
         )
+        if include_history:
+            gsp_query_tuple += (timeless_x[BatchKey.gsp].unsqueeze(-1),)
+
+        gsp_query = torch.concat(gsp_query_tuple, dim=2)
 
         return gsp_query
 
