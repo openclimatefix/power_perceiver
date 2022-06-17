@@ -156,7 +156,7 @@ class RawGSPDataSource(
         example: NumpyBatch = {}
 
         example[BatchKey.gsp] = xr_data.values
-        example[BatchKey.gsp_t0_idx] = xr_data.attrs["gsp_t0_idx"]
+        example[BatchKey.gsp_t0_idx] = xr_data.attrs["t0_idx"]
         example[BatchKey.gsp_id] = xr_data.gsp_id.values
         example[BatchKey.gsp_capacity_mwp] = xr_data.isel(time_utc=0)["capacity_mwp"].values
 

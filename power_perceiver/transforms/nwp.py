@@ -20,6 +20,9 @@ class NWPInterpolate:
     kind: str = "cubic"
 
     def __call__(self, xr_data: Union[xr.Dataset, xr.DataArray]) -> Union[xr.Dataset, xr.DataArray]:
-        xr_data = xr_data.resample(target_time_utc=self.freq).interpolate(kind=self.kind)
-        xr_data = set_new_sample_period_and_t0_idx_attrs(xr_data, new_sample_period=self.freq)
-        return xr_data
+        resampled = xr_data.resample(target_time_utc=self.freq).interpolate(kind=self.kind)
+        # Resampling removes the attributes, so put them back:
+        for attr_name in ("t0_idx", "sample_period_duration"):
+            resampled.attrs[attr_name] = xr_data.attrs[attr_name]
+        resampled = set_new_sample_period_and_t0_idx_attrs(resampled, new_sample_period=self.freq)
+        return resampled
