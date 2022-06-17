@@ -15,7 +15,6 @@ import einops
 
 # ML imports
 import matplotlib.pyplot as plt
-import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -54,7 +53,6 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVDownsample
-from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
 
 logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
@@ -68,6 +66,7 @@ NUM_HIST_SAT_IMAGES = 12  # v15 pre-prepared batches use 7
 NUM_FUTURE_SAT_IMAGES = 25  # v15 pre-prepared batches use 24
 USE_TOPOGRAPHY = True
 USE_SUN_POSITION = True
+USE_SATELLITE = False
 
 SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS = 256
 SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS = 128
@@ -113,24 +112,25 @@ def get_dataloader(
         end_date=end_date,
     )
 
-    sat_data_source = RawSatelliteDataSource(
-        zarr_path=(
-            (
-                "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-                "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
-            )
-            if ON_DONATELLO
-            else (
-                "gs://solar-pv-nowcasting-data/"
-                "satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
-            )
-        ),
-        roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
-        roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
-        history_duration=datetime.timedelta(hours=1),
-        forecast_duration=datetime.timedelta(hours=2),
-        **data_source_kwargs,
-    )
+    if USE_SATELLITE:
+        sat_data_source = RawSatelliteDataSource(
+            zarr_path=(
+                (
+                    "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+                    "satellite/EUMETSAT/SEVIRI_RSS/zarr/v3/eumetsat_seviri_hrv_uk.zarr"
+                )
+                if ON_DONATELLO
+                else (
+                    "gs://solar-pv-nowcasting-data/"
+                    "satellite/EUMETSAT/SEVIRI_RSS/v3/eumetsat_seviri_hrv_uk.zarr"
+                )
+            ),
+            roi_height_pixels=SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
+            roi_width_pixels=SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
+            history_duration=datetime.timedelta(hours=1),
+            forecast_duration=datetime.timedelta(hours=2),
+            **data_source_kwargs,
+        )
 
     pv_data_source = RawPVDataSource(
         pv_power_filename="~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf",
@@ -174,19 +174,25 @@ def get_dataloader(
 
     np_batch_processors = [EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
-        for satellite_or_gsp in ["satellite", "gsp"]:
-            np_batch_processors.append(SunPosition(satellite_or_gsp=satellite_or_gsp))
-    if USE_TOPOGRAPHY:
+        np_batch_processors.append(SunPosition(satellite_or_gsp="gsp"))
+        if USE_SATELLITE:
+            np_batch_processors.append(SunPosition(satellite_or_gsp="satellite"))
+    if USE_SATELLITE and USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 
-    # Delete imagery of the future, because we're not training the U-Net,
-    # and we want to save GPU RAM.
-    # But we do want hrvsatellite_time_utc to continue into the future by 2 hours because
-    # downstream code relies on hrvsatellite_time_utc.
-    # This must come last.
-    np_batch_processors.append(
-        DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
-    )
+    if USE_SATELLITE:
+        # Delete imagery of the future, because we're not training the U-Net,
+        # and we want to save GPU RAM.
+        # But we do want hrvsatellite_time_utc to continue into the future by 2 hours because
+        # downstream code relies on hrvsatellite_time_utc.
+        # This must come last.
+        np_batch_processors.append(
+            DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
+        )
+
+    gsp_pv_nwp_maybe_sat = (gsp_data_source, pv_data_source, nwp_data_source)
+    if USE_SATELLITE:
+        gsp_pv_nwp_maybe_sat = gsp_pv_nwp_maybe_sat + (sat_data_source,)
 
     raw_dataset_kwargs = dict(
         n_examples_per_batch=32,
@@ -197,7 +203,7 @@ def get_dataloader(
             hours=48 if DEBUG else ((12 * 32) if ON_DONATELLO else (12 * 24))
         ),
         data_source_combos=dict(
-            gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
+            gsp_pv_nwp_maybe_sat=gsp_pv_nwp_maybe_sat,
         ),
         t0_freq="30T",
     )
@@ -565,22 +571,23 @@ class FullModel(pl.LightningModule):
             _log.warning("CHEATING MODE ENABLED! Using real satellite imagery of future!")
 
         # Predict future satellite images:
-        self.satellite_predictor = SatellitePredictor()
+        if USE_SATELLITE:
+            self.satellite_predictor = SatellitePredictor()
 
-        # Load SatellitePredictor weights
-        self.satellite_predictor.load_state_dict(
-            torch.load(
-                (
-                    "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
-                    "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
-                )
-                if ON_DONATELLO
-                else (
-                    "/home/jack/model_params/satellite_predictor/"
-                    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+            # Load SatellitePredictor weights
+            self.satellite_predictor.load_state_dict(
+                torch.load(
+                    (
+                        "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
+                        "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                    )
+                    if ON_DONATELLO
+                    else (
+                        "/home/jack/model_params/satellite_predictor/"
+                        "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                    )
                 )
             )
-        )
 
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
@@ -609,7 +616,9 @@ class FullModel(pl.LightningModule):
         # Do this at the end of __post_init__ to capture model topology to wandb:
         self.save_hyperparameters()
 
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def _predict_and_crop_satellite(
+        self, x: dict[BatchKey, torch.Tensor]
+    ) -> tuple[torch.Tensor, dict[torch.Tensor]]:
         # Predict future satellite images. The SatellitePredictor always gets every timestep.
         if self.cheat:
             predicted_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
@@ -617,53 +626,15 @@ class FullModel(pl.LightningModule):
             predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
         hrvsatellite = torch.concat(
-            (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
+            (
+                x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0],
+                # Detach because it looks like it hurts performance to let the gradients go
+                # backwards from here
+                predicted_sat.detach(),
+            ),
+            dim=1,
         )
         assert hrvsatellite.isfinite().all()
-
-        # Select a subset of 5-minute timesteps during training:
-        if self.num_5_min_history_timesteps_during_training and self.training:
-            random_history_timestep_indexes = random_int_without_replacement(
-                start=0,
-                stop=NUM_HIST_SAT_IMAGES,
-                num=self.num_5_min_history_timesteps_during_training,
-            )
-            random_forecast_timestep_indexes = random_int_without_replacement(
-                start=NUM_HIST_SAT_IMAGES,
-                stop=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
-                num=self.num_5_min_forecast_timesteps_during_training,
-            )
-            random_timestep_indexes = np.concatenate(
-                (random_history_timestep_indexes, random_forecast_timestep_indexes)
-            )
-            hrvsatellite = hrvsatellite[:, random_timestep_indexes]
-            for batch_key in (
-                # Don't include BatchKey.hrvsatellite, because we need all timesteps to
-                # compute the loss for the SatellitePredictor!
-                # Don't include BatchKey.hrvsatellite_time_utc because all it's used for
-                # is plotting satellite predictions, and we need all timesteps for that!
-                # Don't subselect pv_time_utc here, because we subselect that in
-                # `plot_probabability_timeseries.plot_pv_power`.
-                # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
-                # satellite_transformer.
-                BatchKey.hrvsatellite_time_utc_fourier,
-                BatchKey.pv,
-                BatchKey.pv_time_utc_fourier,
-                BatchKey.hrvsatellite_solar_azimuth,
-                BatchKey.hrvsatellite_solar_elevation,
-            ):
-                x[batch_key] = x[batch_key][:, random_timestep_indexes]
-            num_5_min_timesteps = (
-                self.num_5_min_history_timesteps_during_training
-                + self.num_5_min_forecast_timesteps_during_training
-            )
-        else:
-            num_5_min_timesteps = NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES
-            random_timestep_indexes = None
-
-        # Detach because it looks like it hurts performance to let the gradients go backwards
-        # from here
-        hrvsatellite = hrvsatellite.detach()
 
         # Crop satellite data:
         # This is necessary because we want to give the "satellite predictor"
@@ -689,6 +660,15 @@ class FullModel(pl.LightningModule):
 
         # Pass through the transformer!
         assert hrvsatellite.isfinite().all()
+        return hrvsatellite, original_x
+
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+        if USE_SATELLITE:
+            hrvsatellite, original_x = self._predict_and_crop_satellite(x)
+        else:
+            hrvsatellite = None
+            original_x = {}
+
         sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
         sat_trans_pv_attn_out = sat_trans_out[
             "pv_attn_out"

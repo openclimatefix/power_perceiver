@@ -206,7 +206,6 @@ class RawNWPDataSource(
             x_osgb=self.x_coarsen,
             boundary="trim",
         ).mean()
-        self._data_on_disk.attrs["t0_idx"] = self.t0_idx
         _log.info("After filtering: " + date_summary_str(self.data_on_disk.init_time_utc))
 
     @property
@@ -231,25 +230,41 @@ class RawNWPDataSource(
     ) -> xr.DataArray:
         """Select a timeslice from `xr_data`.
 
-        For now, we do the "easy" thing and use the same NWP init for each entire example.
-        In the future, if we use long histories, then we should use the most recently
-        initialised NWPs for each timestep of history.
+        The NWP for each example covers a contiguous timespan running from `start_dt` to `end_dt`.
+        The first part of the timeseries [`start_dt`, `t0`] is the 'recent history'.  The second
+        part of the timeseries (`t0`, `end_dt`] is the 'future'. For each timestep in the
+        recent history [`start`, `t0`], get predictions produced by the freshest NWP initialisation
+        to each target_time_utc. For the future (`t0`, `end`], use the NWP initialised most
+        recently to t0.
 
         The returned data does not include an `example` dimension.
         """
         start_dt_ceil = self._get_start_dt_ceil(t0_datetime_utc)
         end_dt_ceil = self._get_end_dt_ceil(t0_datetime_utc)
 
-        xr_data_at_one_init_time = xr_data.sel(init_time_utc=start_dt_ceil, method="pad")
-        most_recent_init_time = xr_data_at_one_init_time.init_time_utc.values
+        target_times = pd.date_range(start_dt_ceil, end_dt_ceil, freq=self.sample_period_duration)
 
-        start_step = start_dt_ceil - most_recent_init_time
-        end_step = end_dt_ceil - most_recent_init_time
+        # Get the most recent NWP initialisation time for each target_time_hourly.
+        init_times = xr_data.sel(init_time_utc=target_times, method="pad").init_time_utc.values
 
-        # Get time slice:
-        time_slice = xr_data_at_one_init_time.sel(step=slice(start_step, end_step))
-        time_slice = time_slice.swap_dims({"step": "target_time_utc"})
-        time_slice["target_time_utc"] = most_recent_init_time + time_slice.step
+        # Find the NWP init time for just the 'future' portion of the example.
+        init_time_t0 = init_times[self.t0_idx]
+
+        # For the 'future' portion of the example, replace all the NWP
+        # init times with the NWP init time most recent to t0.
+        init_times[self.t0_idx :] = init_time_t0
+
+        steps = target_times - init_times
+
+        # We want one timestep for each target_time_hourly (obviously!) If we simply do
+        # nwp.sel(init_time=init_times, step=steps) then we'll get the *product* of
+        # init_times and steps, which is not what # we want! Instead, we use xarray's
+        # vectorized-indexing mode by using a DataArray indexer.  See the last example here:
+        # https://docs.xarray.dev/en/latest/user-guide/indexing.html#more-advanced-indexing
+        coords = {"target_time_utc": target_times}
+        init_time_indexer = xr.DataArray(init_times, coords=coords)
+        step_indexer = xr.DataArray(steps, coords=coords)
+        time_slice = xr_data.sel(step=step_indexer, init_time_utc=init_time_indexer)
 
         self._sanity_check_time_slice(time_slice, "target_time_utc", t0_datetime_utc)
         return time_slice
@@ -257,6 +272,10 @@ class RawNWPDataSource(
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
         xr_data = xr_data - NWP_MEAN
         xr_data = xr_data / NWP_STD
+
+        # Append attributes:
+        xr_data.attrs["t0_idx"] = self.t0_idx
+        xr_data.attrs["sample_period_duration"] = self.sample_period_duration
         return xr_data
 
     def _convert_t0_time_periods_to_periods_to_load(
@@ -286,7 +305,12 @@ class RawNWPDataSource(
 
         example[BatchKey.nwp] = xr_data.values
         example[BatchKey.nwp_t0_idx] = xr_data.attrs["t0_idx"]
-        example[BatchKey.nwp_target_time_utc] = datetime64_to_float(xr_data.target_time_utc.values)
+        target_time = xr_data.target_time_utc.values
+        example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
+
+        # Compute the "step" as a float in the range [0, 1]:
+        forecast_duration = target_time[-1] - target_time[xr_data.attrs["t0_idx"]]
+        example[BatchKey.nwp_step] = np.float32(xr_data.step / forecast_duration)
 
         for batch_key, dataset_key in (
             (BatchKey.nwp_y_osgb, "y_osgb"),

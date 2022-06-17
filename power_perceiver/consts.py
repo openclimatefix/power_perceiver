@@ -62,6 +62,7 @@ class BatchKey(Enum):
     nwp = auto()  # shape: (batch_size, target_time_utc, channel, y_osgb, x_osgb)
     nwp_t0_idx = auto()  # shape: scalar
     nwp_target_time_utc = auto()  # shape: (batch_size, target_time_utc)
+    nwp_step = auto()  # In the range [0, 1]. shape: (batch_size, target_time_utc)
     nwp_y_osgb = auto()  # shape: (batch_size, y_osgb)
     nwp_x_osgb = auto()  # shape: (batch_size,, x_osgb)
 
