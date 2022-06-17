@@ -15,11 +15,7 @@ from power_perceiver.utils import assert_num_dims
 
 @dataclass(eq=False)
 class PVQueryGenerator(nn.Module):
-    """Create a query from the locations of the PV systems.
-
-    This returns n_pv_systems x n_timestep queries per example. In other words, each query
-    is about a single PV system at a single timestep.
-    """
+    """Create a query from the locations of the PV systems."""
 
     # This must be an InitVar because PyTorch does not allow modules to be
     # assigned before super().__init__()
@@ -95,8 +91,6 @@ class PVQueryGenerator(nn.Module):
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         pv_marker = torch.zeros_like(solar_azimuth)
-        
-        import ipdb; ipdb.set_trace()
 
         return torch.concat(
             (
