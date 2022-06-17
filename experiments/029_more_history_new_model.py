@@ -66,6 +66,7 @@ NUM_FUTURE_SAT_IMAGES = 25  # v15 pre-prepared batches use 24
 USE_TOPOGRAPHY = True
 USE_SUN_POSITION = True
 USE_SATELLITE = False
+USE_NWP = False
 
 SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS = 256
 SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS = 128
@@ -152,25 +153,29 @@ def get_dataloader(
         **data_source_kwargs,
     )
 
-    nwp_data_source = RawNWPDataSource(
-        zarr_path=(
-            (
-                "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
-                "NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
-            )
-            if ON_DONATELLO
-            else ("gs://solar-pv-nowcasting-data/NWP/UK_Met_Office/UKV_intermediate_version_3.zarr")
-        ),
-        roi_height_pixels=4,
-        roi_width_pixels=4,
-        y_coarsen=16,
-        x_coarsen=16,
-        channels=["dswrf", "t", "si10", "prate"],
-        history_duration=datetime.timedelta(hours=8),
-        forecast_duration=datetime.timedelta(hours=8),
-        transforms=[NWPInterpolate(freq="30T")],
-        **data_source_kwargs,
-    )
+    if USE_NWP:
+        nwp_data_source = RawNWPDataSource(
+            zarr_path=(
+                (
+                    "/mnt/storage_ssd_4tb/data/ocf/solar_pv_nowcasting/nowcasting_dataset_pipeline/"
+                    "NWP/UK_Met_Office/UKV/zarr/UKV_intermediate_version_3.zarr"
+                )
+                if ON_DONATELLO
+                else (
+                    "gs://solar-pv-nowcasting-data/NWP/UK_Met_Office/"
+                    "UKV_intermediate_version_3.zarr"
+                )
+            ),
+            roi_height_pixels=4,
+            roi_width_pixels=4,
+            y_coarsen=16,
+            x_coarsen=16,
+            channels=["dswrf", "t", "si10", "prate"],
+            history_duration=datetime.timedelta(hours=8),
+            forecast_duration=datetime.timedelta(hours=8),
+            transforms=[NWPInterpolate(freq="30T")],
+            **data_source_kwargs,
+        )
 
     np_batch_processors = [EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
@@ -190,9 +195,11 @@ def get_dataloader(
             DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
         )
 
-    gsp_pv_nwp_maybe_sat = (gsp_data_source, pv_data_source, nwp_data_source)
+    gsp_pv_maybe_nwp_maybe_sat = (gsp_data_source, pv_data_source)
+    if USE_NWP:
+        gsp_pv_maybe_nwp_maybe_sat += (nwp_data_source,)
     if USE_SATELLITE:
-        gsp_pv_nwp_maybe_sat = gsp_pv_nwp_maybe_sat + (sat_data_source,)
+        gsp_pv_maybe_nwp_maybe_sat += (sat_data_source,)
 
     raw_dataset_kwargs = dict(
         n_examples_per_batch=32,
@@ -203,7 +210,7 @@ def get_dataloader(
             hours=48 if DEBUG else ((12 * 32) if ON_DONATELLO else (12 * 24))
         ),
         data_source_combos=dict(
-            gsp_pv_nwp_maybe_sat=gsp_pv_nwp_maybe_sat,
+            gsp_pv_maybe_nwp_maybe_sat=gsp_pv_maybe_nwp_maybe_sat,
         ),
         t0_freq="30T",
     )

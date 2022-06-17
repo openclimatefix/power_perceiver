@@ -60,9 +60,13 @@ class PVPowerRollingWindow:
 
         if self.expect_dataset:
             xr_data["power_w"] = resampled
-            return xr_data
-        else:
-            return resampled
+            resampled = xr_data
+
+        # Resampling removes the attributes, so put them back:
+        for attr_name in ("t0_idx", "sample_period_duration"):
+            resampled.attrs[attr_name] = xr_data.attrs[attr_name]
+
+        return resampled
 
 
 @dataclass
@@ -90,6 +94,10 @@ class PVDownsample:
         if self.expect_dataset:
             xr_data["power_w"] = resampled
             resampled = xr_data
+
+        # Resampling removes the attributes, so put them back:
+        for attr_name in ("t0_idx", "sample_period_duration"):
+            resampled.attrs[attr_name] = xr_data.attrs[attr_name]
 
         # Change the pv_t0_idx and the sample_period_duration attributes:
         resampled = set_new_sample_period_and_t0_idx_attrs(resampled, new_sample_period=self.freq)
