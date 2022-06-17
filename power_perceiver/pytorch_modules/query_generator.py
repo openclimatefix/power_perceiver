@@ -183,6 +183,8 @@ class GSPQueryGenerator(nn.Module):
         )
         if include_history:
             gsp_query_tuple += (timeless_x[BatchKey.gsp].unsqueeze(-1),)
+            
+        import ipdb; ipdb.set_trace()
 
         gsp_query = torch.concat(gsp_query_tuple, dim=2)
 
@@ -198,6 +200,7 @@ def reshape_time_as_batch(
     for batch_key in batch_keys:
         tensor = x[batch_key]
         if set_to_nan_after_t0_idx is not None:
+            tensor = tensor.detach().clone()
             tensor[:, set_to_nan_after_t0_idx + 1 :] = np.NaN
         new_batch[batch_key] = einops.rearrange(tensor, "example time ... -> (example time) ...")
     return new_batch
