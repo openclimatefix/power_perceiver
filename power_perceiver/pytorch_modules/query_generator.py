@@ -183,8 +183,6 @@ class GSPQueryGenerator(nn.Module):
         )
         if include_history:
             gsp_query_tuple += (timeless_x[BatchKey.gsp].unsqueeze(-1),)
-            
-        import ipdb; ipdb.set_trace()
 
         gsp_query = torch.concat(gsp_query_tuple, dim=2)
 

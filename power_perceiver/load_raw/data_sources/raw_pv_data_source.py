@@ -102,6 +102,11 @@ class RawPVDataSource(
             sample_period_duration=self.sample_period_duration,
         )
 
+        # Sanity checks:
+        time_utc = pd.DatetimeIndex(self._data_in_ram.time_utc)
+        assert time_utc.is_monotonic_increasing
+        assert time_utc.is_unique
+
     def get_osgb_location_for_example(self) -> Location:
         """Get a single random geographical location."""
         raise NotImplementedError(
