@@ -103,8 +103,6 @@ class RawDataSource:
             assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
 
     def _set_attributes(self, xr_data: xr.DataArray) -> xr.DataArray:
-        xr_data.attrs["t0_idx"] = self.t0_idx
-        xr_data.attrs["sample_period_duration"] = self.sample_period_duration
         return xr_data
 
     @staticmethod
@@ -343,6 +341,11 @@ class TimeseriesDataSource:
     ) -> pd.Timestamp:
         end_dt = pd.Timestamp(t0_datetime_utc) + np.timedelta64(self.forecast_duration)
         return end_dt.ceil(self.sample_period_duration)
+
+    def _set_attributes(self, xr_data: xr.DataArray) -> xr.DataArray:
+        xr_data.attrs["t0_idx"] = self.t0_idx
+        xr_data.attrs["sample_period_duration"] = self.sample_period_duration
+        return xr_data
 
 
 @dataclass(kw_only=True)

@@ -139,7 +139,7 @@ def get_dataloader(
         roi_width_meters=96_000,
         n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
         transforms=[PVDownsample(freq="30T", expect_dataset=False)],
-        history_duration=datetime.timedelta(hours=8),
+        history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
         **data_source_kwargs,
     )
@@ -148,7 +148,7 @@ def get_dataloader(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        history_duration=datetime.timedelta(hours=8),
+        history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
         **data_source_kwargs,
     )
@@ -171,7 +171,7 @@ def get_dataloader(
             y_coarsen=16,
             x_coarsen=16,
             channels=["dswrf", "t", "si10", "prate"],
-            history_duration=datetime.timedelta(hours=8),
+            history_duration=datetime.timedelta(hours=1),
             forecast_duration=datetime.timedelta(hours=8),
             transforms=[NWPInterpolate(freq="30T")],
             **data_source_kwargs,

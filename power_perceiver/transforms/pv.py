@@ -89,10 +89,7 @@ class PVDownsample:
         else:
             data_to_resample = xr_data
 
-        try:
-            resampled = data_to_resample.resample(time_utc=self.freq, label="right").mean()
-        except:
-            import ipdb; ipdb.set_trace()
+        resampled = data_to_resample.resample(time_utc=self.freq, label="right").mean()
 
         if self.expect_dataset:
             xr_data["power_w"] = resampled
