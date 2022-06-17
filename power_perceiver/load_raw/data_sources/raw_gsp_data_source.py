@@ -83,6 +83,7 @@ class RawGSPDataSource(
             x_osgb=gsp_id_to_shape.geometry.centroid.x.astype(np.float32),
             y_osgb=gsp_id_to_shape.geometry.centroid.y.astype(np.float32),
             capacity_mwp=gsp_pv_power_mw_ds.installedcapacity_mwp.data.astype(np.float32),
+            t0_idx=self.t0_idx,
         )
 
         del gsp_id_to_shape, gsp_pv_power_mw_ds

@@ -664,7 +664,7 @@ if ENABLE_WANDB:
     wandb_logger = WandbLogger(
         name=(
             "029.00: New model. No RNN yet. 8 hr GSP fcst."
-            " num_latent_transformer_encoders=8. donatello."
+            " num_latent_transformer_encoders=8. GCP-1."
         ),
         project="power_perceiver",
         entity="openclimatefix",

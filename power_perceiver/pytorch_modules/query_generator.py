@@ -155,9 +155,7 @@ class GSPQueryGenerator(nn.Module):
         gsp_id = x[BatchKey.gsp_id].squeeze()  # Shape: (example,)
         gsp_id_embedding = self.gsp_id_embedding(torch.nan_to_num(gsp_id, nan=0).int())
 
-        time_fourier = timeless_x[
-            BatchKey.gsp_time_utc_fourier
-        ]  # shape: ((example * time) features)
+        time_fourier = timeless_x[BatchKey.gsp_time_utc_fourier]  # shape: example * time) features
         assert_num_dims(time_fourier, 2)
         time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_t0]  # shape: (example, features)
 
