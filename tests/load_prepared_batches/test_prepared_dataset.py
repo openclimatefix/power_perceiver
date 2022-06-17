@@ -50,7 +50,7 @@ def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
 @pytest.mark.parametrize(
     argnames=["data_loader", "expected_batch_keys"],
     argvalues=[
-        (HRVSatellite(), [BatchKey.hrvsatellite]),
+        (HRVSatellite(), [BatchKey.hrvsatellite_actual]),
         (PV(), [BatchKey.pv, BatchKey.pv_system_row_number]),
     ],
 )
@@ -148,7 +148,14 @@ def test_all_data_loaders_and_all_transforms():
             expected_batch_size = BATCH_SIZE - 1
         _check_pv_batch(np_batch, expected_batch_size=expected_batch_size)
         # shape is (example, time, channel, y, x, patch)
-        assert np_batch[BatchKey.hrvsatellite].shape == (expected_batch_size, 31, 1, 16, 16, 16)
+        assert np_batch[BatchKey.hrvsatellite_actual].shape == (
+            expected_batch_size,
+            31,
+            1,
+            16,
+            16,
+            16,
+        )
         assert np_batch[BatchKey.hrvsatellite_x_osgb].shape == (expected_batch_size, 16, 16)
         assert np_batch[BatchKey.hrvsatellite_y_osgb].shape == (expected_batch_size, 16, 16)
         assert np_batch[BatchKey.hrvsatellite_x_osgb_fourier].shape == (

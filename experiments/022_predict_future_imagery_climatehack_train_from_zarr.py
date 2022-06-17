@@ -174,7 +174,9 @@ class SatellitePredictor(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+        data = x[BatchKey.hrvsatellite_actual][
+            :, :NUM_HIST_SAT_IMAGES, 0
+        ]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
         if self.use_coord_conv:
             osgb_coords = get_osgb_coords_for_coord_conv(x)
@@ -208,7 +210,7 @@ class SatellitePredictor(pl.LightningModule):
         tag = "train" if self.training else "validation"
         network_out = self(batch)
         predicted_sat = network_out["predicted_sat"]
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+        actual_sat = batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0]
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         self.log(f"{tag}/sat_mse", sat_mse_loss)
 

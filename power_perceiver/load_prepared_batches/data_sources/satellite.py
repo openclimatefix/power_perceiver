@@ -110,7 +110,7 @@ class HRVSatellite(PreparedDataSource):
         hrvsatellite = hrvsatellite.astype(np.float32)
         hrvsatellite -= SAT_MEAN["HRV"]
         hrvsatellite /= SAT_STD["HRV"]
-        batch[BatchKey.hrvsatellite] = hrvsatellite.values
+        batch[BatchKey.hrvsatellite_actual] = hrvsatellite.values
 
         # Coordinates
         batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(dataset["time_utc"].values)

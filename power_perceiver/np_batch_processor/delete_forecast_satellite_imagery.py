@@ -19,8 +19,8 @@ class DeleteForecastSatelliteImagery:
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         # Shape: example, time, channels, y, x
-        assert_num_dims(np_batch[BatchKey.hrvsatellite], 5)
-        np_batch[BatchKey.hrvsatellite] = np_batch[BatchKey.hrvsatellite][
+        assert_num_dims(np_batch[BatchKey.hrvsatellite_actual], 5)
+        np_batch[BatchKey.hrvsatellite_actual] = np_batch[BatchKey.hrvsatellite_actual][
             :, : self.num_hist_sat_images
         ]
         return np_batch

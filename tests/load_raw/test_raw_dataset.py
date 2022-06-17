@@ -35,7 +35,7 @@ def test_iter(raw_dataset_str: str, request):
 
     for key, expected_shape in (
         (
-            BatchKey.hrvsatellite,
+            BatchKey.hrvsatellite_actual,
             (
                 N_EXAMPLES_PER_BATCH,
                 SAT_N_EXPECTED_TIMESTEPS,

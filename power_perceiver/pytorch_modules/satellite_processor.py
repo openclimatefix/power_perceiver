@@ -30,6 +30,10 @@ class HRVSatelliteProcessor(nn.Module):
         Returns:
             tensor of shape (example, (y * x), (time * feature)).
         """
+
+        # TODO: Use BatchKey.hrvsatellite_predicted & hrvsatellite
+        # TODO: Crop!
+
         PATCH_SIZE = 4
 
         # Patch the hrvsatellite

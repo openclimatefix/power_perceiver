@@ -171,7 +171,7 @@ class SatelliteTransformer(nn.Module):
             BatchKey.pv_time_utc_fourier,
             BatchKey.hrvsatellite_solar_azimuth,
             BatchKey.hrvsatellite_solar_elevation,
-            BatchKey.hrvsatellite,
+            BatchKey.hrvsatellite_actual,
             BatchKey.hrvsatellite_time_utc_fourier,
         ):
             x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")

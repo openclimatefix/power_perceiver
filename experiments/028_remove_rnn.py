@@ -312,7 +312,9 @@ class SatellitePredictor(pl.LightningModule):
         )
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+        data = x[BatchKey.hrvsatellite_actual][
+            :, :NUM_HIST_SAT_IMAGES, 0
+        ]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
         assert height == SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS, f"{height=}"
         assert width == SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS, f"{width=}"
@@ -344,7 +346,7 @@ class SatellitePredictor(pl.LightningModule):
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
         predicted_sat = self(batch)
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+        actual_sat = batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0]
 
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         self.log(f"{self.tag}/sat_mse", sat_mse_loss)
@@ -609,12 +611,12 @@ class FullModel(pl.LightningModule):
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Predict future satellite images. The SatellitePredictor always gets every timestep.
         if self.cheat:
-            predicted_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
+            predicted_sat = x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0]
         else:
             predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
         hrvsatellite = torch.concat(
-            (x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
+            (x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
         )
         assert hrvsatellite.isfinite().all()
 
@@ -878,7 +880,7 @@ class FullModel(pl.LightningModule):
             "predicted_pv_power": predicted_pv_power,
             "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
             "predicted_sat": network_out["predicted_sat"],  # Shape: example, time, y, x
-            "actual_sat": batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0],
+            "actual_sat": batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0],
             "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
             "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
             "random_timestep_indexes": network_out["random_timestep_indexes"],

@@ -209,7 +209,9 @@ class SatellitePredictor(pl.LightningModule):
         self.save_hyperparameters()
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+        data = x[BatchKey.hrvsatellite_actual][
+            :, :NUM_HIST_SAT_IMAGES, 0
+        ]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
         assert height == IMAGE_SIZE_PIXELS, f"{height=}"
         assert width == IMAGE_SIZE_PIXELS, f"{width=}"
@@ -245,7 +247,7 @@ class SatellitePredictor(pl.LightningModule):
         tag = "train" if self.training else "validation"
         network_out = self(batch)
         predicted_sat = network_out
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+        actual_sat = batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0]
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         self.log(f"{tag}/sat_mse", sat_mse_loss)
 
@@ -373,7 +375,7 @@ class SatelliteTransformer(nn.Module):
             BatchKey.pv_time_utc_fourier,
             BatchKey.hrvsatellite_solar_azimuth,
             BatchKey.hrvsatellite_solar_elevation,
-            BatchKey.hrvsatellite,
+            BatchKey.hrvsatellite_actual,
             BatchKey.hrvsatellite_time_utc_fourier,
         ):
             original_x[batch_key] = x[batch_key]
@@ -494,7 +496,7 @@ class FullModel(pl.LightningModule):
 
             # Replace the "actual" future satellite images with predicted images
             # shape: (batch_size, time, channels, y, x, n_pixels_per_patch)
-            x[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0] = predicted_sat
+            x[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0] = predicted_sat
 
         sat_trans_out = self.satellite_transformer(x)
         pv_attn_out = sat_trans_out["pv_attn_out"]  # Shape: (example time n_pv_systems d_model)

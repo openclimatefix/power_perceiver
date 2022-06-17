@@ -9,7 +9,6 @@ import datetime
 import logging
 import socket
 from dataclasses import dataclass
-from typing import Optional
 
 import einops
 
@@ -47,11 +46,11 @@ from power_perceiver.pytorch_modules.mixture_density_network import (
     MixtureDensityNetwork,
     get_distribution,
 )
-from power_perceiver.pytorch_modules.nwp_processor import NWPProcessor
 from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
+from power_perceiver.transforms.nwp import NWPInterpolate
 from power_perceiver.transforms.pv import PVDownsample
 
 logging.basicConfig()
@@ -80,8 +79,8 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
-ENABLE_WANDB = True
+DEBUG = True
+ENABLE_WANDB = False
 
 if DEBUG:
     GPUS = [0]
@@ -139,7 +138,7 @@ def get_dataloader(
         roi_width_meters=96_000,
         n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
         transforms=[PVDownsample(freq="30T", expect_dataset=False)],
-        history_duration=datetime.timedelta(hours=1),
+        history_duration=datetime.timedelta(hours=8),
         forecast_duration=datetime.timedelta(hours=8),
         **data_source_kwargs,
     )
@@ -148,7 +147,7 @@ def get_dataloader(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        history_duration=datetime.timedelta(hours=1),
+        history_duration=datetime.timedelta(hours=8),
         forecast_duration=datetime.timedelta(hours=8),
         **data_source_kwargs,
     )
@@ -167,8 +166,9 @@ def get_dataloader(
         y_coarsen=16,
         x_coarsen=16,
         channels=["dswrf", "t", "si10", "prate"],
-        history_duration=datetime.timedelta(hours=1),
+        history_duration=datetime.timedelta(hours=8),
         forecast_duration=datetime.timedelta(hours=8),
+        transforms=[NWPInterpolate(freq="30T")],
         **data_source_kwargs,
     )
 
@@ -321,7 +321,9 @@ class SatellitePredictor(pl.LightningModule):
         )
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        data = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]  # Shape: (example, time, y, x)
+        data = x[BatchKey.hrvsatellite_actual][
+            :, :NUM_HIST_SAT_IMAGES, 0
+        ]  # Shape: (example, time, y, x)
         height, width = data.shape[2:]
         assert height == SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS, f"{height=}"
         assert width == SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS, f"{width=}"
@@ -353,7 +355,7 @@ class SatellitePredictor(pl.LightningModule):
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
         predicted_sat = self(batch)
-        actual_sat = batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0]
+        actual_sat = batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0]
 
         sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
         self.log(f"{self.tag}/sat_mse", sat_mse_loss)
@@ -424,20 +426,13 @@ BOTTOM_IDX = TOP_IDX + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
-class SatelliteTransformer(nn.Module):
-    """Infers a single timestep of PV power and GSP power at a time.
+class SingleTimestepTransformer(nn.Module):
+    """Infers power for a single timestep, and a single target at a time."""
 
-    Currently just uses HRV satellite imagery as the input. In the near future it could also
-    use NWP temperature, wind speed & precipitation, and absolute geo position.
-    """
-
-    # Params for Perceiver
-    # byte_array and query will be automatically padded with zeros to get to d_model.
-    # Set d_model to be divisible by `num_heads`.
-    d_model: int = D_MODEL
-    pv_system_id_embedding_dim: int = 8
+    d_model: int = D_MODEL  # `d_model` must be divisible by `num_heads`.
+    pv_system_id_embedding_dim: int = 16
     num_heads: int = N_HEADS
-    dropout: float = 0.0
+    dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 16
 
@@ -469,99 +464,62 @@ class SatelliteTransformer(nn.Module):
             num_latent_transformer_encoders=self.num_latent_transformer_encoders,
         )
 
-        self.power_output = nn.Sequential(
-            nn.Linear(in_features=self.d_model, out_features=self.d_model),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=self.d_model // 2),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model // 2, out_features=1),
-            nn.ReLU(),  # Ensure the output is always positive!
-        )
-
-    def forward(
-        self, x: dict[BatchKey, torch.Tensor], hrvsatellite: torch.Tensor
-    ) -> dict[str, torch.Tensor]:
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
-        # TODO: Fix this `original_x` hack, which is needed to prevent the reshaping affecting
-        # the time_transformer, too!
-        original_x = {}
-        for batch_key in (
-            # BatchKey.gsp_5_min_time_utc_fourier,
-            BatchKey.pv_time_utc_fourier,
-            BatchKey.hrvsatellite_solar_azimuth,
-            BatchKey.hrvsatellite_solar_elevation,
-            BatchKey.hrvsatellite_time_utc_fourier,
-        ):
-            original_x[batch_key] = x[batch_key]
-            x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")
-
-        hrvsatellite = einops.rearrange(hrvsatellite, "example time ... -> (example time) ...")
 
         # Process satellite data and queries:
-        pv_query = self.pv_query_generator(x)
-        gsp_query = self.gsp_query_generator(x, for_satellite_transformer=True)
-        satellite_data = self.hrvsatellite_processor(x, hrvsatellite)
+        pv_context = self.pv_query_generator(x)
+        gsp_context = self.gsp_query_generator(x, include_history=True)
+        gsp_target = self.gsp_query_generator(x, include_history=False)
 
         # Pad with zeros if necessary to get up to self.d_model:
-        pv_query = maybe_pad_with_zeros(pv_query, requested_dim=self.d_model)
-        gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
-        satellite_data = maybe_pad_with_zeros(satellite_data, requested_dim=self.d_model)
+        pv_context = maybe_pad_with_zeros(pv_context, requested_dim=self.d_model)
+        gsp_context = maybe_pad_with_zeros(gsp_context, requested_dim=self.d_model)
+        gsp_target = maybe_pad_with_zeros(gsp_target, requested_dim=self.d_model)
 
         # Prepare inputs for the transformer_encoder:
-        attn_input = torch.concat((pv_query, gsp_query, satellite_data), dim=1)
+        attn_input = (gsp_target, gsp_context, pv_context)
+
+        if USE_SATELLITE:
+            satellite_data = self.hrvsatellite_processor(x)
+            satellite_data = maybe_pad_with_zeros(satellite_data, requested_dim=self.d_model)
+            attn_input += (satellite_data,)
+
+        attn_input = torch.concat(attn_input, dim=1)
 
         # Mask the NaN GSP and PV queries. True or non-zero value indicates value will be ignored.
         mask = attn_input.isnan().any(dim=2)
         attn_input = attn_input.nan_to_num(0)
 
-        # Pass data into transformer_encoder:
+        # Pass data into transformer_encoder. attn_output will be of shape:
+        # (example * time, elements, d_model)
         attn_output = attn_input + self.transformer_encoder(attn_input, src_key_padding_mask=mask)
 
+        # We only take the first element (which is the element for the target sequence)
+        target_output = attn_output[:, 0]  # Shape (example * time, d_model)
+        assert target_output.isfinite().all()
+
         # Reshape to (example time element d_model):
-        attn_output = einops.rearrange(
-            attn_output,
+        target_output = einops.rearrange(
+            target_output,
             "(example time) ... -> example time ...",
             example=num_examples,
             time=num_timesteps,
         )
 
-        assert attn_output.isfinite().all()
-
-        # Select the elements of the output which correspond to the query:
-        gsp_start_idx = pv_query.shape[1]
-        gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
-        pv_attn_out = attn_output[:, :, :gsp_start_idx]
-        gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
-
-        # Power output:
-        pv_power_out = self.power_output(pv_attn_out).squeeze()
-        gsp_power_out = self.power_output(gsp_attn_out).squeeze()
-
-        # Put back the original data! TODO: Remove this hack!
-        x.update(original_x)
-
-        return {
-            "pv_attn_out": pv_attn_out,  # shape: (example, 5_min_time, n_pv_systems, d_model)
-            "gsp_attn_out": gsp_attn_out,  # shape: (example, 5_min_time, 1, d_model)
-            "pv_power_out": pv_power_out,  # shape: (example, 5_min_time, n_pv_systems)
-            "gsp_power_out": gsp_power_out,  # shape: (example, 5_min_time)
-        }
+        return target_output  # shape: example, time, d_model
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
-    d_model: int = D_MODEL + N_HEADS  # + N_HEADS for historical PV appended to attn out.
-    pv_system_id_embedding_dim: int = 16
+    d_model: int = D_MODEL
     num_heads: int = N_HEADS
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
     num_latent_transformer_encoders: int = 8
     cheat: bool = False  #: Use real satellite imagery of the future.
-    #: Compute the loss on a central crop of the imagery.
-    num_5_min_history_timesteps_during_training: Optional[int] = 4
-    num_5_min_forecast_timesteps_during_training: Optional[int] = 6
     num_gaussians: int = 2
 
     def __post_init__(self):
@@ -590,20 +548,18 @@ class FullModel(pl.LightningModule):
             )
 
         # Infer GSP and PV power output for a single timestep of satellite imagery.
-        self.satellite_transformer = SatelliteTransformer()
-
-        self.nwp_processor = NWPProcessor()
+        self.single_timestep_transformer = SingleTimestepTransformer()
 
         # Look across timesteps to produce the final output.
-        self.time_transformer = MultiLayerTransformerEncoder(
-            d_model=self.d_model,
-            num_heads=self.num_heads,
-            dropout=self.dropout,
-            share_weights_across_latent_transformer_layers=(
-                self.share_weights_across_latent_transformer_layers
-            ),
-            num_latent_transformer_encoders=self.num_latent_transformer_encoders,
-        )
+        # self.time_transformer = MultiLayerTransformerEncoder(
+        #     d_model=self.d_model,
+        #     num_heads=self.num_heads,
+        #     dropout=self.dropout,
+        #     share_weights_across_latent_transformer_layers=(
+        #         self.share_weights_across_latent_transformer_layers
+        #     ),
+        #     num_latent_transformer_encoders=self.num_latent_transformer_encoders,
+        # )
 
         self.pv_mixture_density_net = nn.Sequential(
             nn.Linear(in_features=self.d_model, out_features=self.d_model),
@@ -616,152 +572,31 @@ class FullModel(pl.LightningModule):
         # Do this at the end of __post_init__ to capture model topology to wandb:
         self.save_hyperparameters()
 
-    def _predict_and_crop_satellite(
-        self, x: dict[BatchKey, torch.Tensor]
-    ) -> tuple[torch.Tensor, dict[torch.Tensor]]:
+    def _predict_satellite(self, x: dict[BatchKey, torch.Tensor]) -> dict[BatchKey, torch.Tensor]:
         # Predict future satellite images. The SatellitePredictor always gets every timestep.
         if self.cheat:
-            predicted_sat = x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0]
+            predicted = x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0]
         else:
-            predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
+            predicted = self.satellite_predictor(x=x)  # Shape: example, time, y, x
 
-        hrvsatellite = torch.concat(
-            (
-                x[BatchKey.hrvsatellite][:, :NUM_HIST_SAT_IMAGES, 0],
-                # Detach because it looks like it hurts performance to let the gradients go
-                # backwards from here
-                predicted_sat.detach(),
-            ),
-            dim=1,
-        )
-        assert hrvsatellite.isfinite().all()
+        assert predicted.isfinite().all()
+        x[BatchKey.hrvsatellite_predicted] = predicted
+        return x
 
-        # Crop satellite data:
-        # This is necessary because we want to give the "satellite predictor"
-        # a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
-        # coming, but we probably don't want to give that huge image to a full-self-attention model.
-        hrvsatellite = hrvsatellite[..., TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
-        assert hrvsatellite.shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-        assert hrvsatellite.shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-
-        # Crop spatial coordinates:
-        original_x = {}
-        for batch_key in (
-            BatchKey.hrvsatellite_y_osgb_fourier,
-            BatchKey.hrvsatellite_x_osgb_fourier,
-            BatchKey.hrvsatellite_surface_height,
-        ):
-            # Save a backup so we can put the backup back at the end of this function!
-            # This is useful so we can plot the full surface height.
-            original_x[batch_key] = x[batch_key]
-            x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
-            assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-            assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-
-        # Pass through the transformer!
-        assert hrvsatellite.isfinite().all()
-        return hrvsatellite, original_x
-
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
         if USE_SATELLITE:
-            hrvsatellite, original_x = self._predict_and_crop_satellite(x)
-        else:
-            hrvsatellite = None
-            original_x = {}
+            x = self._predict_satellite(x)
 
-        sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
-        sat_trans_pv_attn_out = sat_trans_out[
-            "pv_attn_out"
-        ]  # Shape: (example time n_pv_systems d_model)
-        sat_trans_gsp_attn_out = sat_trans_out["gsp_attn_out"]
-
-        assert sat_trans_pv_attn_out.isfinite().all()
-        assert sat_trans_gsp_attn_out.isfinite().all()
-
-        # Concatenate actual historical PV on each PV attention output,
-        # so the time_transformer doesn't have to put much effort into aligning
-        # historical actual PV with predicted historical PV.
-        # `historical_pv` is a tensor which is zero for future timesteps (because we don't)
-        # want to cheat and give the model the answer!), and contains the actual historical PV.
-        historical_pv = torch.zeros_like(x[BatchKey.pv])  # Shape: (example, time, n_pv_systems)
-        # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
-        # And use nan_to_num later in this function.
-        pv_t0_idx = x[BatchKey.pv_t0_idx]
-        historical_pv[:, : pv_t0_idx + 1] = x[BatchKey.pv][:, : pv_t0_idx + 1]
-        historical_pv = historical_pv.unsqueeze(-1)  # Shape: (example, time, n_pv_systems, 1)
-        # Now append a "marker" to indicate which timesteps are history:
-        hist_pv_marker = torch.zeros_like(historical_pv)
-        hist_pv_marker[:, : pv_t0_idx + 1] = 1
-        sat_trans_pv_attn_out = torch.concat(
-            (sat_trans_pv_attn_out, historical_pv, hist_pv_marker), dim=3
-        )
-
-        # Reshape pv and gsp attention outputs so each timestep and each pv system is
-        # seen as a separate element into the `time transformer`.
-        n_timesteps, n_pv_systems = sat_trans_pv_attn_out.shape[1:3]
-        REARRANGE_STR = "example time n_pv_systems d_model -> example (time n_pv_systems) d_model"
-        sat_trans_pv_attn_out = einops.rearrange(sat_trans_pv_attn_out, REARRANGE_STR)
-        sat_trans_pv_attn_out = maybe_pad_with_zeros(
-            sat_trans_pv_attn_out, requested_dim=self.d_model
-        )
-        sat_trans_gsp_attn_out = einops.rearrange(
-            sat_trans_gsp_attn_out, REARRANGE_STR, n_pv_systems=1
-        )
-        sat_trans_gsp_attn_out = maybe_pad_with_zeros(
-            sat_trans_gsp_attn_out, requested_dim=self.d_model
-        )
-        n_pv_elements = sat_trans_pv_attn_out.shape[1]
-
-        # Get GSP query for the time_transformer:
-        # The query for the time_transformer is just for the half-hourly timesteps
-        # (not the half-hourly timesteps resampled to 5-minutely.)
-        gsp_query_generator = self.satellite_transformer.gsp_query_generator
-        gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
-        gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
-
-        # Prepare NWP inputs
-        nwp_query = self.nwp_processor(x)
-        nwp_query = maybe_pad_with_zeros(nwp_query, requested_dim=self.d_model)
-
-        # Concatenate all the things we're going to feed into the "time transformer":
-        # pv must be the first set of elements.
-        # `gsp_query` must be the last set of elements.
-        time_attn_in = torch.concat(
-            (sat_trans_pv_attn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
-        )
-
-        time_attn_in = time_attn_in.nan_to_num(0)
-        time_attn_out = self.time_transformer(time_attn_in)
+        single_step_trans_out = self.single_timestep_transformer(x=x)
+        # Shape: (example time d_model)
 
         # The MDN doesn't like NaNs:
-        time_attn_out = time_attn_out.nan_to_num(0)
+        single_step_trans_out = single_step_trans_out.nan_to_num(0)
 
         # Reshape the PV power predictions
-        predicted_pv_power = self.pv_mixture_density_net(time_attn_out[:, :n_pv_elements])
-        predicted_pv_power = einops.rearrange(
-            predicted_pv_power,
-            "example (time n_pv_systems) mdn_features -> example time n_pv_systems mdn_features",
-            time=num_5_min_timesteps,
-            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
-            mdn_features=self.num_gaussians * 3,  # x3 for pi, mu, sigma.
-        )
+        mdn_predicted_power = self.pv_mixture_density_net(single_step_trans_out)
 
-        # GSP power. There's just 1 GSP. So each gsp element is a timestep.
-        n_gsp_elements = gsp_query.shape[1]
-        predicted_gsp_power = self.pv_mixture_density_net(time_attn_out[:, -n_gsp_elements:])
-
-        x.update(original_x)
-
-        return dict(
-            predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
-            predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
-            predicted_sat=predicted_sat,  # Shape: example, time, y, x
-            # shape: (example, 5_min_time, n_pv_systems):
-            pv_power_from_sat_transformer=sat_trans_out["pv_power_out"],
-            # shape: (example, 5_min_time):
-            gsp_power_from_sat_transformer=sat_trans_out["gsp_power_out"],
-            random_timestep_indexes=random_timestep_indexes,
-        )
+        return mdn_predicted_power
 
     @property
     def tag(self) -> str:
@@ -776,52 +611,20 @@ class FullModel(pl.LightningModule):
         self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
     ) -> dict[str, object]:
 
-        network_out = self(batch)
+        mdn_predicted_power = self(batch)
 
-        # PV & GSP LOSS ######################
-        predicted_pv_power = network_out["predicted_pv_power"]
-        actual_pv_power = batch[BatchKey.pv]
-        predicted_gsp_power = network_out["predicted_gsp_power"]
+        # GSP LOSS ######################
         actual_gsp_power = batch[BatchKey.gsp].squeeze()
 
         # Mask predicted and actual PV and GSP (some examples don't have PV and/or GSP)
         # For more discussion of how to mask losses in pytorch, see:
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
-        pv_t0_idx = batch[BatchKey.pv_t0_idx]
-        pv_mask = actual_pv_power.isfinite()
-        pv_mask_from_t0 = pv_mask[:, pv_t0_idx + 1 :]
-
         gsp_t0_idx = batch[BatchKey.gsp_t0_idx]
         gsp_mask = actual_gsp_power.isfinite()
         gsp_mask_from_t0 = gsp_mask[:, gsp_t0_idx + 1 :]
 
-        predicted_pv_power_from_t0 = predicted_pv_power[:, pv_t0_idx + 1 :][pv_mask_from_t0]
-        actual_pv_power_from_t0 = actual_pv_power[:, pv_t0_idx + 1 :][pv_mask_from_t0]
-
-        predicted_gsp_power_from_t0 = predicted_gsp_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
+        predicted_gsp_power_from_t0 = mdn_predicted_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
         actual_gsp_power_from_t0 = actual_gsp_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
-
-        # PV negative log prob loss:
-        pv_distribution = get_distribution(predicted_pv_power_from_t0)
-        pv_neg_log_prob_loss = -pv_distribution.log_prob(actual_pv_power_from_t0).mean()
-        self.log(f"{self.tag}/pv_neg_log_prob", pv_neg_log_prob_loss)
-
-        # PV power loss:
-        pv_mse_loss = F.mse_loss(pv_distribution.mean, actual_pv_power_from_t0)
-        self.log(f"{self.tag}/pv_mse", pv_mse_loss)
-
-        pv_nmae_loss = F.l1_loss(pv_distribution.mean, actual_pv_power_from_t0)
-        self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
-
-        # PV loss from satellite transformer:
-        # (don't do this for GSP because GSP data from sat transformer is 5-minutely!)
-        # We include the history as well as the forecast, because the satellite transformer
-        # doesn't see the history, and we want to encourage the satellite transformer to
-        # infer PV yield from historical and future images.
-        pv_from_sat_trans_mse_loss = F.mse_loss(
-            network_out["pv_power_from_sat_transformer"][pv_mask], actual_pv_power[pv_mask]
-        )
-        self.log(f"{self.tag}/pv_from_sat_trans_mse_loss", pv_from_sat_trans_mse_loss)
 
         # GSP negative log prob loss:
         gsp_distribution_masked = get_distribution(predicted_gsp_power_from_t0)
@@ -835,33 +638,12 @@ class FullModel(pl.LightningModule):
         gsp_nmae_loss = F.l1_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
-        # Total PV and GSP loss:
-        total_pv_and_gsp_mse_loss = gsp_mse_loss + pv_mse_loss + pv_from_sat_trans_mse_loss
-        total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss + pv_neg_log_prob_loss
-        self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
-
-        # Total NMAE loss:
-        total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
-        self.log(f"{self.tag}/total_nmae", total_nmae_loss)
-
-        self.log(
-            f"{self.tag}/total_pv_and_gsp_neg_log_prob_loss", total_pv_and_gsp_neg_log_prob_loss
-        )
-
         return {
-            "loss": total_pv_and_gsp_neg_log_prob_loss,
-            "predicted_gsp_power": predicted_gsp_power,
-            "predicted_gsp_power_mean": get_distribution(predicted_gsp_power).mean,
+            "loss": gsp_neg_log_prob_loss,
+            "predicted_gsp_power": mdn_predicted_power,
+            "predicted_gsp_power_mean": get_distribution(mdn_predicted_power).mean,
             "actual_gsp_power": actual_gsp_power,
             "gsp_time_utc": batch[BatchKey.gsp_time_utc],
-            "actual_pv_power": actual_pv_power,
-            "predicted_pv_power": predicted_pv_power,
-            "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
-            "predicted_sat": network_out["predicted_sat"],  # Shape: example, time, y, x
-            "actual_sat": batch[BatchKey.hrvsatellite][:, NUM_HIST_SAT_IMAGES:, 0],
-            "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
-            "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
-            "random_timestep_indexes": network_out["random_timestep_indexes"],
         }
 
     def configure_optimizers(self):
@@ -881,8 +663,8 @@ model = FullModel()
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
         name=(
-            "028.00: No PV RNN. Fix plots. Sun elev & az in GSP query. 8 hr GSP fcst."
-            " num_latent_transformer_encoders=8. GCP-2 with dual GPU."
+            "029.00: New model. No RNN yet. 8 hr GSP fcst."
+            " num_latent_transformer_encoders=8. donatello."
         ),
         project="power_perceiver",
         entity="openclimatefix",

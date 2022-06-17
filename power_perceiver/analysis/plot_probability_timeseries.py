@@ -169,7 +169,7 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                 gsp_datetimes=outputs["gsp_time_utc"].cpu().detach(),
                 example_idx=example_idx,
                 pv_datetimes=pv_datetimes,
-                actual_satellite=batch[BatchKey.hrvsatellite].cpu(),
+                actual_satellite=batch[BatchKey.hrvsatellite_actual].cpu(),
                 surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
                 pv_power_from_sat_transformer=outputs["pv_power_from_sat_transformer"]
                 .cpu()

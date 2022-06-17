@@ -97,7 +97,7 @@ class RawSatelliteDataSource(
         """
         example: NumpyBatch = {}
 
-        example[BatchKey.hrvsatellite] = xr_data.values
+        example[BatchKey.hrvsatellite_actual] = xr_data.values
         example[BatchKey.hrvsatellite_t0_idx] = xr_data.attrs["t0_idx"]
         example[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(xr_data["time_utc"].values)
         for batch_key, dataset_key in (
