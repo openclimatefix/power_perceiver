@@ -158,7 +158,7 @@ class GSPQueryGenerator(nn.Module):
         time_fourier = timeless_x[BatchKey.gsp_time_utc_fourier].unsqueeze(
             1
         )  # shape: example * time) features
-        assert_num_dims(time_fourier, 2)
+        assert_num_dims(time_fourier, 3)
         time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_t0]  # shape: (example, features)
 
         # Repeat y_fourier, x_fourier, and gsp_id_embedding across each timestep:
