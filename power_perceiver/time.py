@@ -226,3 +226,22 @@ def time_periods_to_datetime_index(time_periods: pd.DataFrame, freq: str) -> pd.
         new_dt_index = single_period_to_datetime_index(time_period, freq=freq)
         dt_index = dt_index.union(new_dt_index)
     return dt_index
+
+
+def set_new_sample_period_and_t0_idx_attrs(xr_data, new_sample_period) -> xr.DataArray:
+    orig_sample_period = xr_data.attrs["sample_period_duration"]
+    orig_t0_idx = xr_data.attrs["t0_idx"]
+    new_sample_period = pd.Timedelta(new_sample_period)
+    assert new_sample_period >= orig_sample_period
+    new_t0_idx = orig_t0_idx / (new_sample_period / orig_sample_period)
+    np.testing.assert_almost_equal(
+        int(new_t0_idx),
+        new_t0_idx,
+        err_msg=(
+            "The original t0_idx must be exactly divisible by"
+            " (new_sample_period / orig_sample_period)"
+        ),
+    )
+    xr_data.attrs["sample_period_duration"] = new_sample_period
+    xr_data.attrs["t0_idx"] = int(new_t0_idx)
+    return xr_data

@@ -1,9 +1,10 @@
 from dataclasses import dataclass
 from typing import Optional, Union
 
-import numpy as np
 import pandas as pd
 import xarray as xr
+
+from power_perceiver.time import set_new_sample_period_and_t0_idx_attrs
 
 
 @dataclass
@@ -91,12 +92,5 @@ class PVDownsample:
             resampled = xr_data
 
         # Change the pv_t0_idx and the sample_period_duration attributes:
-        orig_sample_period = xr_data.attrs["sample_period_duration"]
-        orig_t0_idx = xr_data.attrs["t0_idx"]
-        new_sample_period = pd.Timedelta(self.freq)
-        assert new_sample_period >= orig_sample_period
-        new_t0_idx = orig_t0_idx / (new_sample_period / orig_sample_period)
-        np.testing.assert_almost_equal(int(new_t0_idx), new_t0_idx)
-        resampled.attrs["sample_period_duration"] = new_sample_period
-        resampled.attrs["t0_idx"] = int(new_t0_idx)
+        resampled = set_new_sample_period_and_t0_idx_attrs(resampled, new_sample_period=self.freq)
         return resampled
