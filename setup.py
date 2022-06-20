@@ -1,6 +1,7 @@
 from distutils.core import setup
-from setuptools import find_packages
 from pathlib import Path
+
+from setuptools import find_packages
 
 this_directory = Path(__file__).parent
 install_requires = (this_directory / "requirements.txt").read_text().splitlines()
@@ -19,8 +20,10 @@ setup(
     long_description=long_description,
     ong_description_content_type="text/markdown",
     author_email="jack@openclimatefix.org",
-    description=("Machine learning experiments using the Perceiver IO"
-                 " model to forecast the electricity system (starting with solar)"),
+    description=(
+        "Machine learning experiments using the Perceiver IO"
+        " model to forecast the electricity system (starting with solar)"
+    ),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
