@@ -492,7 +492,9 @@ class SatelliteTransformer(nn.Module):
 
         # Process satellite data and queries:
         pv_query = self.pv_query_generator(x)
-        gsp_query = self.gsp_query_generator(x, include_history=True)
+        gsp_query = self.gsp_query_generator(
+            x, include_history=True, base_batch_key=BatchKey.gsp_5_min
+        )
         satellite_data = self.hrvsatellite_processor(x)
 
         # Pad with zeros if necessary to get up to self.d_model:
@@ -790,7 +792,9 @@ class FullModel(pl.LightningModule):
         # The query for the time_transformer is just for the half-hourly timesteps
         # (not the 5-minutely GSP queries used in the `SatelliteTransformer`.)
         gsp_query_generator: GSPQueryGenerator = self.satellite_transformer.gsp_query_generator
-        gsp_query = gsp_query_generator.forward(x, include_history=True)
+        gsp_query = gsp_query_generator.forward(
+            x, include_history=True, base_batch_key=BatchKey.gsp
+        )
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
         # Prepare NWP inputs
