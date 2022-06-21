@@ -182,7 +182,7 @@ def get_dataloader(
         np_batch_processors.append(SunPosition(modality_name="gsp"))
         np_batch_processors.append(SunPosition(modality_name="pv"))
         if USE_SATELLITE:
-            np_batch_processors.append(SunPosition(modality_name="satellite"))
+            np_batch_processors.append(SunPosition(modality_name="hrvsatellite"))
     if USE_SATELLITE and USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
 

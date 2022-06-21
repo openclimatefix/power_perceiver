@@ -50,8 +50,8 @@ class SunPosition:
             x_osgb_centre = np.nanmean(np_batch[BatchKey.pv_x_osgb], axis=1)
             time_utc = np_batch[BatchKey.pv_time_utc]
         else:  # gsp and gsp_5_min:
-            y_osgb_centre = np_batch[BatchKey[self.modality_name + "_y_osgb"]]
-            x_osgb_centre = np_batch[BatchKey[self.modality_name + "_x_osgb"]]
+            y_osgb_centre = np_batch[BatchKey.gsp_y_osgb]
+            x_osgb_centre = np_batch[BatchKey.gsp_x_osgb]
             time_utc = np_batch[BatchKey[self.modality_name + "_time_utc"]]
 
         # Convert to the units that pvlib expects: lat, lon.
