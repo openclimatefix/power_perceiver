@@ -725,8 +725,8 @@ class FullModel(pl.LightningModule):
             # before it is subsampled. See issue #156.
             # Don't include BatchKey.hrvsatellite_time_utc because all it's used for
             # is plotting satellite predictions, and we need all timesteps for that!
-            # Don't subselect pv_time_utc here, because we subselect that in
-            # `plot_probabability_timeseries.plot_pv_power`.
+            # Subselect pv_time_utc here, so `plot_probabability_timeseries.plot_pv_power`
+            # works correctly.
             # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
             # satellite_transformer.
             BatchKey.hrvsatellite_actual,
@@ -734,6 +734,7 @@ class FullModel(pl.LightningModule):
             BatchKey.hrvsatellite_solar_azimuth,
             BatchKey.hrvsatellite_solar_elevation,
             BatchKey.pv,
+            BatchKey.pv_time_utc,
             BatchKey.pv_time_utc_fourier,
             BatchKey.pv_solar_azimuth,
             BatchKey.pv_solar_elevation,
