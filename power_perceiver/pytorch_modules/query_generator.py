@@ -196,7 +196,7 @@ class GSPQueryGenerator(nn.Module):
             gsp_id_embedding,
         )
         if include_history:
-            gsp_query_tuple += (timeless_x[BatchKey.gsp].unsqueeze(-1),)
+            gsp_query_tuple += (timeless_x[base_batch_key].unsqueeze(-1),)
 
         gsp_query = torch.concat(gsp_query_tuple, dim=2)
 

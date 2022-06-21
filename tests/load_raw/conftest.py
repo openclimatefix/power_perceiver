@@ -147,6 +147,7 @@ def gsp_data_source() -> RawGSPDataSource:  # noqa: D103
 @pytest.fixture(scope="session")
 def raw_dataset_with_sat_only(sat_data_source: RawSatelliteDataSource) -> RawDataset:
     return RawDataset(
+        # deepcopy sat_data_source so we don't affect the fixture.
         data_source_combos=dict(sat_only=(deepcopy(sat_data_source),)),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),
         n_batches_per_epoch=16,
@@ -162,6 +163,7 @@ def raw_dataset_with_sat_only_and_gsp_pv_sat(
 ) -> RawDataset:
     return RawDataset(
         data_source_combos=dict(
+            # deepcopy sat_data_source so we don't affect the fixture.
             sat_only=(deepcopy(sat_data_source),),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
