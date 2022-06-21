@@ -39,7 +39,7 @@ class BatchKey(Enum):
     # is the *total* number of pixels,
     # i.e. n_pixels_per_patch_along_height * n_pixels_per_patch_along_width.
     hrvsatellite_actual = auto()
-    hrvsatellite_predicted = auto()
+    hrvsatellite_predicted = auto()  # shape: batch_size, time, y, x
     hrvsatellite_t0_idx = auto()  # shape: scalar
 
     # HRV satellite coordinates:

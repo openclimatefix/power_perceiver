@@ -558,6 +558,8 @@ class FullModel(pl.LightningModule):
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.single_timestep_transformer = SingleTimestepTransformer()
 
+        # TODO: RNN for target. In a separate nn.Module. See experiment 27.
+
         # Look across timesteps to produce the final output.
         # self.time_transformer = MultiLayerTransformerEncoder(
         #     d_model=self.d_model,
@@ -581,7 +583,7 @@ class FullModel(pl.LightningModule):
         self.save_hyperparameters()
 
     def _predict_satellite(self, x: dict[BatchKey, torch.Tensor]) -> dict[BatchKey, torch.Tensor]:
-        # Predict future satellite images. The SatellitePredictor always gets every timestep.
+        """Predict future satellite images. The SatellitePredictor always gets every timestep."""
         if self.cheat:
             predicted = x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0]
         else:
@@ -600,11 +602,7 @@ class FullModel(pl.LightningModule):
 
         # The MDN doesn't like NaNs:
         single_step_trans_out = single_step_trans_out.nan_to_num(0)
-
-        # Reshape the PV power predictions
-        mdn_predicted_power = self.pv_mixture_density_net(single_step_trans_out)
-
-        return mdn_predicted_power
+        return self.pv_mixture_density_net(single_step_trans_out)
 
     @property
     def tag(self) -> str:
