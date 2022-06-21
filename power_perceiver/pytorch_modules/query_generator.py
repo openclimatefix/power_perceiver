@@ -152,17 +152,14 @@ class GSPQueryGenerator(nn.Module):
         if do_reshape_time_as_batch:
             t0_idx_batch_key = _get_batch_key("_t0_idx")
             t0_idx = x[t0_idx_batch_key]
-
-            batch_keys = (
-                base_batch_key,
-                time_utc_fourier_batch_key,
-                solar_az_batch_key,
-                solar_el_batch_key,
-            )
-
             timeless_x = reshape_time_as_batch(
                 x,
-                batch_keys=batch_keys,
+                batch_keys=(
+                    base_batch_key,
+                    time_utc_fourier_batch_key,
+                    solar_az_batch_key,
+                    solar_el_batch_key,
+                ),
                 set_to_nan_after_t0_idx=t0_idx if include_history else None,
             )
 

@@ -858,10 +858,6 @@ class FullModel(pl.LightningModule):
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
             predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
             predicted_sat=x[BatchKey.hrvsatellite_predicted],  # Shape: example, time, y, x
-            # shape: (example, 5_min_time, n_pv_systems):
-            pv_power_from_sat_transformer=sat_trans_out["pv_power_out"],
-            # shape: (example, 5_min_time):
-            gsp_power_from_sat_transformer=sat_trans_out["gsp_power_out"],
         )
 
     @property
