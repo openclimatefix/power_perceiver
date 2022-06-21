@@ -134,7 +134,7 @@ class GSPQueryGenerator(nn.Module):
 
         Returns tensor of shape (example * time, 1, query_dim).
         """
-        n_timesteps = x[BatchKey.gsp].shape[1]
+        n_timesteps = x[base_batch_key].shape[1]
 
         def _get_batch_key(suffix: str) -> BatchKey:
             return BatchKey[base_batch_key.name + suffix]

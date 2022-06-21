@@ -744,7 +744,11 @@ class FullModel(pl.LightningModule):
         ):
             x[batch_key] = x[batch_key][:, random_timestep_indexes]
 
-        for batch_key in (BatchKey.hrvsatellite_t0_idx, BatchKey.pv_t0_idx):
+        for batch_key in (
+            BatchKey.hrvsatellite_t0_idx,
+            BatchKey.pv_t0_idx,
+            BatchKey.gsp_5_min_t0_idx,
+        ):
             x[batch_key] = self.num_5_min_history_timesteps_during_training - 1
 
         return x
