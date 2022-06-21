@@ -30,7 +30,7 @@ def test_iter(raw_dataset_str: str, request):
     raw_dataset: RawDataset = request.getfixturevalue(raw_dataset_str)
     dataset = deepcopy(raw_dataset)
     dataset.per_worker_init(worker_id=1)
-    for np_example in dataset:
+    for np_batch in dataset:
         break
 
     for key, expected_shape in (
@@ -74,7 +74,7 @@ def test_iter(raw_dataset_str: str, request):
             ),
         ),
     ):
-        value = np_example[key]
+        value = np_batch[key]
         assert (
             value.shape == expected_shape
         ), f"{key.name=} has shape {value.shape}, not {expected_shape}"
