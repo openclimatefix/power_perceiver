@@ -299,11 +299,6 @@ class TimeseriesDataSource:
         start_dt_ceil = self._get_start_dt_ceil(t0_datetime_utc)
         end_dt_ceil = self._get_end_dt_ceil(t0_datetime_utc)
 
-        if start_dt_ceil not in xr_data.time_utc:
-            import ipdb
-
-            ipdb.set_trace()
-
         # Sanity check!
         assert (
             start_dt_ceil in xr_data.time_utc
