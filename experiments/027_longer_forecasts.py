@@ -432,15 +432,16 @@ def _crop_satellite_and_spatial_coords(
 
     def _check_shape(batch_key):
         error_msg = f"{batch_key.name}.shape = {x[batch_key].shape}"
-        assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
-        assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
+        assert x[batch_key].shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
+        assert x[batch_key].shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
 
     # Crop the predicted and actual imagery:
     for batch_key in (BatchKey.hrvsatellite_actual, BatchKey.hrvsatellite_predicted):
         x[batch_key] = x[batch_key][..., TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
         _check_shape(batch_key)
 
-    # Crop the coords:
+    # Crop the coords (which have to be done in a separate loop, because `y` and `x`
+    # are at different positions):
     for batch_key in (
         BatchKey.hrvsatellite_y_osgb_fourier,
         BatchKey.hrvsatellite_x_osgb_fourier,
