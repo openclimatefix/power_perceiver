@@ -55,6 +55,7 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
+from power_perceiver.utils import assert_num_dims
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
 
 logging.basicConfig()
@@ -426,16 +427,27 @@ def _crop_satellite_and_spatial_coords(
     a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
     coming, but we probably don't want to give that huge image to a full-self-attention model.
     """
+    assert_num_dims(x[BatchKey.hrvsatellite_actual], num_expected_dims=5)
+    assert_num_dims(x[BatchKey.hrvsatellite_predicted], num_expected_dims=4)
+
+    def _check_shape(batch_key):
+        error_msg = f"{batch_key.name}.shape = {x[batch_key].shape}"
+        assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
+        assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
+
+    # Crop the predicted and actual imagery:
+    for batch_key in (BatchKey.hrvsatellite_actual, BatchKey.hrvsatellite_predicted):
+        x[batch_key] = x[batch_key][..., TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
+        _check_shape(batch_key)
+
+    # Crop the coords:
     for batch_key in (
-        BatchKey.hrvsatellite_actual,
-        BatchKey.hrvsatellite_predicted,
         BatchKey.hrvsatellite_y_osgb_fourier,
         BatchKey.hrvsatellite_x_osgb_fourier,
         BatchKey.hrvsatellite_surface_height,
     ):
         x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
-        assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-        assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
+        _check_shape(batch_key)
     return x
 
 
