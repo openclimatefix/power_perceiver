@@ -945,8 +945,6 @@ class FullModel(pl.LightningModule):
             "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
             "predicted_sat": network_out["predicted_sat"],  # Shape: example, time, y, x
             "actual_sat": batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0],
-            "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
-            "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
         }
 
     def configure_optimizers(self):

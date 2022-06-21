@@ -134,11 +134,17 @@ class GSPQueryGenerator(nn.Module):
         Args:
             x: The batch. Requires BatchKeys: gsp, gsp_y_osgb_fourier, gsp_x_osgb_fourier,
                 gsp_id, gsp_time_utc_fourier, solar_azimuth, gsp_t0_idx
+            include_history: Whether or not to include GSP history up until t0_idx.
             base_batch_key: Either BatchKey.gsp or BatchKey.gsp_5_min.
+            do_reshape_time_as_batch: If True, then reshape so each timestep is seen
+                as a separate example.
 
         Returns tensor of shape (example * time, 1, query_dim) if do_reshape_time_as_batch,
-        else (example, time, query_dim).
+            else (example, time, query_dim).
         """
+        # The strategy is to get each tensor into the shape (example * time, 1, query_dim)
+        # if `do_reshape_time_as_batch` else into the shape (example, time, query_dim).
+
         n_timesteps = x[base_batch_key].shape[1]
 
         def _get_batch_key(suffix: str) -> BatchKey:
