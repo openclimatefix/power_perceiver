@@ -176,7 +176,7 @@ def get_dataloader(
 
     np_batch_processors = [AlignGSPTo5Min(), EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
-        for satellite_or_gsp in ["satellite", "gsp", "pv"]:
+        for satellite_or_gsp in ["satellite", "gsp", "gsp_5_min", "pv"]:
             np_batch_processors.append(SunPosition(modality_name=satellite_or_gsp))
     if USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
