@@ -23,6 +23,7 @@ from power_perceiver.consts import T0_IDX_30_MIN, BatchKey
 from power_perceiver.load_prepared_batches.data_sources import GSP, PV, HRVSatellite, Sun
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime, Topography
+from power_perceiver.np_batch_processor.align_gsp_to_5_min import GSP5Min
 from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
@@ -34,7 +35,6 @@ from power_perceiver.xr_batch_processor import (
     ReduceNumTimesteps,
     SelectPVSystemsNearCenterOfImage,
 )
-from power_perceiver.xr_batch_processor.align_gsp_to_5_min import GSP5Min
 
 plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"

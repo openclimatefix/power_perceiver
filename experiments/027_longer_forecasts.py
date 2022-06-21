@@ -37,6 +37,7 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSo
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
 from power_perceiver.load_raw.raw_dataset import RawDataset
+from power_perceiver.np_batch_processor.align_gsp_to_5_min import AlignGSPTo5Min
 from power_perceiver.np_batch_processor.delete_forecast_satellite_imagery import (
     DeleteForecastSatelliteImagery,
 )
@@ -172,7 +173,7 @@ def get_dataloader(
         forecast_duration=datetime.timedelta(hours=8),
     )
 
-    np_batch_processors = [EncodeSpaceTime(), SaveT0Time()]
+    np_batch_processors = [AlignGSPTo5Min(), EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
         for satellite_or_gsp in ["satellite", "gsp", "pv"]:
             np_batch_processors.append(SunPosition(modality_name=satellite_or_gsp))
@@ -491,7 +492,7 @@ class SatelliteTransformer(nn.Module):
 
         # Process satellite data and queries:
         pv_query = self.pv_query_generator(x)
-        gsp_query = self.gsp_query_generator(x, for_satellite_transformer=True)
+        gsp_query = self.gsp_query_generator(x, include_history=True)
         satellite_data = self.hrvsatellite_processor(x)
 
         # Pad with zeros if necessary to get up to self.d_model:
@@ -734,6 +735,10 @@ class FullModel(pl.LightningModule):
             BatchKey.pv_time_utc_fourier,
             BatchKey.pv_solar_azimuth,
             BatchKey.pv_solar_elevation,
+            BatchKey.gsp_5_min,
+            BatchKey.gsp_5_min_time_utc_fourier,
+            BatchKey.gsp_5_min_solar_azimuth,
+            BatchKey.gsp_5_min_solar_elevation,
         ):
             x[batch_key] = x[batch_key][:, random_timestep_indexes]
 
@@ -784,8 +789,8 @@ class FullModel(pl.LightningModule):
         # Get GSP query for the time_transformer:
         # The query for the time_transformer is just for the half-hourly timesteps
         # (not the 5-minutely GSP queries used in the `SatelliteTransformer`.)
-        gsp_query_generator = self.satellite_transformer.gsp_query_generator
-        gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
+        gsp_query_generator: GSPQueryGenerator = self.satellite_transformer.gsp_query_generator
+        gsp_query = gsp_query_generator.forward(x, include_history=True)
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
         # Prepare NWP inputs
@@ -937,7 +942,7 @@ model = FullModel()
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
         name=(
-            "027.02: Use updated code. 8 hr GSP fcst."
+            "027.02: Use updated code. Include history in all queries. 8 hr GSP fcst."
             " num_latent_transformer_encoders=8. GCP-1 with dual GPU."
         ),
         project="power_perceiver",

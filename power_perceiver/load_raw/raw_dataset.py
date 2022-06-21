@@ -21,7 +21,11 @@ from power_perceiver.time import (
     intersection_of_multiple_dataframes_of_periods,
     time_periods_to_datetime_index,
 )
-from power_perceiver.utils import sample_row_and_drop_row_from_df, set_fsspec_for_multiprocess
+from power_perceiver.utils import (
+    sample_row_and_drop_row_from_df,
+    set_fsspec_for_multiprocess,
+    stack_np_examples_into_batch,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -200,16 +204,7 @@ class RawDataset(torch.utils.data.IterableDataset):
 
     def _get_np_batch(self) -> NumpyBatch:
         np_examples = [self._get_np_example() for _ in range(self.n_examples_per_batch)]
-        np_batch: NumpyBatch = {}
-        batch_keys = np_examples[0]  # Batch keys should be the same across all examples.
-        for batch_key in batch_keys:
-            if batch_key.name.endswith("t0_idx"):
-                # The t0_idx is always the same for all examples. So keep it as a scalar:
-                np_batch[batch_key] = np_examples[0][batch_key]
-            else:
-                # All batch keys except *_t0_idx:
-                examples_for_key = [np_example[batch_key] for np_example in np_examples]
-                np_batch[batch_key] = np.stack(examples_for_key)
+        np_batch = stack_np_examples_into_batch(np_examples)
         return self._process_np_batch(np_batch)
 
     def _get_np_example(self) -> NumpyBatch:

@@ -126,6 +126,7 @@ class BatchKey(Enum):
     gsp_5_min = auto()  # shape: (batch_size, time)
     gsp_5_min_time_utc = auto()  # shape: (batch_size, time)
     gsp_5_min_time_utc_fourier = auto()  # shape: (batch_size, time, n_fourier_features)
+    gsp_5_min_t0_idx = auto()
 
     # -------------- SUN --------------------------------------------
     # Solar position at every timestep. shape = (batch_size, n_timesteps)
@@ -135,6 +136,8 @@ class BatchKey(Enum):
     hrvsatellite_solar_elevation = auto()
     gsp_solar_azimuth = auto()
     gsp_solar_elevation = auto()
+    gsp_5_min_solar_azimuth = auto()
+    gsp_5_min_solar_elevation = auto()
     pv_solar_azimuth = auto()
     pv_solar_elevation = auto()
 

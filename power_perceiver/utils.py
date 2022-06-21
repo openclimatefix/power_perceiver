@@ -1,10 +1,12 @@
 from pathlib import Path
-from typing import Union
+from typing import Sequence, Union
 
 import fsspec.asyn
 import numpy as np
 import pandas as pd
 from pathy import Pathy
+
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 
 
 def datetime64_to_float(datetimes: np.ndarray, dtype=np.float64) -> np.ndarray:
@@ -83,3 +85,17 @@ def set_fsspec_for_multiprocess() -> None:
     fsspec.asyn.iothread[0] = None
     fsspec.asyn.loop[0] = None
     fsspec.asyn._lock = None
+
+
+def stack_np_examples_into_batch(np_examples: Sequence[NumpyBatch]) -> NumpyBatch:
+    np_batch: NumpyBatch = {}
+    batch_keys = np_examples[0]  # Batch keys should be the same across all examples.
+    for batch_key in batch_keys:
+        if batch_key.name.endswith("t0_idx"):
+            # The t0_idx is always the same for all examples. So keep it as a scalar:
+            np_batch[batch_key] = np_examples[0][batch_key]
+        else:
+            # All batch keys except *_t0_idx:
+            examples_for_key = [np_example[batch_key] for np_example in np_examples]
+            np_batch[batch_key] = np.stack(examples_for_key)
+    return np_batch
