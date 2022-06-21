@@ -170,29 +170,36 @@ class GSPQueryGenerator(nn.Module):
         y_fourier = x[BatchKey.gsp_y_osgb_fourier]
         x_fourier = x[BatchKey.gsp_x_osgb_fourier]
 
+        # shape of time_fourier_t0: (example, 1, features)
+        time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_t0].unsqueeze(1)
+
         gsp_id = x[BatchKey.gsp_id].squeeze()  # Shape: (example,)
-        gsp_id_embedding = self.gsp_id_embedding(torch.nan_to_num(gsp_id, nan=0).int())
+        gsp_id_embedding = self.gsp_id_embedding(torch.nan_to_num(gsp_id, nan=0).int()).unsqueeze(1)
+        # gsp_id_embedding is now shape (example, 1, dim)
 
         if do_reshape_time_as_batch:
             time_fourier = timeless_x[time_utc_fourier_batch_key].unsqueeze(1)
             solar_azimuth = timeless_x[solar_az_batch_key].unsqueeze(-1).unsqueeze(-1)
             solar_elevation = timeless_x[solar_el_batch_key].unsqueeze(-1).unsqueeze(-1)
+
+            # Repeat y_fourier, x_fourier, and gsp_id_embedding across each timestep:
+            y_fourier = y_fourier.repeat_interleave(repeats=n_timesteps, dim=0)
+            x_fourier = x_fourier.repeat_interleave(repeats=n_timesteps, dim=0)
+            gsp_id_embedding = gsp_id_embedding.repeat_interleave(repeats=n_timesteps, dim=0)
+            time_fourier_t0 = time_fourier_t0.repeat_interleave(repeats=n_timesteps, dim=0)
         else:
             time_fourier = x[time_utc_fourier_batch_key]
             solar_azimuth = x[solar_az_batch_key].unsqueeze(-1)
             solar_elevation = x[solar_el_batch_key].unsqueeze(-1)
 
+            # Repeat y_fourier, x_fourier, and gsp_id_embedding across each timestep:
+            y_fourier = y_fourier.expand(-1, n_timesteps)
+            x_fourier = x_fourier.expand(-1, n_timesteps)
+            gsp_id_embedding = gsp_id_embedding.expand(-1, n_timesteps)
+            time_fourier_t0 = time_fourier_t0.expand(-1, n_timesteps)
+
         # shape of time_fourier is now: (example * time) 1 features
         assert_num_dims(time_fourier, 3)
-        time_fourier_t0 = x[BatchKey.gsp_time_utc_fourier_t0]  # shape: (example, features)
-
-        # Repeat y_fourier, x_fourier, and gsp_id_embedding across each timestep:
-        y_fourier = y_fourier.repeat_interleave(repeats=n_timesteps, dim=0)
-        x_fourier = x_fourier.repeat_interleave(repeats=n_timesteps, dim=0)
-        gsp_id_embedding = gsp_id_embedding.repeat_interleave(repeats=n_timesteps, dim=0).unsqueeze(
-            1
-        )
-        time_fourier_t0 = time_fourier_t0.repeat_interleave(repeats=n_timesteps, dim=0).unsqueeze(1)
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         gsp_marker = torch.ones_like(solar_azimuth)
@@ -208,7 +215,11 @@ class GSPQueryGenerator(nn.Module):
             gsp_id_embedding,
         )
         if include_history:
-            gsp_query_tuple += (timeless_x[base_batch_key].unsqueeze(-1),)
+            if do_reshape_time_as_batch:
+                history = timeless_x[base_batch_key].unsqueeze(-1)
+            else:
+                history = x[base_batch_key]
+            gsp_query_tuple += (history,)
 
         gsp_query = torch.concat(gsp_query_tuple, dim=2)
 
