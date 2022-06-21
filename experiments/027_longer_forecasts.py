@@ -733,8 +733,11 @@ class FullModel(pl.LightningModule):
         random_timestep_indexes = np.concatenate(
             (random_history_timestep_indexes, random_forecast_timestep_indexes)
         )
+        x[BatchKey.hrvsatellite_actual] = x[BatchKey.hrvsatellite_actual][
+            :, random_history_timestep_indexes
+        ]
         x[BatchKey.hrvsatellite_predicted] = x[BatchKey.hrvsatellite_predicted][
-            :, random_forecast_timestep_indexes
+            :, random_forecast_timestep_indexes - NUM_HIST_SAT_IMAGES
         ]
         for batch_key in (
             # If we go back to training the u-net, then we'll have to save `hrvsatellite`
@@ -745,7 +748,6 @@ class FullModel(pl.LightningModule):
             # works correctly.
             # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
             # satellite_transformer.
-            BatchKey.hrvsatellite_actual,
             BatchKey.hrvsatellite_time_utc_fourier,
             BatchKey.hrvsatellite_solar_azimuth,
             BatchKey.hrvsatellite_solar_elevation,
