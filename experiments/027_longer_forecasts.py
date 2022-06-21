@@ -553,13 +553,13 @@ class PVRNN(nn.Module):
             # Each timestep of the encoder RNN receives the output of the satellite_transformer
             # (which is of size d_model per PV system and per timestep), for a single PV system,
             # plus one timestep of that PV system's history.
-            input_size=self.d_model + 1,
+            input_size=self.hidden_size + 1,
             **rnn_kwargs,
         )
         self.pv_rnn_future_decoder = nn.RNN(
             # Each timestep of the decoder RNN receives the output of the satellite_transformer
             # (which is of size d_model per PV system and per timestep) for a single PV system.
-            input_size=self.d_model,
+            input_size=self.hidden_size,
             **rnn_kwargs,
         )
 
@@ -931,7 +931,6 @@ class FullModel(pl.LightningModule):
             "actual_sat": batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0],
             "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
             "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
-            "random_timestep_indexes": network_out["random_timestep_indexes"],
         }
 
     def configure_optimizers(self):
