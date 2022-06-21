@@ -123,7 +123,11 @@ class GSPQueryGenerator(nn.Module):
         self.gsp_id_embedding = gsp_id_embedding
 
     def forward(
-        self, x: dict[BatchKey, torch.Tensor], include_history: bool, base_batch_key: BatchKey
+        self,
+        x: dict[BatchKey, torch.Tensor],
+        include_history: bool,
+        base_batch_key: BatchKey,
+        do_reshape_time_as_batch: bool,
     ) -> torch.Tensor:
         """Create query for GSP PV forecasts.
 
@@ -132,7 +136,8 @@ class GSPQueryGenerator(nn.Module):
                 gsp_id, gsp_time_utc_fourier, solar_azimuth, gsp_t0_idx
             base_batch_key: Either BatchKey.gsp or BatchKey.gsp_5_min.
 
-        Returns tensor of shape (example * time, 1, query_dim).
+        Returns tensor of shape (example * time, 1, query_dim) if do_reshape_time_as_batch,
+        else (example, time, query_dim).
         """
         n_timesteps = x[base_batch_key].shape[1]
 
@@ -143,21 +148,25 @@ class GSPQueryGenerator(nn.Module):
         time_utc_fourier_batch_key = _get_batch_key("_time_utc_fourier")
         solar_az_batch_key = _get_batch_key("_solar_azimuth")
         solar_el_batch_key = _get_batch_key("_solar_elevation")
-        t0_idx_batch_key = _get_batch_key("_t0_idx")
-        t0_idx = x[t0_idx_batch_key]
 
-        batch_keys = (
-            base_batch_key,
-            time_utc_fourier_batch_key,
-            solar_az_batch_key,
-            solar_el_batch_key,
-        )
+        if do_reshape_time_as_batch:
+            t0_idx_batch_key = _get_batch_key("_t0_idx")
+            t0_idx = x[t0_idx_batch_key]
 
-        timeless_x = reshape_time_as_batch(
-            x,
-            batch_keys=batch_keys,
-            set_to_nan_after_t0_idx=t0_idx if include_history else None,
-        )
+            batch_keys = (
+                base_batch_key,
+                time_utc_fourier_batch_key,
+                solar_az_batch_key,
+                solar_el_batch_key,
+            )
+
+            timeless_x = reshape_time_as_batch(
+                x,
+                batch_keys=batch_keys,
+                set_to_nan_after_t0_idx=t0_idx if include_history else None,
+            )
+        else:
+            timeless_x = x
 
         # gsp_{y,x}_osgb_fourier starts as shape (example, 1, fourier_features).
         y_fourier = x[BatchKey.gsp_y_osgb_fourier]

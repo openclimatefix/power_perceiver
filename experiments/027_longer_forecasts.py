@@ -506,7 +506,10 @@ class SatelliteTransformer(nn.Module):
         # Process satellite data and queries:
         pv_query = self.pv_query_generator(x)
         gsp_query = self.gsp_query_generator(
-            x, include_history=True, base_batch_key=BatchKey.gsp_5_min
+            x,
+            include_history=True,
+            base_batch_key=BatchKey.gsp_5_min,
+            do_reshape_time_as_batch=True,
         )
         satellite_data = self.hrvsatellite_processor(x)
 
@@ -811,7 +814,10 @@ class FullModel(pl.LightningModule):
         # (not the 5-minutely GSP queries used in the `SatelliteTransformer`.)
         gsp_query_generator: GSPQueryGenerator = self.satellite_transformer.gsp_query_generator
         gsp_query = gsp_query_generator.forward(
-            x, include_history=True, base_batch_key=BatchKey.gsp
+            x,
+            include_history=True,
+            base_batch_key=BatchKey.gsp,
+            do_reshape_time_as_batch=False,
         )
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
@@ -822,6 +828,7 @@ class FullModel(pl.LightningModule):
         # Concatenate all the things we're going to feed into the "time transformer":
         # `pv_rnn_out` must be the first set of elements.
         # `gsp_query` must be the last set of elements.
+        # The shape is (example, query_elements, d_model).
         time_attn_in = torch.concat(
             (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
         )
