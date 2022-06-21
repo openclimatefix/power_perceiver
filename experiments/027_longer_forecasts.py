@@ -624,7 +624,7 @@ class PVRNN(nn.Module):
             pv_rnn_out,
             "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
             n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
-            d_model=self.d_model,
+            d_model=self.hidden_size,
             time=num_pv_timesteps,
         )
         return pv_rnn_out

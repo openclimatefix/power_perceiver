@@ -257,17 +257,12 @@ class RawDataset(torch.utils.data.IterableDataset):
         chosen_data_source_combo = self.data_source_combos[chosen_combo_name]
         xr_example: XarrayBatch = {}
         for data_source in self._unique_data_sources:
-            if any([data_source is ds for ds in chosen_data_source_combo]):
+            if data_source in chosen_data_source_combo:
                 xr_example[data_source.__class__] = data_source.get_example(
                     t0_datetime_utc, location_osgb
                 )
             else:
-                try:
-                    xr_example[data_source.__class__] = data_source.empty_example
-                except AttributeError as e:
-                    raise AttributeError(
-                        "If this is a duplicate data_source then we should ignore."
-                    ) from e
+                xr_example[data_source.__class__] = data_source.empty_example
 
         return xr_example
 
