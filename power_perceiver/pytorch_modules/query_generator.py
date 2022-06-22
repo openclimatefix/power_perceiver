@@ -35,7 +35,8 @@ class PVQueryGenerator(nn.Module):
                 BatchKey.pv_solar_elevation,
                 BatchKey.pv_time_utc_fourier,
             ),
-            set_to_0_after_t0_idx=x[BatchKey.pv_t0_idx],
+            set_to_zero_after_t0_idx=x[BatchKey.pv_t0_idx],
+            batch_keys_to_zero_out=[BatchKey.pv],
         )
 
         n_timesteps, n_pv_systems = x[BatchKey.pv].shape[1:]
@@ -87,7 +88,7 @@ class PVQueryGenerator(nn.Module):
         )
 
         # Don't worry, we're not including "future" PV, because `reshape_time_as_batch`
-        # NaNs out the future timesteps.
+        # zeros out the future timesteps.
         pv_power = timeless_x[BatchKey.pv].unsqueeze(-1)  # Shape: ((example * time) n_pv_systems 1)
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
@@ -168,7 +169,8 @@ class GSPQueryGenerator(nn.Module):
                     solar_az_batch_key,
                     solar_el_batch_key,
                 ),
-                set_to_0_after_t0_idx=t0_idx if include_history else None,
+                set_to_zero_after_t0_idx=t0_idx if include_history else None,
+                batch_keys_to_zero_out=[base_batch_key],
             )
 
         # gsp_{y,x}_osgb_fourier starts as shape (example, 1, fourier_features).
@@ -236,13 +238,14 @@ class GSPQueryGenerator(nn.Module):
 def reshape_time_as_batch(
     x: dict[BatchKey, torch.Tensor],
     batch_keys: Sequence[BatchKey],
-    set_to_0_after_t0_idx: Optional[int] = None,
+    set_to_zero_after_t0_idx: Optional[int] = None,
+    batch_keys_to_zero_out: Optional[Sequence[BatchKey]] = None,
 ) -> dict[BatchKey, torch.Tensor]:
     new_batch: dict[BatchKey, torch.Tensor] = {}
     for batch_key in batch_keys:
         tensor = x[batch_key]
-        if set_to_0_after_t0_idx is not None:
+        if set_to_zero_after_t0_idx is not None and batch_key in batch_keys_to_zero_out:
             tensor = tensor.detach().clone()
-            tensor[:, set_to_0_after_t0_idx + 1 :] = 0
+            tensor[:, set_to_zero_after_t0_idx + 1 :] = 0
         new_batch[batch_key] = einops.rearrange(tensor, "example time ... -> (example time) ...")
     return new_batch
