@@ -87,6 +87,8 @@ class PVQueryGenerator(nn.Module):
             timeless_x[BatchKey.pv_solar_elevation]
         )
 
+        # Don't worry, we're not including "future" PV, because `reshape_time_as_batch`
+        # NaNs out the future timesteps.
         pv_power = timeless_x[BatchKey.pv].unsqueeze(-1)  # Shape: ((example * time) n_pv_systems 1)
 
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
@@ -155,9 +157,10 @@ class GSPQueryGenerator(nn.Module):
         solar_az_batch_key = _get_batch_key("_solar_azimuth")
         solar_el_batch_key = _get_batch_key("_solar_elevation")
 
+        t0_idx_batch_key = _get_batch_key("_t0_idx")
+        t0_idx = x[t0_idx_batch_key]
+
         if do_reshape_time_as_batch:
-            t0_idx_batch_key = _get_batch_key("_t0_idx")
-            t0_idx = x[t0_idx_batch_key]
             timeless_x = reshape_time_as_batch(
                 x,
                 batch_keys=(
@@ -221,7 +224,8 @@ class GSPQueryGenerator(nn.Module):
             if do_reshape_time_as_batch:
                 history = timeless_x[base_batch_key].unsqueeze(-1)
             else:
-                history = x[base_batch_key]
+                history = x[base_batch_key].detach().clone()
+                history[:, t0_idx + 1 :] = np.NaN
             gsp_query_tuple += (history,)
 
         gsp_query = torch.concat(gsp_query_tuple, dim=2)
