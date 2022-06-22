@@ -2,7 +2,6 @@ from dataclasses import InitVar, dataclass
 from typing import Optional, Sequence
 
 import einops
-import numpy as np
 import torch
 from torch import nn
 
@@ -36,7 +35,7 @@ class PVQueryGenerator(nn.Module):
                 BatchKey.pv_solar_elevation,
                 BatchKey.pv_time_utc_fourier,
             ),
-            set_to_nan_after_t0_idx=x[BatchKey.pv_t0_idx],
+            set_to_0_after_t0_idx=x[BatchKey.pv_t0_idx],
         )
 
         n_timesteps, n_pv_systems = x[BatchKey.pv].shape[1:]
@@ -169,7 +168,7 @@ class GSPQueryGenerator(nn.Module):
                     solar_az_batch_key,
                     solar_el_batch_key,
                 ),
-                set_to_nan_after_t0_idx=t0_idx if include_history else None,
+                set_to_0_after_t0_idx=t0_idx if include_history else None,
             )
 
         # gsp_{y,x}_osgb_fourier starts as shape (example, 1, fourier_features).
@@ -222,10 +221,11 @@ class GSPQueryGenerator(nn.Module):
         )
         if include_history:
             if do_reshape_time_as_batch:
+                # timeless_x already has the future NaN'd out.
                 history = timeless_x[base_batch_key].unsqueeze(-1)
             else:
                 history = x[base_batch_key].detach().clone()
-                history[:, t0_idx + 1 :] = np.NaN
+                history[:, t0_idx + 1 :] = 0
             gsp_query_tuple += (history,)
 
         gsp_query = torch.concat(gsp_query_tuple, dim=2)
@@ -236,13 +236,13 @@ class GSPQueryGenerator(nn.Module):
 def reshape_time_as_batch(
     x: dict[BatchKey, torch.Tensor],
     batch_keys: Sequence[BatchKey],
-    set_to_nan_after_t0_idx: Optional[int] = None,
+    set_to_0_after_t0_idx: Optional[int] = None,
 ) -> dict[BatchKey, torch.Tensor]:
     new_batch: dict[BatchKey, torch.Tensor] = {}
     for batch_key in batch_keys:
         tensor = x[batch_key]
-        if set_to_nan_after_t0_idx is not None:
+        if set_to_0_after_t0_idx is not None:
             tensor = tensor.detach().clone()
-            tensor[:, set_to_nan_after_t0_idx + 1 :] = np.NaN
+            tensor[:, set_to_0_after_t0_idx + 1 :] = 0
         new_batch[batch_key] = einops.rearrange(tensor, "example time ... -> (example time) ...")
     return new_batch
