@@ -82,8 +82,8 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
-ENABLE_WANDB = True
+DEBUG = True
+ENABLE_WANDB = False
 
 if DEBUG:
     GPUS = [0]
@@ -543,6 +543,12 @@ class SatelliteTransformer(nn.Module):
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
 
+        print(
+            f"SatelliteTransformer.forward: {pv_query.shape=}, {gsp_query.shape=},"
+            f" {satellite_data.shape=}, {attn_input.shape=}, {gsp_start_idx=}, {gsp_end_idx=},"
+            f" {pv_attn_out.shape=}, {gsp_attn_out.shape=}, {mask.float().mean()=}"
+        )
+
         return {
             "pv_attn_out": pv_attn_out,  # shape: (example, 5_min_time, n_pv_systems, d_model)
             "gsp_attn_out": gsp_attn_out,  # shape: (example, 5_min_time, 1, d_model)
@@ -832,6 +838,12 @@ class FullModel(pl.LightningModule):
         # The shape is (example, query_elements, d_model).
         time_attn_in = torch.concat(
             (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
+        )
+
+        print(
+            f"FullModel.forward: {time_attn_in.shape=}, {pv_rnn_out.shape=},"
+            f" {sat_trans_gsp_attn_out.shape=}, {nwp_query.shape=}, {gsp_query.shape=},"
+            f" {time_attn_in.isnan().float().mean()=}"
         )
 
         time_attn_in = time_attn_in.nan_to_num(0)
