@@ -1,0 +1,2 @@
+class NoPVSystemsInSlice(Exception):
+    pass
