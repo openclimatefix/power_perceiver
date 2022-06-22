@@ -82,8 +82,8 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = True
-ENABLE_WANDB = False
+DEBUG = False
+ENABLE_WANDB = True
 
 if DEBUG:
     GPUS = [0]
@@ -189,7 +189,7 @@ def get_dataloader(
     )
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=16,  # TODO: Increase to more like 32!
+        n_examples_per_batch=14,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
@@ -503,14 +503,14 @@ class SatelliteTransformer(nn.Module):
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
 
         # Process satellite data and queries:
-        pv_query = self.pv_query_generator(x)
+        pv_query = self.pv_query_generator(x)  # shape: example * time, n_pv_systems, features
         gsp_query = self.gsp_query_generator(
             x,
             include_history=True,
             base_batch_key=BatchKey.gsp_5_min,
             do_reshape_time_as_batch=True,
-        )
-        satellite_data = self.hrvsatellite_processor(x)
+        )  # shape: example * time, 1, features
+        satellite_data = self.hrvsatellite_processor(x)  # shape: example * time, positions, feats.
 
         # Pad with zeros if necessary to get up to self.d_model:
         pv_query = maybe_pad_with_zeros(pv_query, requested_dim=self.d_model)
@@ -542,12 +542,6 @@ class SatelliteTransformer(nn.Module):
         gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
-
-        print(
-            f"SatelliteTransformer.forward: {pv_query.shape=}, {gsp_query.shape=},"
-            f" {satellite_data.shape=}, {attn_input.shape=}, {gsp_start_idx=}, {gsp_end_idx=},"
-            f" {pv_attn_out.shape=}, {gsp_attn_out.shape=}, {mask.float().mean()=}"
-        )
 
         return {
             "pv_attn_out": pv_attn_out,  # shape: (example, 5_min_time, n_pv_systems, d_model)
@@ -833,6 +827,7 @@ class FullModel(pl.LightningModule):
         nwp_query = maybe_pad_with_zeros(nwp_query, requested_dim=self.d_model)
 
         # Concatenate all the things we're going to feed into the "time transformer":
+        # Shape: (example, elements, d_model)
         # `pv_rnn_out` must be the first set of elements.
         # `gsp_query` must be the last set of elements.
         # The shape is (example, query_elements, d_model).
@@ -846,11 +841,13 @@ class FullModel(pl.LightningModule):
             f" {time_attn_in.isnan().float().mean()=}"
         )
 
+        mask = time_attn_in.isnan().any(dim=2)
         time_attn_in = time_attn_in.nan_to_num(0)
-        time_attn_out = self.time_transformer(time_attn_in)
+        time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
 
         # ---------------------------- MIXTURE DENSITY NETWORK -----------------------------------
-        # The MDN doesn't like NaNs:
+        # The MDN doesn't like NaNs, and I think there will be NaNs when, for example,
+        # the example is missing PV data:
         time_attn_out = time_attn_out.nan_to_num(0)
         predicted_pv_power = self.pv_mixture_density_net(time_attn_out[:, :n_pv_elements])
 
