@@ -166,7 +166,7 @@ def get_dataloader(
         roi_width_pixels=4,
         y_coarsen=16,
         x_coarsen=16,
-        channels=["dswrf", "t", "si10", "prate"],
+        channels=["dswrf", "dlwrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis"],
         start_date=start_date,
         end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
@@ -973,10 +973,7 @@ model = FullModel()
 
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
-        name=(
-            "027.02: Use updated code. Include history in all queries. 8 hr GSP fcst."
-            " num_latent_transformer_encoders=8. GCP-1 with dual GPU."
-        ),
+        name="027.03: More NWP variables. 8 hr GSP fcst. GCP-2 with dual GPU.",
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
