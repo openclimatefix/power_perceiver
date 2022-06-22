@@ -25,7 +25,6 @@ from torch import nn
 
 from power_perceiver.analysis.log_national_pv import LogNationalPV
 from power_perceiver.analysis.plot_probability_timeseries import LogProbabilityTimeseriesPlots
-from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 
 # power_perceiver imports
@@ -985,7 +984,6 @@ if ENABLE_WANDB:
         pl.callbacks.LearningRateMonitor(logging_interval="step"),
         LogProbabilityTimeseriesPlots(),
         LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
-        LogSatellitePlots(),
         LogNationalPV(),
     ]
 else:
