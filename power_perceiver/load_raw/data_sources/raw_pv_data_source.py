@@ -21,6 +21,10 @@ from power_perceiver.utils import check_path_exists, datetime64_to_float
 _log = logging.getLogger(__name__)
 
 
+class NoPVSystemsInSlice(Exception):
+    pass
+
+
 @dataclass(kw_only=True)
 class RawPVDataSource(
     # Surprisingly, Python's class hierarchy is defined right-to-left.
@@ -137,10 +141,8 @@ class RawPVDataSource(
         # Drop any PV systems which have NaN readings at every timestep in the example:
         selected_data = selected_data.dropna(dim="pv_system_id", how="all")
 
-        # If there are no PV systems then return empty_example:
         if len(selected_data.pv_system_id) == 0:
-            self._allow_nans = True
-            return self.empty_example
+            raise NoPVSystemsInSlice()
 
         # Interpolate forwards to fill NaNs which follow finite data:
         selected_data = selected_data.interpolate_na(dim="time_utc")

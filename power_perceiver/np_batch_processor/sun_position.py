@@ -62,12 +62,14 @@ class SunPosition:
         # Loop round each example to get the Sun's elevation and azimuth:
         azimuth = np.full_like(time_utc, fill_value=np.NaN).astype(np.float32)
         elevation = np.full_like(time_utc, fill_value=np.NaN).astype(np.float32)
-        allow_nans = False
+        must_be_finite = True
         for example_idx, (lat, lon) in enumerate(zip(lats, lons)):
-            if np.isnan(lat) or np.isnan(lon):
-                assert self.modality_name == "pv", f"NaNs are not allowed {self.modality_name}!"
+            if not np.isfinite([lat, lon]).all():
+                assert (
+                    self.modality_name == "pv"
+                ), f"{self.modality_name} lat and lon must be finite! But {lat=} {lon=}!"
                 # This is PV data, for a location which has no PV systems.
-                allow_nans = True
+                must_be_finite = False
                 continue  # Leave azimuth and elevation as NaN for this example_idx.
             dt = pd.to_datetime(time_utc[example_idx], unit="s")
             dt = pd.DatetimeIndex(dt)  # pvlib expects a `pd.DatetimeIndex`.
@@ -89,7 +91,7 @@ class SunPosition:
         elevation = (elevation - ELEVATION_MEAN) / ELEVATION_STD
 
         # Check
-        if not allow_nans:
+        if must_be_finite:
             assert np.isfinite(azimuth).all()
             assert np.isfinite(elevation).all()
 
