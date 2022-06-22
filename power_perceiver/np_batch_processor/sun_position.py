@@ -46,6 +46,8 @@ class SunPosition:
             y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
             x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
         elif self.modality_name == "pv":
+            # Note that, sometimes, the PV coords can all be NaNs (if there are no)
+            # PV systems for that datetime.
             y_osgb_centre = np.nanmean(np_batch[BatchKey.pv_y_osgb], axis=1)
             x_osgb_centre = np.nanmean(np_batch[BatchKey.pv_x_osgb], axis=1)
             time_utc = np_batch[BatchKey.pv_time_utc]
