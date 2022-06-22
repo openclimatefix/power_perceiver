@@ -835,12 +835,6 @@ class FullModel(pl.LightningModule):
             (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
         )
 
-        print(
-            f"FullModel.forward: {time_attn_in.shape=}, {pv_rnn_out.shape=},"
-            f" {sat_trans_gsp_attn_out.shape=}, {nwp_query.shape=}, {gsp_query.shape=},"
-            f" {time_attn_in.isnan().float().mean()=}"
-        )
-
         mask = time_attn_in.isnan().any(dim=2)
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
