@@ -223,7 +223,7 @@ class GSPQueryGenerator(nn.Module):
         )
         if include_history:
             if do_reshape_time_as_batch:
-                # timeless_x already has the future NaN'd out.
+                # timeless_x already has the future zero'd out.
                 history = timeless_x[base_batch_key].unsqueeze(-1)
             else:
                 history = x[base_batch_key].detach().clone()

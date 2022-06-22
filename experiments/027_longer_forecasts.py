@@ -77,7 +77,7 @@ SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
 N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 # PowerPerceiver options
-D_MODEL = 128
+D_MODEL = 144  # Must be divisible by N_HEADS
 N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
@@ -240,7 +240,7 @@ train_dataloader = get_dataloader(
     start_date="2020-01-01",
     end_date="2020-03-01" if DEBUG else "2020-12-31",
     num_workers=0 if DEBUG else 4,
-    n_batches_per_epoch_per_worker=64 if DEBUG else 512,
+    n_batches_per_epoch_per_worker=64 if DEBUG else 1024,
     load_subset_every_epoch=True,
     train=True,
 )
