@@ -38,8 +38,10 @@ class RawPVDataSource(
             For PV, we use meters (not pixels) because PV isn't an image.
             Must be at least 1,000 meters.
         roi_width_meters:
-        n_pv_systems_per_example: Each example will have exactly this number of PV systems.
-            Randomly select PV systems for each example. If there are less PV systems available
+        n_pv_systems_per_example: Each example will have exactly this number of PV systems,
+            or, if there are zero PV systems in the region (e.g. in northern Scotland),
+            then raise `NoPVSystemsInSlice` exception. If there is at least 1 PV system, then
+            randomly select PV systems for each example. If there are less PV systems available
             than requested, then randomly sample with duplicates allowed, whilst ensuring all
             available PV systems are used.
 

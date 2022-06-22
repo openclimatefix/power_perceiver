@@ -1,3 +1,4 @@
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -46,11 +47,17 @@ class SunPosition:
             y_osgb_centre = y_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
             x_osgb_centre = x_osgb[:, y_centre_idx, x_centre_idx]  # Shape: (example,)
         elif self.modality_name == "pv":
-            # Note that, sometimes, the PV coords can all be NaNs if there are no PV systems
-            # for that datetime and location. e.g. in northern Scotland!
-            y_osgb_centre = np.nanmean(np_batch[BatchKey.pv_y_osgb], axis=1)
-            x_osgb_centre = np.nanmean(np_batch[BatchKey.pv_x_osgb], axis=1)
+            pv_y_osgb = np_batch[BatchKey.pv_y_osgb]
+            pv_x_osgb = np_batch[BatchKey.pv_x_osgb]
             time_utc = np_batch[BatchKey.pv_time_utc]
+            # Sometimes, the PV coords can all be NaNs if there are no PV systems
+            # for that datetime and location. e.g. in northern Scotland!
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    action="ignore", category=RuntimeWarning, message="Mean of empty slice"
+                )
+                y_osgb_centre = np.nanmean(pv_y_osgb, axis=1)
+                x_osgb_centre = np.nanmean(pv_x_osgb, axis=1)
         else:  # gsp and gsp_5_min:
             y_osgb_centre = np_batch[BatchKey.gsp_y_osgb]
             x_osgb_centre = np_batch[BatchKey.gsp_x_osgb]
