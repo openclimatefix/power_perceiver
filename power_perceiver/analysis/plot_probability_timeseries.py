@@ -138,14 +138,12 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
         if batch_idx in range(0, 128, 16):
             predicted_pv_power = outputs["predicted_pv_power"].cpu().detach()
             actual_pv_power = outputs["actual_pv_power"].cpu().detach()
-            # TODO: Generate pv_datetimes upstream and pass it into this function, just like
-            # we do with `gsp_time_utc`.
-            pv_datetimes = batch[BatchKey.pv_time_utc].cpu()
+            pv_datetimes = outputs["pv_time_utc"].cpu().detach()
             n_examples_per_batch = pv_datetimes.shape[0]
             examples_with_gsp_data = [
                 example_idx
                 for example_idx in range(n_examples_per_batch)
-                if batch[BatchKey.pv_time_utc][example_idx].isfinite().all()
+                if batch[BatchKey.gsp_time_utc][example_idx].isfinite().all()
             ]
             example_idx = examples_with_gsp_data[0]
             fig = plot_pv_power(

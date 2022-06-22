@@ -835,6 +835,10 @@ class FullModel(pl.LightningModule):
             (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
         )
 
+        # It's necessary to mask the time_transformer because some examples, where we're trying to
+        # predict GSP PV power, might have NaN PV data (because the GSP is so far north it has no
+        # PV systems!), and we don't want the attention mechanism to pay any attention to the
+        # zero'd out (previously NaN) PV data when predicting GSP PV power.
         mask = time_attn_in.isnan().any(dim=2)
         time_attn_in = time_attn_in.nan_to_num(0)
         time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
@@ -862,6 +866,7 @@ class FullModel(pl.LightningModule):
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
             predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
             predicted_sat=x[BatchKey.hrvsatellite_predicted],  # Shape: example, time, y, x
+            pv_time_utc=x[BatchKey.pv_time_utc],  # Give the subsampled times to plotting functions.
         )
 
     @property
@@ -947,6 +952,7 @@ class FullModel(pl.LightningModule):
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
             "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
+            "pv_time_utc": network_out["pv_time_utc"],
             "predicted_sat": network_out["predicted_sat"],  # Shape: example, time, y, x
             "actual_sat": batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0],
         }
