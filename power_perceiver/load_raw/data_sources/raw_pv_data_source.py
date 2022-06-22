@@ -10,6 +10,7 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import BatchKey, Location
+from power_perceiver.exceptions import NoPVSystemsInSlice
 from power_perceiver.geospatial import lat_lon_to_osgb
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_raw.data_sources.raw_data_source import (
@@ -19,10 +20,6 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
 from power_perceiver.utils import check_path_exists, datetime64_to_float
 
 _log = logging.getLogger(__name__)
-
-
-class NoPVSystemsInSlice(Exception):
-    pass
 
 
 @dataclass(kw_only=True)

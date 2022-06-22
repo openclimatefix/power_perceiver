@@ -10,8 +10,8 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import Location
+from power_perceiver.exceptions import NoPVSystemsInSlice
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
-from power_perceiver.load_raw.data_sources.raw_pv_data_source import NoPVSystemsInSlice
 from power_perceiver.time import get_contiguous_time_periods
 from power_perceiver.utils import check_path_exists
 
