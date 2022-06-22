@@ -39,7 +39,7 @@ class LogNationalPV(pl.Callback):
         gsp_capacity_mwp = batch[BatchKey.gsp_capacity_mwp].squeeze().cpu().numpy()  # (example,)
         num_examples = predicted_gsp_power.shape[0]
 
-        gsp_t0_idx = batch[BatchKey.gsp_t0_idx].cpu()
+        gsp_t0_idx = batch[BatchKey.gsp_t0_idx]
 
         # Select just the forecast timesteps:
         predicted_gsp_power = predicted_gsp_power[:, gsp_t0_idx + 1 :]
