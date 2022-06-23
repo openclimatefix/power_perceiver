@@ -173,8 +173,8 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                 pv_id=batch[BatchKey.pv_id].cpu(),
                 gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
                 nwp=batch[BatchKey.nwp].cpu(),
-                nwp_target_time_utc=batch[BatchKey.nwp_target_time_utc],
-                nwp_channel_names=batch[BatchKey.nwp_channel_names],
+                nwp_target_time_utc=batch[BatchKey.nwp_target_time_utc].cpu(),
+                nwp_channel_names=batch[BatchKey.nwp_channel_names].cpu(),
             )
             pl_module.logger.experiment.log(
                 {f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig)}
