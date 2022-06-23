@@ -25,11 +25,11 @@ class NWPProcessor(nn.Module):
                 nwp_target_time_utc_fourier
 
         Returns:
-            tensor of shape (example, time, feature).
+            tensor of shape (example, time * channel, feature).
         """
 
         # Patch all positions into a single element:
-        nwp = x[BatchKey.nwp]  # (example, time, channel, y, x)
+        nwp = x[BatchKey.nwp]  # Shape: (example, time, channel, y, x)
         nwp = einops.rearrange(nwp, "example time channel y x -> example time channel (y x)")
         assert nwp.shape[2] == self.n_channels
 
@@ -52,8 +52,6 @@ class NWPProcessor(nn.Module):
         # Concatenate time fourier on the final dimension:
         nwp_query = torch.concat((time_fourier, channel_ids, nwp), dim=-1)
         # Shape: example time channel features
-
-        assert nwp_query.dtype == torch.float32
 
         return einops.rearrange(
             nwp_query, "example time channel features -> example (time channel) features"

@@ -84,8 +84,8 @@ NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = True
-ENABLE_WANDB = False
+DEBUG = False
+ENABLE_WANDB = True
 
 if DEBUG:
     GPUS = [0]
@@ -975,7 +975,7 @@ model = FullModel()
 
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
-        name="027.04: NWP plot. More NWP variables. 8 hr GSP fcst. GCP-1 with dual GPU.",
+        name="027.04: NWP chans as sep query elements. 8 hr GSP fcst. GCP-1 with dual GPU.",
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
