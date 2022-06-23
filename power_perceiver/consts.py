@@ -65,7 +65,8 @@ class BatchKey(Enum):
     nwp_target_time_utc = auto()  # shape: (batch_size, target_time_utc)
     nwp_step = auto()  # In the range [0, 1]. shape: (batch_size, target_time_utc)
     nwp_y_osgb = auto()  # shape: (batch_size, y_osgb)
-    nwp_x_osgb = auto()  # shape: (batch_size,, x_osgb)
+    nwp_x_osgb = auto()  # shape: (batch_size, x_osgb)
+    nwp_channel_names = auto()  # shape: (channel,)
 
     # NWP Fourier features:
     nwp_target_time_utc_fourier = auto()

@@ -31,12 +31,16 @@ def plot_pv_power(
     predicted_gsp_power_mean: torch.Tensor,
     gsp_id: torch.Tensor,
     pv_id: torch.Tensor,
+    nwp: torch.Tensor,
+    nwp_target_time_utc: torch.Tensor,
+    nwp_channel_names: torch.Tensor,
 ) -> plt.Figure:
     fig, axes = plt.subplots(nrows=3, ncols=4)
     axes = np.array(axes).flatten()
 
     pv_datetimes = pd.to_datetime(pv_datetimes[example_idx], unit="s")
     gsp_datetimes = pd.to_datetime(gsp_datetimes[example_idx], unit="s")
+    nwp_datetimes = pd.to_datetime(nwp_target_time_utc[example_idx], unit="s")
 
     if pd.isnull(pv_datetimes[0]):
         # This example has no PV data.
@@ -77,13 +81,24 @@ def plot_pv_power(
     ax_gsp.set_xlabel(pv_datetimes[0].date().strftime("%Y-%m-%d"))
     ax_gsp.legend(framealpha=0.4)
 
+    # NWP
+    ax_nwp = axes[-3]
+    ax_nwp.set_title("NWP (mean over x and y)")
+    ax_nwp_twin = ax_nwp.twiny()
+    ax_nwp_twin.plot(
+        nwp_datetimes,
+        nwp[example_idx].mean(dim=(-1, -2)),
+        label=nwp_channel_names,
+    )
+    ax_nwp_twin.legend()
+
     # Format all the timeseries plots (PV and GSP)
-    for ax in axes[:-3]:
+    for ax in axes[:-2]:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
         ax.tick_params(axis="x", labelsize="small")
 
     # Satellite
-    sat_axes = [ax.twinx().twiny() for ax in axes[-3:]]
+    sat_axes = [ax.twinx().twiny() for ax in axes[-2:]]
 
     actual_satellite = actual_satellite[example_idx, :, 0]
     sat_axes[0].imshow(actual_satellite[0])
@@ -91,9 +106,6 @@ def plot_pv_power(
 
     sat_axes[1].imshow(actual_satellite[-1])
     sat_axes[1].set_xlabel("Last actual satellite image")
-
-    sat_axes[2].imshow(surface_height[example_idx])
-    sat_axes[2].set_xlabel("Surface height")
 
     def _turn_off_ticks(ax: matplotlib.axes.Axes):
         ax.tick_params(
@@ -109,7 +121,7 @@ def plot_pv_power(
             labelright=False,
         )
 
-    for ax in axes[-3:]:
+    for ax in axes[-2:]:
         _turn_off_ticks(ax)
 
     for ax in sat_axes:
@@ -160,6 +172,9 @@ class LogProbabilityTimeseriesPlots(SimpleCallback):
                 surface_height=batch[BatchKey.hrvsatellite_surface_height].cpu(),
                 pv_id=batch[BatchKey.pv_id].cpu(),
                 gsp_id=batch[BatchKey.gsp_id].squeeze().cpu(),
+                nwp=batch[BatchKey.nwp].cpu(),
+                nwp_target_time_utc=batch[BatchKey.nwp_target_time_utc],
+                nwp_channel_names=batch[BatchKey.nwp_channel_names],
             )
             pl_module.logger.experiment.log(
                 {f"{tag}/pv_power_probs/{batch_idx=};{example_idx=}": wandb.Image(fig)}

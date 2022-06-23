@@ -303,6 +303,7 @@ class RawNWPDataSource(
         example[BatchKey.nwp_t0_idx] = xr_data.attrs["t0_idx"]
         target_time = xr_data.target_time_utc.values
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
+        example[BatchKey.nwp_channel_names] = xr_data.channel.values
 
         # Compute the "step" as a float in the range [0, 1]:
         forecast_duration = target_time[-1] - target_time[xr_data.attrs["t0_idx"]]

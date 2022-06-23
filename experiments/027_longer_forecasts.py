@@ -82,7 +82,7 @@ N_HEADS = 16
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
+DEBUG = True
 ENABLE_WANDB = True
 
 if DEBUG:
@@ -973,7 +973,7 @@ model = FullModel()
 
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
-        name="027.03: More NWP variables. 8 hr GSP fcst. GCP-2 with dual GPU.",
+        name="027.04: NWP plot. More NWP variables. 8 hr GSP fcst. GCP-1 with dual GPU.",
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
