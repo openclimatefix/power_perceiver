@@ -32,9 +32,10 @@ class NWPProcessor(nn.Module):
         # TODO: Use proper encodings for each NWP channel?
         nwp = x[BatchKey.nwp]  # (example, time, channel, y, x)
         nwp = einops.rearrange(nwp, "example time channel y x -> example time channel (y x)")
+        import ipdb; ipdb.set_trace()
+        assert nwp.shape[2] == self.n_channels
 
         # Repeat time fourier over all channels
-        assert nwp.shape[2] == self.n_channels
         time_fourier = x[BatchKey.nwp_target_time_utc_fourier]  # (example, time, n_features)
         time_fourier = einops.repeat(
             time_fourier,
