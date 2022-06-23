@@ -80,6 +80,8 @@ N_PV_SYSTEMS_PER_EXAMPLE = 8
 D_MODEL = 144  # Must be divisible by N_HEADS
 N_HEADS = 16
 
+NWP_CHANNELS = ("dswrf", "dlwrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
+
 ON_DONATELLO = socket.gethostname() == "donatello"
 
 DEBUG = True
@@ -166,7 +168,7 @@ def get_dataloader(
         roi_width_pixels=4,
         y_coarsen=16,
         x_coarsen=16,
-        channels=["dswrf", "dlwrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis"],
+        channels=NWP_CHANNELS,
         start_date=start_date,
         end_date=end_date,
         history_duration=datetime.timedelta(hours=1),
@@ -674,7 +676,7 @@ class FullModel(pl.LightningModule):
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
 
-        self.nwp_processor = NWPProcessor()
+        self.nwp_processor = NWPProcessor(n_channels=len(NWP_CHANNELS))
 
         # Find temporal features, and help calibrate predictions using recent history:
         self.pv_rnn = PVRNN(

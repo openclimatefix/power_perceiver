@@ -7,7 +7,7 @@ from torch import nn
 from power_perceiver.consts import BatchKey
 
 
-@dataclass
+@dataclass(eq=False)
 class NWPProcessor(nn.Module):
     n_channels: int  # Number of NWP channels.
     channel_id_dim: int = 16
