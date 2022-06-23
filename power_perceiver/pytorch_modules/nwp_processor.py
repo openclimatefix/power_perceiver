@@ -31,7 +31,6 @@ class NWPProcessor(nn.Module):
         # Patch all positions into a single element:
         nwp = x[BatchKey.nwp]  # (example, time, channel, y, x)
         nwp = einops.rearrange(nwp, "example time channel y x -> example time channel (y x)")
-        import ipdb; ipdb.set_trace()
         assert nwp.shape[2] == self.n_channels
 
         # Repeat time fourier over all channels

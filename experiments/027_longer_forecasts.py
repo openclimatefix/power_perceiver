@@ -80,7 +80,7 @@ N_PV_SYSTEMS_PER_EXAMPLE = 8
 D_MODEL = 144  # Must be divisible by N_HEADS
 N_HEADS = 16
 
-NWP_CHANNELS = ("dswrf", "dlwrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
+NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 

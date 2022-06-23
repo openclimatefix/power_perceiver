@@ -132,7 +132,7 @@ class RawNWPDataSource(
         if self.channels:
             chans_not_in_channel_names = set(self.channels) - set(NWP_CHANNEL_NAMES)
             assert len(chans_not_in_channel_names) == 0, (
-                f"{len(chans_not_in_channel_names)} requested channel names are not in"
+                f"{len(chans_not_in_channel_names)} requested channel name(s) not in"
                 f" NWP_CHANNEL_NAMES! {chans_not_in_channel_names=}; {self.channels=};"
                 f" {NWP_CHANNEL_NAMES=}")
         RawDataSource.__post_init__(self)
@@ -191,7 +191,6 @@ class RawNWPDataSource(
         call open() _after_ creating separate processes.
         """
         self._data_on_disk = open_nwp(zarr_path=self.zarr_path)
-        import ipdb; ipdb.set_trace()
         if self.channels is not None:
             self._data_on_disk = self._data_on_disk.sel(channel=list(self.channels))
         self.channels = self.data_on_disk.channel.values
