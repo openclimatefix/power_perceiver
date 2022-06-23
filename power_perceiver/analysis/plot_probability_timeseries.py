@@ -97,7 +97,7 @@ def plot_pv_power(
     ax_nwp_twin.tick_params(axis="x", which="both", labelbottom=True, labeltop=False)
 
     # Format all the timeseries plots (PV and GSP)
-    for ax in axes[:-2] + [ax_nwp_twin]:
+    for ax in np.concat((axes[:-2], [ax_nwp_twin])):
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
         ax.tick_params(axis="x", labelsize="small")
 
