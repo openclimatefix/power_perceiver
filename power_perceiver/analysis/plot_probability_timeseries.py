@@ -93,13 +93,15 @@ def plot_pv_power(
         label=nwp_channel_names,
     )
     ax_nwp_twin.legend(loc="upper right", **legend_kwargs)
-    ax_nwp.tick_params(axis="x", which="both", labelbottom=False)
-    ax_nwp_twin.tick_params(axis="x", which="both", labelbottom=True, labeltop=False)
+    ax_nwp.tick_params(axis="x", which="both", bottom=False, labelbottom=False)
+    ax_nwp_twin.tick_params(
+        axis="x", which="both", bottom=True, labelbottom=True, top=False, labeltop=False
+    )
 
     # Format all the timeseries plots (PV and GSP and NWP)
     for ax in np.concatenate((axes[:-2], [ax_nwp_twin])):
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
-        ax.tick_params(axis="x", labelsize="small")
+        ax.tick_params(axis="x", labelsize="x-small")
 
     # Satellite
     sat_axes = [ax.twinx().twiny() for ax in axes[-2:]]
