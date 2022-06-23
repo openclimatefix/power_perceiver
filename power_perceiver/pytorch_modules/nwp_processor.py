@@ -54,7 +54,11 @@ class NWPProcessor(nn.Module):
         )
 
         # One-hot encoding for NWP step, and then repeat across channels:
-        nwp_step = F.one_hot(x[BatchKey.nwp_step], num_classes=self.max_steps)
+        nwp_step = x[BatchKey.nwp_step]
+        assert (
+            nwp_step.max() < self.max_steps
+        ), f"{nwp_step.max()=} must be less than {self.max_steps}!"
+        nwp_step = F.one_hot(nwp_step, num_classes=self.max_steps)
         nwp_step = einops.repeat(
             nwp_step,
             "example time features -> example time channel features",
