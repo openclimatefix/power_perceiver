@@ -311,7 +311,7 @@ class RawNWPDataSource(
         target_time = xr_data.target_time_utc.values
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
         example[BatchKey.nwp_channel_names] = xr_data.channel.values
-        example[BatchKey.nwp_step] = int(xr_data.step.values / np.timedelta64(1, "h"))
+        example[BatchKey.nwp_step] = (xr_data.step.values / np.timedelta64(1, "h")).astype(np.int64)
 
         for batch_key, dataset_key in (
             (BatchKey.nwp_y_osgb, "y_osgb"),
