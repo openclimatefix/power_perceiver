@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import einops
 import torch
-import torch.nn.functional as F
 from torch import nn
 
 from power_perceiver.consts import PV_SPACER_LEN, SATELLITE_SPACER_LEN, BatchKey
@@ -57,18 +56,6 @@ class NWPProcessor(nn.Module):
             time=nwp.shape[1],
         )
 
-        # One-hot encoding for NWP step, and then repeat across channels:
-        nwp_step = x[BatchKey.nwp_step]
-        assert (
-            nwp_step.max() < self.max_steps
-        ), f"{nwp_step.max()=} must be less than {self.max_steps}!"
-        nwp_step = F.one_hot(nwp_step, num_classes=self.max_steps)
-        nwp_step = einops.repeat(
-            nwp_step,
-            "example time features -> example time channel features",
-            channel=self.n_channels,
-        )
-
         # Sun position:
         def _get_solar_position(batch_key: BatchKey) -> torch.Tensor:
             return einops.repeat(
@@ -98,7 +85,6 @@ class NWPProcessor(nn.Module):
                 x_fourier_dummy,
                 satellite_and_pv_spacer,
                 channel_ids,
-                nwp_step,
                 nwp,
             ),
             dim=-1,
