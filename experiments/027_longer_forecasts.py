@@ -196,7 +196,7 @@ def get_dataloader(
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
         min_duration_to_load_per_epoch=datetime.timedelta(
-            hours=48 if DEBUG else ((12 * 48) if ON_DONATELLO else (12 * 24))
+            hours=48 if DEBUG else ((12 * 32) if ON_DONATELLO else (12 * 24))
         ),
         data_source_combos=dict(
             gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
