@@ -46,6 +46,8 @@ def plot_pv_power(
         # This example has no PV data.
         return fig
 
+    legend_kwargs = dict(framealpha=0.4, fontsize="x-small")
+
     # PV
     for pv_idx, ax in enumerate(axes[:-4]):
         plot_probs(
@@ -65,7 +67,7 @@ def plot_pv_power(
         ax.plot(
             pv_datetimes, predicted_pv_power_mean[example_idx, :, pv_idx], label="Mean prediction"
         )
-        ax.legend(framealpha=0.4)
+        ax.legend(**legend_kwargs)
 
     # GSP
     ax_gsp = axes[-4]
@@ -79,7 +81,7 @@ def plot_pv_power(
     ax_gsp.plot(gsp_datetimes, predicted_gsp_power_mean[example_idx], label="Mean prediction")
     ax_gsp.set_title("GSP PV power for {:.0f}".format(gsp_id[example_idx]))
     ax_gsp.set_xlabel(pv_datetimes[0].date().strftime("%Y-%m-%d"))
-    ax_gsp.legend(framealpha=0.4)
+    ax_gsp.legend(**legend_kwargs)
 
     # NWP
     ax_nwp = axes[-3]
@@ -90,12 +92,12 @@ def plot_pv_power(
         nwp[example_idx].mean(dim=(-1, -2)),
         label=nwp_channel_names,
     )
-    ax_nwp_twin.legend(loc="upper right", fontsize="x-small", framealpha=0.5)
+    ax_nwp_twin.legend(loc="upper right", **legend_kwargs)
     ax_nwp.tick_params(axis="x", which="both", labelbottom=False)
     ax_nwp_twin.tick_params(axis="x", which="both", labelbottom=True, labeltop=False)
 
     # Format all the timeseries plots (PV and GSP)
-    for ax in axes[:-2]:
+    for ax in axes[:-2] + [ax_nwp_twin]:
         ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))
         ax.tick_params(axis="x", labelsize="small")
 
