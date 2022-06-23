@@ -12,7 +12,6 @@ from power_perceiver.pytorch_modules.utils import get_spacer_tensor
 @dataclass(eq=False)
 class NWPProcessor(nn.Module):
     n_channels: int  # Number of NWP channels.
-    max_steps: int  # Maximum number of NWP steps.
     channel_id_dim: int = 16
 
     def __post_init__(self):
@@ -25,8 +24,8 @@ class NWPProcessor(nn.Module):
         Args:
             x: A batch with at least these BatchKeys:
                 nwp
-                nwp_step
                 nwp_target_time_utc_fourier
+                nwp_init_time_utc_fourier
 
         Returns:
             tensor of shape (example, time * channel, feature).
@@ -38,12 +37,17 @@ class NWPProcessor(nn.Module):
         assert nwp.shape[2] == self.n_channels
 
         # Repeat time fourier over all channels
-        time_fourier = x[BatchKey.nwp_target_time_utc_fourier]  # (example, time, n_features)
-        time_fourier = einops.repeat(
-            time_fourier,
-            "example time features -> example time channel features",
-            channel=self.n_channels,
-        )
+        def _get_time(batch_key: BatchKey) -> torch.Tensor:
+            return einops.repeat(
+                x[batch_key],
+                "example time features -> example time channel features",
+                channel=self.n_channels,
+            )
+
+        time_fourier = _get_time(
+            BatchKey.nwp_target_time_utc_fourier
+        )  # (example, time, n_features)
+        init_time_fourier = _get_time(BatchKey.nwp_init_time_utc_fourier)
 
         # Repeat learnt embedding ID for each channel:
         channel_ids = einops.repeat(
@@ -76,7 +80,7 @@ class NWPProcessor(nn.Module):
         solar_azimuth = _get_solar_position(BatchKey.nwp_target_time_solar_azimuth)
         solar_elevation = _get_solar_position(BatchKey.nwp_target_time_solar_elevation)
 
-        time_fourier_t0_dummy = y_fourier_dummy = x_fourier_dummy = torch.zeros_like(time_fourier)
+        y_fourier_dummy = x_fourier_dummy = torch.zeros_like(time_fourier)
         # length = 20 for satellite +
         satellite_and_pv_spacer = get_spacer_tensor(
             template=time_fourier,
@@ -87,7 +91,7 @@ class NWPProcessor(nn.Module):
         nwp_query = torch.concat(
             (
                 time_fourier,
-                time_fourier_t0_dummy,
+                init_time_fourier,
                 solar_azimuth,
                 solar_elevation,
                 y_fourier_dummy,
