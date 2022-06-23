@@ -50,7 +50,7 @@ NWP_STD = {
     "hcc": 39.05157559763763,
 }
 
-NWP_CHANNEL_NAMES = list(NWP_STD.keys())
+NWP_CHANNEL_NAMES = tuple(NWP_STD.keys())
 
 
 def _to_data_array(d):
@@ -163,7 +163,7 @@ class RawNWPDataSource(
             data,
             coords=(
                 ("target_time_utc", target_time_utc),
-                ("channel", channels),
+                ("channel", list(channels)),
                 ("y_osgb", y),
                 ("x_osgb", x),
             ),
