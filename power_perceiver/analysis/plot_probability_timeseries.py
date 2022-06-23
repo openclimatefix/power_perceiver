@@ -90,7 +90,9 @@ def plot_pv_power(
         nwp[example_idx].mean(dim=(-1, -2)),
         label=nwp_channel_names,
     )
-    ax_nwp_twin.legend()
+    ax_nwp_twin.legend(loc="upper right", fontsize="x-small", framealpha=0.5)
+    ax_nwp.tick_params(axis="x", which="both", labelbottom=False)
+    ax_nwp_twin.tick_params(axis="x", which="both", labelbottom=True, labeltop=False)
 
     # Format all the timeseries plots (PV and GSP)
     for ax in axes[:-2]:
