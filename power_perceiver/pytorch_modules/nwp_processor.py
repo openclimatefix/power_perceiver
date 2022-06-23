@@ -12,7 +12,7 @@ class NWPProcessor(nn.Module):
     n_channels: int  # Number of NWP channels.
     channel_id_dim: int = 16
 
-    def __init__(self):
+    def __post_init__(self):
         super().__init__()
         self.learnable_channel_ids = nn.Parameter(torch.randn(self.n_channels, self.channel_id_dim))
 
