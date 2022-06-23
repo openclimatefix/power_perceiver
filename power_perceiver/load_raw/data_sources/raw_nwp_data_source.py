@@ -185,8 +185,9 @@ class RawNWPDataSource(
         call open() _after_ creating separate processes.
         """
         self._data_on_disk = open_nwp(zarr_path=self.zarr_path)
+        import ipdb; ipdb.set_trace()
         if self.channels is not None:
-            self._data_on_disk = self._data_on_disk.sel(channel=self.channels)
+            self._data_on_disk = self._data_on_disk.sel(channel=list(self.channels))
         self.channels = self.data_on_disk.channel.values
 
         # Check the x and y coords are sorted.

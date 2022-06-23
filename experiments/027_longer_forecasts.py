@@ -168,7 +168,7 @@ def get_dataloader(
         roi_width_pixels=4,
         y_coarsen=16,
         x_coarsen=16,
-        channels=list(NWP_CHANNELS),
+        channels=NWP_CHANNELS,
         start_date=start_date,
         end_date=end_date,
         history_duration=datetime.timedelta(hours=1),

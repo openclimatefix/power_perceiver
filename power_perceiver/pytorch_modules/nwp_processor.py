@@ -29,7 +29,6 @@ class NWPProcessor(nn.Module):
         """
 
         # Patch all positions into a single element:
-        # TODO: Use proper encodings for each NWP channel?
         nwp = x[BatchKey.nwp]  # (example, time, channel, y, x)
         nwp = einops.rearrange(nwp, "example time channel y x -> example time channel (y x)")
         import ipdb; ipdb.set_trace()
@@ -55,9 +54,7 @@ class NWPProcessor(nn.Module):
         nwp_query = torch.concat((time_fourier, channel_ids, nwp), dim=-1).float()
         # Shape: example time channel features
 
-        import ipdb
-
-        ipdb.set_trace()
+        import ipdb; ipdb.set_trace()
 
         return einops.rearrange(
             nwp_query, "example time channel features -> example (time channel) features"
