@@ -84,8 +84,8 @@ NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = True
-ENABLE_WANDB = False
+DEBUG = False
+ENABLE_WANDB = True
 
 if DEBUG:
     GPUS = [0]
