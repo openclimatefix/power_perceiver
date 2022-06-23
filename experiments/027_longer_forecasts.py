@@ -676,7 +676,7 @@ class FullModel(pl.LightningModule):
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
 
-        self.nwp_processor = NWPProcessor(n_channels=len(NWP_CHANNELS), max_steps=24)
+        self.nwp_processor = NWPProcessor(n_channels=len(NWP_CHANNELS))
 
         # Find temporal features, and help calibrate predictions using recent history:
         self.pv_rnn = PVRNN(
