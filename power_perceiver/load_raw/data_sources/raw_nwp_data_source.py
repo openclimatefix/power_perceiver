@@ -129,6 +129,12 @@ class RawNWPDataSource(
     _time_dim_name: ClassVar[str] = "init_time_utc"
 
     def __post_init__(self):  # noqa: D105
+        if self.channels:
+            chans_not_in_channel_names = set(self.channels) - set(NWP_CHANNEL_NAMES)
+            assert len(chans_not_in_channel_names) == 0, (
+                f"{len(chans_not_in_channel_names)} requested channel names are not in"
+                f" NWP_CHANNEL_NAMES! {chans_not_in_channel_names=}; {self.channels=};"
+                f" {NWP_CHANNEL_NAMES=}")
         RawDataSource.__post_init__(self)
         SpatialDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
