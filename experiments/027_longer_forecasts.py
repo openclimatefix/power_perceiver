@@ -84,8 +84,8 @@ NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
-ENABLE_WANDB = True
+DEBUG = True
+ENABLE_WANDB = False
 
 if DEBUG:
     GPUS = [0]
@@ -897,16 +897,28 @@ class FullModel(pl.LightningModule):
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
         pv_mask = actual_pv_power.isfinite()
         pv_t0_idx = batch[BatchKey.pv_t0_idx]
-        pv_mask_from_t0 = pv_mask[:, pv_t0_idx + 1 :]
+        pv_slice_from_t0 = slice(pv_t0_idx + 1, None)
+        pv_mask_from_t0 = pv_mask[:, pv_slice_from_t0]
+
         gsp_mask = actual_gsp_power.isfinite()
         gsp_t0_idx = batch[BatchKey.gsp_t0_idx]
-        gsp_mask_from_t0 = gsp_mask[:, gsp_t0_idx + 1 :]
+        gsp_slice_from_t0 = slice(gsp_t0_idx + 1, None)
+        gsp_slice_from_t0_to_1h = slice(gsp_t0_idx + 1, gsp_t0_idx + 3)
+        gsp_mask_from_t0 = gsp_mask[:, gsp_slice_from_t0]
+        gsp_mask_from_t0_to_1h = gsp_mask[:, gsp_slice_from_t0_to_1h]
 
-        predicted_pv_power_from_t0 = predicted_pv_power[:, pv_t0_idx + 1 :][pv_mask_from_t0]
-        actual_pv_power_from_t0 = actual_pv_power[:, pv_t0_idx + 1 :][pv_mask_from_t0]
+        predicted_pv_power_from_t0 = predicted_pv_power[:, pv_slice_from_t0][pv_mask_from_t0]
+        actual_pv_power_from_t0 = actual_pv_power[:, pv_slice_from_t0][pv_mask_from_t0]
 
-        predicted_gsp_power_from_t0 = predicted_gsp_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
-        actual_gsp_power_from_t0 = actual_gsp_power[:, gsp_t0_idx + 1 :][gsp_mask_from_t0]
+        predicted_gsp_power_from_t0 = predicted_gsp_power[:, gsp_slice_from_t0][gsp_mask_from_t0]
+        actual_gsp_power_from_t0 = actual_gsp_power[:, gsp_slice_from_t0][gsp_mask_from_t0]
+
+        predicted_gsp_power_from_t0_to_1h = predicted_gsp_power[:, gsp_slice_from_t0_to_1h][
+            gsp_mask_from_t0_to_1h
+        ]
+        actual_gsp_power_from_t0_to_1h = actual_gsp_power[:, gsp_slice_from_t0_to_1h][
+            gsp_mask_from_t0_to_1h
+        ]
 
         # PV negative log prob loss:
         pv_distribution = get_distribution(predicted_pv_power_from_t0)
@@ -920,27 +932,41 @@ class FullModel(pl.LightningModule):
         pv_nmae_loss = F.l1_loss(pv_distribution.mean, actual_pv_power_from_t0)
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
-        # GSP negative log prob loss:
-        gsp_distribution_masked = get_distribution(predicted_gsp_power_from_t0)
-        gsp_neg_log_prob_loss = -gsp_distribution_masked.log_prob(actual_gsp_power_from_t0).mean()
-        self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
+        # GSP negative log prob loss from t0:
+        gsp_distribution_from_t0 = get_distribution(predicted_gsp_power_from_t0)
+        gsp_neg_log_prob_loss_from_t0 = -gsp_distribution_from_t0.log_prob(
+            actual_gsp_power_from_t0
+        ).mean()
+        self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss_from_t0)
+
+        # GSP negative log prob loss from t0 to 1h forecast:
+        gsp_distribution_from_t0_to_1h = get_distribution(predicted_gsp_power_from_t0_to_1h)
+        gsp_neg_log_prob_loss_from_t0_to_1h = -gsp_distribution_from_t0_to_1h.log_prob(
+            actual_gsp_power_from_t0_to_1h
+        ).mean()
+        self.log(f"{self.tag}/gsp_neg_log_prob_from_t0_to_1h", gsp_neg_log_prob_loss_from_t0_to_1h)
 
         # GSP power loss:
-        gsp_mse_loss = F.mse_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
+        gsp_mse_loss = F.mse_loss(gsp_distribution_from_t0.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
-        gsp_nmae_loss = F.l1_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
+        gsp_nmae_loss = F.l1_loss(gsp_distribution_from_t0.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
-        # Total PV and GSP loss:
+        # Total PV and GSP MSE loss:
         total_pv_and_gsp_mse_loss = gsp_mse_loss + pv_mse_loss
-        total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss + pv_neg_log_prob_loss
         self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
         total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
         self.log(f"{self.tag}/total_nmae", total_nmae_loss)
 
+        # Total PV and GSP negative log probability loss:
+        total_pv_and_gsp_neg_log_prob_loss = (
+            gsp_neg_log_prob_loss_from_t0
+            + (gsp_neg_log_prob_loss_from_t0_to_1h * 2)
+            + pv_neg_log_prob_loss
+        )
         self.log(
             f"{self.tag}/total_pv_and_gsp_neg_log_prob_loss", total_pv_and_gsp_neg_log_prob_loss
         )
@@ -976,8 +1002,8 @@ model = FullModel()
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
         name=(
-            "027.05: Same order of query elements. NWP chans as sep query elements. 8 hr GSP fcst."
-            " GCP-2 with dual GPU."
+            "027.06: Weight loss. Same order of query elements. NWP chans as sep query elements."
+            " donatello."
         ),
         project="power_perceiver",
         entity="openclimatefix",
