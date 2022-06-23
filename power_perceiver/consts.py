@@ -14,6 +14,9 @@ Y_OSGB_STD = 612920.2
 X_OSGB_MEAN = 187459.94
 X_OSGB_STD = 622805.44
 
+SATELLITE_SPACER_LEN = 17  # Patch of 4x4 + 1 for surface height.
+PV_SPACER_LEN = 18  # 16 for embedding dim + 1 for marker + 1 for history
+
 
 class Location(NamedTuple):
     """Represent a spatial location."""
@@ -58,12 +61,13 @@ class BatchKey(Enum):
     hrvsatellite_x_osgb_fourier = auto()
     #: Time shape: (batch_size, n_timesteps, n_fourier_features_per_dim)
     hrvsatellite_time_utc_fourier = auto()
+    hrvsatellite_time_utc_fourier_t0 = auto()
 
     # -------------- NWP --------------------------------------------
     nwp = auto()  # shape: (batch_size, target_time_utc, channel, y_osgb, x_osgb)
     nwp_t0_idx = auto()  # shape: scalar
     nwp_target_time_utc = auto()  # shape: (batch_size, target_time_utc)
-    nwp_step = auto()  # In the range [0, 1]. shape: (batch_size, target_time_utc)
+    nwp_step = auto()  # Int. Number of hours. shape: (batch_size, target_time_utc)
     nwp_y_osgb = auto()  # shape: (batch_size, y_osgb)
     nwp_x_osgb = auto()  # shape: (batch_size, x_osgb)
     nwp_channel_names = auto()  # shape: (channel,)
@@ -141,6 +145,8 @@ class BatchKey(Enum):
     gsp_5_min_solar_elevation = auto()
     pv_solar_azimuth = auto()
     pv_solar_elevation = auto()
+    nwp_target_time_solar_azimuth = auto()
+    nwp_target_time_solar_elevation = auto()
 
     # Solar position at the centre of the HRV image at t0
     # (from `power_perceiver.np_batch_processor.SunPosition`)

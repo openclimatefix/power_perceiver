@@ -29,7 +29,7 @@ class SunPosition:
     modality_name: str
 
     def __post_init__(self):
-        assert self.modality_name in ["hrvsatellite", "gsp", "gsp_5_min", "pv"]
+        assert self.modality_name in ["hrvsatellite", "gsp", "gsp_5_min", "pv", "nwp_target_time"]
 
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         """Set `BatchKey.hrvsatellite_solar_azimuth` and `BatchKey.hrvsatellite_solar_elevation`.
@@ -58,6 +58,10 @@ class SunPosition:
                 )
                 y_osgb_centre = np.nanmean(pv_y_osgb, axis=1)
                 x_osgb_centre = np.nanmean(pv_x_osgb, axis=1)
+        elif self.modality_name == "nwp_target_time":
+            y_osgb_centre = np_batch[BatchKey.nwp_y_osgb].mean()
+            x_osgb_centre = np_batch[BatchKey.nwp_x_osgb].mean()
+            time_utc = np_batch[BatchKey.nwp_target_time_utc]
         else:  # gsp and gsp_5_min:
             y_osgb_centre = np_batch[BatchKey.gsp_y_osgb]
             x_osgb_centre = np_batch[BatchKey.gsp_x_osgb]

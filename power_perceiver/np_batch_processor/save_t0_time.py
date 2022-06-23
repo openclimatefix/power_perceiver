@@ -15,6 +15,7 @@ class SaveT0Time:
     def __call__(self, np_batch: NumpyBatch) -> NumpyBatch:
         pv_t0_idx = np_batch[BatchKey.pv_t0_idx]
         gsp_t0_idx = np_batch[BatchKey.gsp_t0_idx]
+        hrvsatellite_t0_idx = np_batch[BatchKey.hrvsatellite_t0_idx]
 
         np_batch[BatchKey.pv_time_utc_fourier_t0] = np_batch[BatchKey.pv_time_utc_fourier][
             :, pv_t0_idx
@@ -22,4 +23,7 @@ class SaveT0Time:
         np_batch[BatchKey.gsp_time_utc_fourier_t0] = np_batch[BatchKey.gsp_time_utc_fourier][
             :, gsp_t0_idx
         ]
+        np_batch[BatchKey.hrvsatellite_time_utc_fourier_t0] = np_batch[
+            BatchKey.hrvsatellite_time_utc_fourier
+        ][:, hrvsatellite_t0_idx]
         return np_batch

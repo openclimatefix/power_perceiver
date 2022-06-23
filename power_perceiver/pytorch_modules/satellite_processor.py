@@ -97,6 +97,15 @@ class HRVSatelliteProcessor(nn.Module):
             x=hrvsatellite.shape[2],
         )
 
+        time_fourier_t0 = x[BatchKey.hrvsatellite_time_utc_fourier_t0]
+        time_fourier_t0 = einops.repeat(
+            time_fourier_t0,
+            "example features -> (example time) y x features",
+            time=n_timesteps,
+            y=hrvsatellite.shape[1],
+            x=hrvsatellite.shape[2],
+        )
+
         surface_height = x[BatchKey.hrvsatellite_surface_height]  # (example, y, x)
         surface_height = _reduce(surface_height)
         surface_height = surface_height.unsqueeze(-1)  # (example, y, x, 1)
@@ -128,11 +137,12 @@ class HRVSatelliteProcessor(nn.Module):
         # example * time, y, x, feature
         byte_array = torch.concat(
             (
-                y_fourier,
-                x_fourier,
                 time_fourier,
+                time_fourier_t0,
                 solar_azimuth,
                 solar_elevation,
+                y_fourier,
+                x_fourier,
                 surface_height,
                 hrvsatellite,
             ),

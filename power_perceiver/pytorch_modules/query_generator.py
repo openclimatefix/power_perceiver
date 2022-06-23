@@ -5,7 +5,8 @@ import einops
 import torch
 from torch import nn
 
-from power_perceiver.consts import BatchKey
+from power_perceiver.consts import SATELLITE_SPACER_LEN, BatchKey
+from power_perceiver.pytorch_modules.utils import get_spacer_tensor
 from power_perceiver.utils import assert_num_dims
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
@@ -94,15 +95,18 @@ class PVQueryGenerator(nn.Module):
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         pv_marker = torch.zeros_like(solar_azimuth)
 
+        satellite_spacer = get_spacer_tensor(template=time_fourier, length=SATELLITE_SPACER_LEN)
+
         return torch.concat(
             (
-                pv_marker,
-                y_fourier,
-                x_fourier,
                 time_fourier,
                 time_fourier_t0,  # So the model can tell which "step" this is.
                 solar_azimuth,
                 solar_elevation,
+                y_fourier,
+                x_fourier,
+                satellite_spacer,
+                pv_marker,
                 pv_system_embedding,
                 pv_power,
             ),
@@ -211,14 +215,17 @@ class GSPQueryGenerator(nn.Module):
         # The first element of dim 3 is zero for PV and one to mark that "this is GSP":
         gsp_marker = torch.ones_like(solar_azimuth)
 
+        satellite_spacer = get_spacer_tensor(template=time_fourier, length=SATELLITE_SPACER_LEN)
+
         gsp_query_tuple = (
-            gsp_marker,
-            y_fourier,
-            x_fourier,
             time_fourier,
             time_fourier_t0,
             solar_azimuth,
             solar_elevation,
+            y_fourier,
+            x_fourier,
+            satellite_spacer,
+            gsp_marker,
             gsp_id_embedding,
         )
         if include_history:
