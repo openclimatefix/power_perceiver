@@ -55,7 +55,7 @@ NWP_CHANNEL_NAMES = tuple(NWP_STD.keys())
 
 def _to_data_array(d):
     return xr.DataArray(
-        [d[key] for key in NWP_CHANNEL_NAMES], coords={"channel": NWP_CHANNEL_NAMES}
+        [d[key] for key in NWP_CHANNEL_NAMES], coords={"channel": list(NWP_CHANNEL_NAMES)}
     )
 
 
