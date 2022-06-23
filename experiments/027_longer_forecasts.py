@@ -975,7 +975,10 @@ model = FullModel()
 
 if ENABLE_WANDB:
     wandb_logger = WandbLogger(
-        name="027.04: NWP chans as sep query elements. 8 hr GSP fcst. GCP-1 with dual GPU.",
+        name=(
+            "027.05: Same order of query elements. NWP chans as sep query elements. 8 hr GSP fcst."
+            " GCP-2 with dual GPU."
+        ),
         project="power_perceiver",
         entity="openclimatefix",
         log_model=True,
