@@ -50,10 +50,10 @@ class NWPProcessor(nn.Module):
         )
 
         # Concatenate time fourier on the final dimension:
-        nwp_query = torch.concat((time_fourier, channel_ids, nwp), dim=-1).float()
+        nwp_query = torch.concat((time_fourier, channel_ids, nwp), dim=-1)
         # Shape: example time channel features
 
-        import ipdb; ipdb.set_trace()
+        assert nwp_query.dtype == torch.float32
 
         return einops.rearrange(
             nwp_query, "example time channel features -> example (time channel) features"

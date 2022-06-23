@@ -56,7 +56,7 @@ NWP_CHANNEL_NAMES = tuple(NWP_STD.keys())
 def _to_data_array(d):
     return xr.DataArray(
         [d[key] for key in NWP_CHANNEL_NAMES], coords={"channel": list(NWP_CHANNEL_NAMES)}
-    )
+    ).astype(np.float32)
 
 
 NWP_MEAN = _to_data_array(NWP_MEAN)
@@ -134,7 +134,8 @@ class RawNWPDataSource(
             assert len(chans_not_in_channel_names) == 0, (
                 f"{len(chans_not_in_channel_names)} requested channel name(s) not in"
                 f" NWP_CHANNEL_NAMES! {chans_not_in_channel_names=}; {self.channels=};"
-                f" {NWP_CHANNEL_NAMES=}")
+                f" {NWP_CHANNEL_NAMES=}"
+            )
         RawDataSource.__post_init__(self)
         SpatialDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
