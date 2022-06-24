@@ -77,8 +77,8 @@ SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
 N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 # PowerPerceiver options
-D_MODEL = 144  # Must be divisible by N_HEADS
-N_HEADS = 16
+D_MODEL = 256  # Must be divisible by N_HEADS
+N_HEADS = 32
 
 NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
@@ -430,7 +430,7 @@ class SatelliteTransformer(nn.Module):
     num_heads: int = N_HEADS
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 16
+    num_latent_transformer_encoders: int = 8
 
     def __post_init__(self):
         super().__init__()
@@ -606,7 +606,7 @@ class FullModel(pl.LightningModule):
     #: Compute the loss on a central crop of the imagery.
     num_5_min_history_timesteps_during_training: Optional[int] = 4
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
-    num_gaussians: int = 2
+    num_gaussians: int = 3
     num_rnn_layers: int = 4
 
     def __post_init__(self):
@@ -958,8 +958,8 @@ class FullModel(pl.LightningModule):
 # ---------------------------------- Training ----------------------------------
 
 if __name__ == "__main__":
-    DEBUG = False
-    ENABLE_WANDB = True
+    DEBUG = True
+    ENABLE_WANDB = False
 
     if DEBUG:
         GPUS = [0]
@@ -1002,10 +1002,7 @@ if __name__ == "__main__":
 
     if ENABLE_WANDB:
         wandb_logger = WandbLogger(
-            name=(
-                "027.06: Weight loss. Same order of query elements. NWP chans as sep query"
-                " elements. donatello."
-            ),
+            name="027.07: Bigger! donatello.",
             project="power_perceiver",
             entity="openclimatefix",
             log_model=True,
