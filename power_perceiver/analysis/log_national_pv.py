@@ -83,6 +83,7 @@ class LogNationalPV(pl.Callback):
         logger.log_dict(
             {
                 "validation/national_pv_mae_mw": error_mw.abs().mean(),
+                "validation/national_pv_mae_mw_2h": error_mw[:4].abs().mean(),
                 "validation/national_pv_mbe_mw": error_mw.mean(),
             },
             on_epoch=True,
@@ -93,6 +94,10 @@ class LogNationalPV(pl.Callback):
         self._check_accumulator()
         fig, ax = plt.subplots()
         ax = self._national_pv_accumulator_mw.plot(ax=ax)
+        ax.set_title("National solar PV")
+        ax.set_ylabel("MW")
+        date = self._national_pv_accumulator_mw.index[0].date()
+        ax.set_xlabel(date)
         logger.log({f"validation/national_pv_{self._national_batch_idx}": wandb.Image(fig)})
         plt.close(fig)
 
