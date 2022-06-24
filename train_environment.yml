@@ -1,0 +1,22 @@
+# This environment is additional to the environment specified in `base_environment.yml`
+name: power_perceiver
+channels:
+  - pvlib
+  - conda-forge
+dependencies:
+  # Scientific Python
+  - matplotlib
+  - pvlib # required to predict PV power using clearsky irradiance
+  - cartopy # for plotting geospatial imagery
+  - zarr # For training the U-Net directly from satellite data
+  - dask # For training the U-Net directly from satellite data
+  - geopandas # For loading GSP shape files
+
+  # Machine learning
+  - wandb
+  - scikit-learn # used for TSNE
+
+  - pip
+  - pip:
+      - pytorch-msssim
+      # - pytorch-forecasting  # Used for Ranger optimizer (not currently used)

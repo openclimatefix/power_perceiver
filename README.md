@@ -4,9 +4,10 @@ Machine learning experiments using the Perceiver IO model to forecast the electr
 
 # Installation
 
-We recommend installing [mamba](https://github.com/mamba-org/mamba) and using `mamba env create -f environment.yml` instead of `conda env create -f environment.yml`.
+## Installation with conda
+We recommend installing [mamba](https://github.com/mamba-org/mamba) and using `mamba env create -f base_environment.yml` instead of `conda env create -f base_environment.yml`.
 
-If installing on a platform without a GPU, then uncomment `- cpuonly` in `environment.yml`.
+If installing on a platform without a GPU, then uncomment `- cpuonly` in `base_environment.yml`.
 
 ```shell
 conda env create -f base_environment.yml
@@ -30,6 +31,11 @@ add this to `~/miniconda3/envs/power_perceiver/conda-meta/pinned`:
 # See: https://stackoverflow.com/a/70536292/732596
 cudatoolkit<11.6
 ```
+
+## Installation with pip only
+To install the base config, use: `pip install -e .`
+
+To install the code necessary to train, use: `pip install -e .[develop,train]`
 
 # Data pipelines
 

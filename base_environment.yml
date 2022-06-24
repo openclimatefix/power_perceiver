@@ -1,0 +1,43 @@
+# Base environment. Required for training and inference.
+# Also install `train_environment.yml` if training.
+name: power_perceiver
+channels:
+  - pytorch
+  - fastchan
+  - conda-forge
+dependencies:
+  - pip
+  # We need Python 3.10 for `@dataclass(kw_only=True)`. If 3.10 isn't convenient,
+  # then it should be fairly simple to use the `attrs` project, which supports
+  # `kw_only` on Python < 3.10.
+  - python>=3.10
+
+  # Scientific Python
+  - numpy
+  - pandas
+  - xarray
+  - h5netcdf
+  - pathy
+  - fsspec
+  - gcsfs # required to download testing data
+  - pyresample # for reprojecting the topographical data
+  - bottleneck # for xarray.ffill
+  - rioxarray # for loading topographical data
+  - pyproj # for topographical data & coordinate transforms
+
+  # Machine learning
+  - pytorch::pytorch # explicitly specify pytorch channel to prevent conda from using conda-forge for pytorch, and hence installing the CPU-only version.
+  # - cpuonly # Enable when installing on a platform without a GPU.
+  - fastai
+  - pytorch-lightning
+  - einops
+
+  # Development tools
+  - pytest
+  - pytest-cov
+  - flake8
+  - black
+  - pre-commit
+  - pydocstyle
+  - isort
+  - mypy
