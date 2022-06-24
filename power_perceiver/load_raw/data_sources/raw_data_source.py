@@ -199,8 +199,12 @@ class TimeseriesDataSource:
 
     @property
     def total_seq_length(self) -> int:
-        """Total number of timesteps per example, including t0."""
-        return int(self.total_duration / self.sample_period_duration) + 1  # Plus 1 for t0.
+        """Total number of timesteps per example, including t0.
+
+        Our definition "total_seq_length" is inclusive of both the first and last timestep.
+        """
+        # Plus 1 because "total_seq_length" is inclusive of both the first and last timestep.
+        return int(self.total_duration / self.sample_period_duration) + 1
 
     @property
     def total_duration(self) -> datetime.timedelta:
@@ -209,7 +213,12 @@ class TimeseriesDataSource:
 
     @property
     def t0_idx(self) -> int:
-        """The index into the array for the most recent observation (t0)."""
+        """The index into the array for the most recent observation (t0).
+
+        Remember that, in this code, we consider t0 to be part of the history.
+        So, if the history_duration is 1 hour, and sample_period_duration is 30 minutes,
+        then "history" will be at indicies 0, 1, and 2.
+        """
         return int(self.history_duration / self.sample_period_duration)
 
     @property
