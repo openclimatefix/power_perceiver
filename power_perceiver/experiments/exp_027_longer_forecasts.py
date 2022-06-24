@@ -84,7 +84,7 @@ NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = True
+DEBUG = False
 ENABLE_WANDB = True
 
 if DEBUG:
