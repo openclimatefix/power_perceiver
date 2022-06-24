@@ -9,8 +9,13 @@ We recommend installing [mamba](https://github.com/mamba-org/mamba) and using `m
 If installing on a platform without a GPU, then uncomment `- cpuonly` in `environment.yml`.
 
 ```shell
-conda env create -f environment.yml
+conda env create -f base_environment.yml
 conda activate power_perceiver
+
+# If training, then also install the dependencies listed in train_environment.yml:
+# See https://stackoverflow.com/a/43873901/732596
+conda env update --file train_environment.yml --prune
+
 pip install -e .
 pre-commit install
 ```

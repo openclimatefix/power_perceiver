@@ -1,6 +1,7 @@
 from distutils.core import setup
-from setuptools import find_packages
 from pathlib import Path
+
+from setuptools import find_packages
 
 this_directory = Path(__file__).parent
 install_requires = (this_directory / "requirements.txt").read_text().splitlines()
@@ -9,7 +10,7 @@ long_description = (this_directory / "README.md").read_text()
 exec(open("power_perceiver/version.py").read())
 setup(
     name="power_perceiver",
-    version=__version__,
+    version=__version__,  # noqa: F821
     packages=find_packages(),
     url="https://github.com/openclimatefix/power_perceiver",
     license="MIT License",
@@ -19,13 +20,14 @@ setup(
     long_description=long_description,
     ong_description_content_type="text/markdown",
     author_email="jack@openclimatefix.org",
-    description=("Machine learning experiments using the Perceiver IO"
-                 " model to forecast the electricity system (starting with solar)"),
+    description=(
+        "Machine learning experiments to forecast the electricity system (starting with solar)"
+    ),
     classifiers=[
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Topic :: Scientific/Engineering :: Artificial Intelligence",
         "License :: OSI Approved :: MIT License",
-        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
     ],
 )
