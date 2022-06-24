@@ -84,6 +84,16 @@ NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
+DEBUG = True
+ENABLE_WANDB = False
+
+if DEBUG:
+    GPUS = [0]
+elif ON_DONATELLO:
+    GPUS = [0, 1, 2, 4]
+else:  # On GCP
+    GPUS = [0, 1]
+
 
 def get_dataloader(
     start_date,
@@ -958,16 +968,6 @@ class FullModel(pl.LightningModule):
 # ---------------------------------- Training ----------------------------------
 
 if __name__ == "__main__":
-    DEBUG = True
-    ENABLE_WANDB = False
-
-    if DEBUG:
-        GPUS = [0]
-    elif ON_DONATELLO:
-        GPUS = [0, 1, 2, 4]
-    else:  # On GCP
-        GPUS = [0, 1]
-
     # Important to seed the models when using DistributedDataProcessing, so the
     # models on different GPUs are initialised the same way. But we *do* want
     # to seed our data loader workers differently for each GPU, so we do that
