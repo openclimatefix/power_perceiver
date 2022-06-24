@@ -84,23 +84,6 @@ NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
-DEBUG = False
-ENABLE_WANDB = True
-
-if DEBUG:
-    GPUS = [0]
-elif ON_DONATELLO:
-    GPUS = [0, 1, 2, 4]
-else:  # On GCP
-    GPUS = [0, 1]
-
-
-# Important to seed the models when using DistributedDataProcessing, so the
-# models on different GPUs are initialised the same way. But we *do* want
-# to seed our data loader workers differently for each GPU, so we do that
-# in our own worker_init_fn.
-pl.seed_everything(42)
-
 
 def get_dataloader(
     start_date,
@@ -236,29 +219,6 @@ def get_dataloader(
     )
 
     return dataloader
-
-
-train_dataloader = get_dataloader(
-    start_date="2020-01-01",
-    end_date="2020-03-01" if DEBUG else "2020-12-31",
-    num_workers=0 if DEBUG else 4,
-    n_batches_per_epoch_per_worker=64 if DEBUG else 1024,
-    load_subset_every_epoch=True,
-    train=True,
-)
-
-N_GSPS_AFTER_FILTERING = 313
-val_dataloader = get_dataloader(
-    start_date="2021-01-01",
-    end_date="2021-03-01" if DEBUG else "2021-12-31",
-    # num_workers for NationalPVDataset MUST BE SAME 1!
-    # OTHERWISE LogNationalPV BREAKS! See:
-    # https://github.com/openclimatefix/power_perceiver/issues/130
-    num_workers=0 if DEBUG else 1,
-    n_batches_per_epoch_per_worker=64 if DEBUG else N_GSPS_AFTER_FILTERING,
-    load_subset_every_epoch=False,
-    train=False,
-)
 
 
 # ---------------------------------- SatellitePredictor ----------------------------------
@@ -997,47 +957,88 @@ class FullModel(pl.LightningModule):
 
 # ---------------------------------- Training ----------------------------------
 
-model = FullModel()
+if __name__ == "__main__":
+    DEBUG = False
+    ENABLE_WANDB = True
 
-if ENABLE_WANDB:
-    wandb_logger = WandbLogger(
-        name=(
-            "027.06: Weight loss. Same order of query elements. NWP chans as sep query elements."
-            " donatello."
-        ),
-        project="power_perceiver",
-        entity="openclimatefix",
-        log_model=True,
+    if DEBUG:
+        GPUS = [0]
+    elif ON_DONATELLO:
+        GPUS = [0, 1, 2, 4]
+    else:  # On GCP
+        GPUS = [0, 1]
+
+    # Important to seed the models when using DistributedDataProcessing, so the
+    # models on different GPUs are initialised the same way. But we *do* want
+    # to seed our data loader workers differently for each GPU, so we do that
+    # in our own worker_init_fn.
+    pl.seed_everything(42)
+
+    # Get data loaders
+    train_dataloader = get_dataloader(
+        start_date="2020-01-01",
+        end_date="2020-03-01" if DEBUG else "2020-12-31",
+        num_workers=0 if DEBUG else 4,
+        n_batches_per_epoch_per_worker=64 if DEBUG else 1024,
+        load_subset_every_epoch=True,
+        train=True,
     )
-    callbacks = [
-        # Save the top 3 model params
-        pl.callbacks.ModelCheckpoint(
-            monitor="validation/gsp_nmae",
-            mode="min",
-            save_top_k=3,
-        ),
-        # Always save the most recent model (so we can resume training)
-        pl.callbacks.ModelCheckpoint(filename="{epoch}"),
-        pl.callbacks.LearningRateMonitor(logging_interval="step"),
-        LogProbabilityTimeseriesPlots(),
-        LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
-        LogNationalPV(),
-    ]
-else:
-    wandb_logger = False
-    callbacks = None
 
-# WARNING: Don't run multiple GPUs in ipython.
-trainer = pl.Trainer(
-    gpus=GPUS,
-    strategy="ddp" if len(GPUS) > 1 else None,
-    max_epochs=200,
-    logger=wandb_logger,
-    callbacks=callbacks,
-)
+    N_GSPS_AFTER_FILTERING = 313
+    val_dataloader = get_dataloader(
+        start_date="2021-01-01",
+        end_date="2021-03-01" if DEBUG else "2021-12-31",
+        # num_workers for NationalPVDataset MUST BE SAME 1!
+        # OTHERWISE LogNationalPV BREAKS! See:
+        # https://github.com/openclimatefix/power_perceiver/issues/130
+        num_workers=0 if DEBUG else 1,
+        n_batches_per_epoch_per_worker=64 if DEBUG else N_GSPS_AFTER_FILTERING,
+        load_subset_every_epoch=False,
+        train=False,
+    )
 
-trainer.fit(
-    model=model,
-    train_dataloaders=train_dataloader,
-    val_dataloaders=val_dataloader,
-)
+    # Init model:
+    model = FullModel()
+
+    if ENABLE_WANDB:
+        wandb_logger = WandbLogger(
+            name=(
+                "027.06: Weight loss. Same order of query elements. NWP chans as sep query"
+                " elements. donatello."
+            ),
+            project="power_perceiver",
+            entity="openclimatefix",
+            log_model=True,
+        )
+        callbacks = [
+            # Save the top 3 model params
+            pl.callbacks.ModelCheckpoint(
+                monitor="validation/gsp_nmae",
+                mode="min",
+                save_top_k=3,
+            ),
+            # Always save the most recent model (so we can resume training)
+            pl.callbacks.ModelCheckpoint(filename="{epoch}"),
+            pl.callbacks.LearningRateMonitor(logging_interval="step"),
+            LogProbabilityTimeseriesPlots(),
+            LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
+            LogNationalPV(),
+        ]
+    else:
+        wandb_logger = False
+        callbacks = None
+
+    # WARNING: Don't run multiple GPUs in ipython.
+    trainer = pl.Trainer(
+        gpus=GPUS,
+        strategy="ddp" if len(GPUS) > 1 else None,
+        max_epochs=200,
+        logger=wandb_logger,
+        callbacks=callbacks,
+    )
+
+    trainer.fit(
+        model=model,
+        train_dataloaders=train_dataloader,
+        val_dataloaders=val_dataloader,
+    )
