@@ -632,8 +632,9 @@ class FullModel(pl.LightningModule):
         self.satellite_predictor.load_state_dict(
             torch.load(
                 (
-                    "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
-                    "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                    "/home/jack/dev/ocf/power_perceiver/power_perceiver/experiments/"
+                    "power_perceiver/3qvkf1dy/checkpoints/"
+                    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
                 )
                 if ON_DONATELLO
                 else (
