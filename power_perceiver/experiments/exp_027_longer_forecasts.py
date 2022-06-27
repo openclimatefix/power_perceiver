@@ -1012,7 +1012,7 @@ if __name__ == "__main__":
 
     if ENABLE_WANDB:
         wandb_logger = WandbLogger(
-            name="027.07: Bigger! donatello.",
+            name="027.08: Train on more data. GCP-1",
             project="power_perceiver",
             entity="openclimatefix",
             log_model=True,
