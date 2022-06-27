@@ -1,6 +1,6 @@
 [project]
 name = "power_perceiver"
-version = "2022.6.0"
+version = "2022.6.0"  # TODO: Make this dynamic! https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
 description = "Machine learning experiments to forecast the electricity system (starting with solar)"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -57,5 +57,8 @@ train = [
 requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
-[tool.setuptools.packages.find]
-where = ["power_perceiver"]
+[tool.setuptools.package-dir]
+power_perceiver = "power_perceiver"
+
+[tool.setuptools.packages]
+find = {}
