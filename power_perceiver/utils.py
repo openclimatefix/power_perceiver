@@ -113,7 +113,9 @@ def select_time_periods(
     return xr.concat(new_xr_data, dim=dim_name)
 
 
-def pandas_periods_to_our_periods_dt(periods: Sequence[pd.Period]) -> pd.DataFrame:
+def pandas_periods_to_our_periods_dt(
+    periods: Union[Sequence[pd.Period], pd.PeriodIndex]
+) -> pd.DataFrame:
     new_periods = []
     for period in periods:
         new_periods.append(dict(start_dt=period.start_time, end_dt=period.end_time))

@@ -977,14 +977,14 @@ if __name__ == "__main__":
         val_time_periods = pd.DataFrame({"start_dt": "2021-01-01", "end_dt": "2021-03-01"})
     else:
         # Train on all of 2020. Plus every 5th week of 2021.
-        every_week = pd.period_range("2020-01-01", "2021-12-31", period="W")
+        every_week = pd.period_range("2020-01-01", "2021-12-31", freq="W")
         val_weeks = every_week[53::5]
         train_weeks = set(every_week) - set(val_weeks)
         train_weeks = pd.PeriodIndex(train_weeks).sort_values()
 
         # Now convert to our "time_periods" DataFrame:
-        train_time_periods = pandas_periods_to_our_periods_dt(train_time_periods)
-        val_time_periods = pandas_periods_to_our_periods_dt(val_time_periods)
+        train_time_periods = pandas_periods_to_our_periods_dt(train_weeks)
+        val_time_periods = pandas_periods_to_our_periods_dt(val_weeks)
 
     # Get data loaders
     train_dataloader = get_dataloader(
