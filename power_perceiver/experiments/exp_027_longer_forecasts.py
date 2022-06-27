@@ -16,6 +16,7 @@ import einops
 # ML imports
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -54,7 +55,7 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
-from power_perceiver.utils import assert_num_dims
+from power_perceiver.utils import assert_num_dims, pandas_periods_to_our_periods_dt
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
 
 logging.basicConfig()
@@ -80,7 +81,7 @@ N_PV_SYSTEMS_PER_EXAMPLE = 8
 D_MODEL = 256  # Must be divisible by N_HEADS
 N_HEADS = 32
 
-NWP_CHANNELS = ("dswrf", "t", "si10", "prate", "lcc", "mcc", "hcc", "vis")
+NWP_CHANNELS = ("t", "dswrf", "prate", "r", "si10", "vis", "lcc", "mcc", "hcc")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
@@ -96,8 +97,7 @@ else:  # On GCP
 
 
 def get_dataloader(
-    start_date,
-    end_date,
+    time_periods,
     num_workers,
     n_batches_per_epoch_per_worker,
     load_subset_every_epoch,
@@ -105,8 +105,7 @@ def get_dataloader(
 ) -> torch.utils.data.DataLoader:
 
     data_source_kwargs = dict(
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
     )
@@ -142,8 +141,7 @@ def get_dataloader(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
     )
@@ -162,8 +160,7 @@ def get_dataloader(
         y_coarsen=16,
         x_coarsen=16,
         channels=NWP_CHANNELS,
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
     )
@@ -616,7 +613,7 @@ class FullModel(pl.LightningModule):
     #: Compute the loss on a central crop of the imagery.
     num_5_min_history_timesteps_during_training: Optional[int] = 4
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
-    num_gaussians: int = 3
+    num_gaussians: int = 4
     num_rnn_layers: int = 4
 
     def __post_init__(self):
@@ -975,10 +972,23 @@ if __name__ == "__main__":
     # in our own worker_init_fn.
     pl.seed_everything(42)
 
+    if DEBUG:
+        train_time_periods = pd.DataFrame({"start_dt": "2020-01-01", "end_dt": "2020-03-01"})
+        val_time_periods = pd.DataFrame({"start_dt": "2021-01-01", "end_dt": "2021-03-01"})
+    else:
+        # Train on all of 2020. Plus every 5th week of 2021.
+        every_week = pd.period_range("2020-01-01", "2021-12-31", period="W")
+        val_weeks = every_week[53::5]
+        train_weeks = set(every_week) - set(val_weeks)
+        train_weeks = pd.PeriodIndex(train_weeks).sort_values()
+
+        # Now convert to our "time_periods" DataFrame:
+        train_time_periods = pandas_periods_to_our_periods_dt(train_time_periods)
+        val_time_periods = pandas_periods_to_our_periods_dt(val_time_periods)
+
     # Get data loaders
     train_dataloader = get_dataloader(
-        start_date="2020-01-01",
-        end_date="2020-03-01" if DEBUG else "2020-12-31",
+        time_periods=train_time_periods,
         num_workers=0 if DEBUG else 4,
         n_batches_per_epoch_per_worker=64 if DEBUG else 1024,
         load_subset_every_epoch=True,
@@ -987,8 +997,7 @@ if __name__ == "__main__":
 
     N_GSPS_AFTER_FILTERING = 313
     val_dataloader = get_dataloader(
-        start_date="2021-01-01",
-        end_date="2021-03-01" if DEBUG else "2021-12-31",
+        time_periods=val_time_periods,
         # num_workers for NationalPVDataset MUST BE SAME 1!
         # OTHERWISE LogNationalPV BREAKS! See:
         # https://github.com/openclimatefix/power_perceiver/issues/130

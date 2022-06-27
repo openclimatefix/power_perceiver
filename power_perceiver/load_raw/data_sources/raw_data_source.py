@@ -170,23 +170,22 @@ class TimeseriesDataSource:
             zero then there will still be a single timestep at t0.
         forecast_duration: Total duration of the forecast: dt_end - t0.
         sample_period_duration: The maximum legal `timedelta` between samples. Cannot be zero.
-        start_date:
-        end_date:
+        time_periods: The time periods to consider. A pd.DataFrame with two columns:
+            start_dt and end_dt.
     """
 
     history_duration: datetime.timedelta
     forecast_duration: datetime.timedelta
-    start_date: datetime.datetime
-    end_date: datetime.datetime
+    time_periods: pd.DataFrame
     sample_period_duration: ClassVar[datetime.timedelta]
     _time_dim_name: ClassVar[str] = "time_utc"
 
     def __post_init__(self):  # noqa: D105
         # Sanity checks.
         assert self.sample_period_duration, "sample_period_duration cannot be zero length!"
-        assert (
-            self.start_date < self.end_date
-        ), f"{self.start_date=} must be before {self.end_date=}"
+        assert (self.time_periods["start_dt"] < self.time_periods["end_dt"]).all()
+        start_dt = pd.DatetimeIndex(self.time_periods["start_dt"])
+        assert start_dt.is_monotonic_increasing
         if self.history_duration:
             assert (
                 self.history_duration >= self.sample_period_duration

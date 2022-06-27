@@ -17,7 +17,7 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
 )
-from power_perceiver.utils import check_path_exists, datetime64_to_float
+from power_perceiver.utils import check_path_exists, datetime64_to_float, select_time_periods
 
 _log = logging.getLogger(__name__)
 
@@ -86,7 +86,9 @@ class RawPVDataSource(
         """Open AND load PV data into RAM."""
         # Load pd.DataFrame of power and pd.Series of capacities:
         pv_power_watts, pv_capacity_wp, pv_system_row_number = _load_pv_power_watts_and_capacity_wp(
-            self.pv_power_filename, start_date=self.start_date, end_date=self.end_date
+            self.pv_power_filename,
+            start_date=self.time_periods.iloc[0]["start_dt"],
+            end_date=self.time_periods.iloc[-1]["end_dt"],
         )
         pv_metadata = _load_pv_metadata(self.pv_metadata_filename)
         # Ensure pv_metadata, pv_power_watts, and pv_capacity_wp all have the same set of
@@ -103,6 +105,12 @@ class RawPVDataSource(
             pv_system_row_number=pv_system_row_number,
             t0_idx=self.t0_idx,
             sample_period_duration=self.sample_period_duration,
+        )
+
+        self._data_in_ram = select_time_periods(
+            xr_data=self.data_in_ram,
+            time_periods=self.time_periods,
+            dim_name="time_utc",
         )
 
         # Sanity checks:

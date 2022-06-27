@@ -22,7 +22,7 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     ZarrDataSource,
 )
 from power_perceiver.time import date_summary_str, select_data_in_daylight
-from power_perceiver.utils import datetime64_to_float, is_sorted
+from power_perceiver.utils import datetime64_to_float, is_sorted, select_time_periods
 
 _log = logging.getLogger(__name__)
 
@@ -76,7 +76,10 @@ class RawSatelliteDataSource(
         _log.info("Before any selection: " + date_summary_str(self.data_on_disk.time_utc))
 
         # Select only the timesteps we want:
-        self._data_on_disk = self._data_on_disk.sel(time_utc=slice(self.start_date, self.end_date))
+        self._data_on_disk = select_time_periods(
+            xr_data=self.data_on_disk,
+            time_periods=self.time_periods,
+        )
         self._data_on_disk = select_data_in_daylight(self._data_on_disk)
         _log.info("After filtering: " + date_summary_str(self.data_on_disk.time_utc))
 

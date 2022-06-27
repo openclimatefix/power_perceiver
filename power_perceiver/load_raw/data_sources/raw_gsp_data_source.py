@@ -14,7 +14,7 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
 )
-from power_perceiver.utils import check_path_exists, datetime64_to_float
+from power_perceiver.utils import check_path_exists, datetime64_to_float, select_time_periods
 
 _log = logging.getLogger(__name__)
 
@@ -67,8 +67,10 @@ class RawGSPDataSource(
 
         # Load GSP generation xr.Dataset:
         gsp_pv_power_mw_ds = xr.open_dataset(self.gsp_pv_power_zarr_path, engine="zarr")
-        gsp_pv_power_mw_ds = gsp_pv_power_mw_ds.sel(
-            datetime_gmt=slice(self.start_date, self.end_date)
+        gsp_pv_power_mw_ds = select_time_periods(
+            xr_data=gsp_pv_power_mw_ds,
+            time_periods=self.time_periods,
+            dim_name="datetime_gmt",
         )
         gsp_pv_power_mw_ds = gsp_pv_power_mw_ds.load()
 

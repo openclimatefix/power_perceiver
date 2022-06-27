@@ -16,7 +16,7 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     ZarrDataSource,
 )
 from power_perceiver.time import date_summary_str
-from power_perceiver.utils import datetime64_to_float, is_sorted
+from power_perceiver.utils import datetime64_to_float, is_sorted, select_time_periods
 
 _log = logging.getLogger(__name__)
 
@@ -88,8 +88,7 @@ class RawNWPDataSource(
         roi_width_pixels:
         history_duration: datetime.timedelta
         forecast_duration: datetime.timedelta
-        start_date: datetime.datetime
-        end_date: datetime.datetime
+        time_periods: pd.DataFrame
         y_coarsen:
         x_coarsen: Downsample by taking the mean across this number of pixels.
         channels: The NWP forecast parameters to load. If None then don't filter.
@@ -204,8 +203,10 @@ class RawNWPDataSource(
         _log.info("Before any selection: " + date_summary_str(self.data_on_disk.init_time_utc))
 
         # Select only the timesteps we want:
-        self._data_on_disk = self.data_on_disk.sel(
-            init_time_utc=slice(self.start_date, self.end_date)
+        self._data_on_disk = select_time_periods(
+            xr_data=self.data_on_disk,
+            time_periods=self.time_periods,
+            dim_name=self._time_dim_name,
         )
         # Downsample spatially:
         self._data_on_disk = self.data_on_disk.coarsen(
