@@ -1,5 +1,5 @@
 # power_perceiver
-Machine learning experiments using the Perceiver IO model to forecast the electricity system (starting with solar)
+Machine learning experiments for forecasting the electricity system (starting with solar)
 
 
 # Installation
@@ -52,3 +52,7 @@ The data flows through several steps, in order:
 2. `PreparedDataset` then processes this `XarrayBatch` with its list of `xr_batch_processors`. The `xr_batch_processors` are processors which need to see across or touch multiple modalities at once while the data is still in an xarray Dataset.
 3. Each `XarrayBatch` is then converted to a `NumpyBatch` by that `PreparedDataSource`'s `to_numpy` method. The `to_numpy` method also normalises, converts units, etc.
 4. Finally, `PreparedDataset` passes the entire `NumpyBatch` through the sequence of `np_batch_processors`.
+
+# About the name "power perceiver"
+
+Originally, when I started work on "Power Perceiver" 5 months ago, my intention was to use [DeepMind's Perceiver IO](https://www.deepmind.com/open-source/perceiver-io) at the core of the model. Right now, the model actually just uses a standard transformer encoder, not a Perceiver. But I plan to start using a Perceiver IO again within a month or two, when we start using more input elements than a standard transformer encoder can cope with!
