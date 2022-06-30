@@ -16,7 +16,7 @@ from power_perceiver.load_raw.data_sources.raw_data_source import (
     ZarrDataSource,
 )
 from power_perceiver.time import date_summary_str
-from power_perceiver.utils import datetime64_to_float, is_sorted
+from power_perceiver.utils import datetime64_to_float, is_sorted, select_time_periods
 
 _log = logging.getLogger(__name__)
 
@@ -50,13 +50,13 @@ NWP_STD = {
     "hcc": 39.05157559763763,
 }
 
-NWP_CHANNEL_NAMES = list(NWP_STD.keys())
+NWP_CHANNEL_NAMES = tuple(NWP_STD.keys())
 
 
 def _to_data_array(d):
     return xr.DataArray(
-        [d[key] for key in NWP_CHANNEL_NAMES], coords={"channel": NWP_CHANNEL_NAMES}
-    )
+        [d[key] for key in NWP_CHANNEL_NAMES], coords={"channel": list(NWP_CHANNEL_NAMES)}
+    ).astype(np.float32)
 
 
 NWP_MEAN = _to_data_array(NWP_MEAN)
@@ -88,8 +88,7 @@ class RawNWPDataSource(
         roi_width_pixels:
         history_duration: datetime.timedelta
         forecast_duration: datetime.timedelta
-        start_date: datetime.datetime
-        end_date: datetime.datetime
+        time_periods: pd.DataFrame
         y_coarsen:
         x_coarsen: Downsample by taking the mean across this number of pixels.
         channels: The NWP forecast parameters to load. If None then don't filter.
@@ -129,6 +128,13 @@ class RawNWPDataSource(
     _time_dim_name: ClassVar[str] = "init_time_utc"
 
     def __post_init__(self):  # noqa: D105
+        if self.channels:
+            chans_not_in_channel_names = set(self.channels) - set(NWP_CHANNEL_NAMES)
+            assert len(chans_not_in_channel_names) == 0, (
+                f"{len(chans_not_in_channel_names)} requested channel name(s) not in"
+                f" NWP_CHANNEL_NAMES! {chans_not_in_channel_names=}; {self.channels=};"
+                f" {NWP_CHANNEL_NAMES=}"
+            )
         RawDataSource.__post_init__(self)
         SpatialDataSource.__post_init__(self)
         TimeseriesDataSource.__post_init__(self)
@@ -163,7 +169,7 @@ class RawNWPDataSource(
             data,
             coords=(
                 ("target_time_utc", target_time_utc),
-                ("channel", channels),
+                ("channel", list(channels)),
                 ("y_osgb", y),
                 ("x_osgb", x),
             ),
@@ -186,7 +192,7 @@ class RawNWPDataSource(
         """
         self._data_on_disk = open_nwp(zarr_path=self.zarr_path)
         if self.channels is not None:
-            self._data_on_disk = self._data_on_disk.sel(channel=self.channels)
+            self._data_on_disk = self._data_on_disk.sel(channel=list(self.channels))
         self.channels = self.data_on_disk.channel.values
 
         # Check the x and y coords are sorted.
@@ -197,8 +203,10 @@ class RawNWPDataSource(
         _log.info("Before any selection: " + date_summary_str(self.data_on_disk.init_time_utc))
 
         # Select only the timesteps we want:
-        self._data_on_disk = self.data_on_disk.sel(
-            init_time_utc=slice(self.start_date, self.end_date)
+        self._data_on_disk = select_time_periods(
+            xr_data=self.data_on_disk,
+            time_periods=self.time_periods,
+            dim_name=self._time_dim_name,
         )
         # Downsample spatially:
         self._data_on_disk = self.data_on_disk.coarsen(
@@ -303,10 +311,9 @@ class RawNWPDataSource(
         example[BatchKey.nwp_t0_idx] = xr_data.attrs["t0_idx"]
         target_time = xr_data.target_time_utc.values
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
-
-        # Compute the "step" as a float in the range [0, 1]:
-        forecast_duration = target_time[-1] - target_time[xr_data.attrs["t0_idx"]]
-        example[BatchKey.nwp_step] = np.float32(xr_data.step / forecast_duration)
+        example[BatchKey.nwp_channel_names] = xr_data.channel.values
+        example[BatchKey.nwp_step] = (xr_data.step.values / np.timedelta64(1, "h")).astype(np.int64)
+        example[BatchKey.nwp_init_time_utc] = datetime64_to_float(xr_data.init_time_utc.values)
 
         for batch_key, dataset_key in (
             (BatchKey.nwp_y_osgb, "y_osgb"),

@@ -1,10 +1,14 @@
 from pathlib import Path
-from typing import Union
+from typing import Sequence, Union
 
 import fsspec.asyn
 import numpy as np
 import pandas as pd
+import xarray as xr
 from pathy import Pathy
+
+from power_perceiver.consts import BatchKey
+from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 
 
 def datetime64_to_float(datetimes: np.ndarray, dtype=np.float64) -> np.ndarray:
@@ -83,3 +87,36 @@ def set_fsspec_for_multiprocess() -> None:
     fsspec.asyn.iothread[0] = None
     fsspec.asyn.loop[0] = None
     fsspec.asyn._lock = None
+
+
+def stack_np_examples_into_batch(np_examples: Sequence[NumpyBatch]) -> NumpyBatch:
+    np_batch: NumpyBatch = {}
+    batch_keys = np_examples[0]  # Batch keys should be the same across all examples.
+    for batch_key in batch_keys:
+        if batch_key.name.endswith("t0_idx") or batch_key == BatchKey.nwp_channel_names:
+            # These are always the same for all examples.
+            np_batch[batch_key] = np_examples[0][batch_key]
+        else:
+            examples_for_key = [np_example[batch_key] for np_example in np_examples]
+            np_batch[batch_key] = np.stack(examples_for_key)
+    return np_batch
+
+
+def select_time_periods(
+    xr_data: Union[xr.DataArray, xr.Dataset], time_periods: pd.DataFrame, dim_name: str = "time_utc"
+) -> Union[xr.DataArray, xr.Dataset]:
+    new_xr_data = []
+    for _, row in time_periods.iterrows():
+        start_dt = row["start_dt"]
+        end_dt = row["end_dt"]
+        new_xr_data.append(xr_data.sel({dim_name: slice(start_dt, end_dt)}))
+    return xr.concat(new_xr_data, dim=dim_name)
+
+
+def pandas_periods_to_our_periods_dt(
+    periods: Union[Sequence[pd.Period], pd.PeriodIndex]
+) -> pd.DataFrame:
+    new_periods = []
+    for period in periods:
+        new_periods.append(dict(start_dt=period.start_time, end_dt=period.end_time))
+    return pd.DataFrame(new_periods)

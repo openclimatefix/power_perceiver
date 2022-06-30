@@ -10,13 +10,14 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import BatchKey, Location
+from power_perceiver.exceptions import NoPVSystemsInSlice
 from power_perceiver.geospatial import lat_lon_to_osgb
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,
     TimeseriesDataSource,
 )
-from power_perceiver.utils import check_path_exists, datetime64_to_float
+from power_perceiver.utils import check_path_exists, datetime64_to_float, select_time_periods
 
 _log = logging.getLogger(__name__)
 
@@ -37,8 +38,10 @@ class RawPVDataSource(
             For PV, we use meters (not pixels) because PV isn't an image.
             Must be at least 1,000 meters.
         roi_width_meters:
-        n_pv_systems_per_example: Each example will have exactly this number of PV systems.
-            Randomly select PV systems for each example. If there are less PV systems available
+        n_pv_systems_per_example: Each example will have exactly this number of PV systems,
+            or, if there are zero PV systems in the region (e.g. in northern Scotland),
+            then raise `NoPVSystemsInSlice` exception. If there is at least 1 PV system, then
+            randomly select PV systems for each example. If there are less PV systems available
             than requested, then randomly sample with duplicates allowed, whilst ensuring all
             available PV systems are used.
 
@@ -83,7 +86,9 @@ class RawPVDataSource(
         """Open AND load PV data into RAM."""
         # Load pd.DataFrame of power and pd.Series of capacities:
         pv_power_watts, pv_capacity_wp, pv_system_row_number = _load_pv_power_watts_and_capacity_wp(
-            self.pv_power_filename, start_date=self.start_date, end_date=self.end_date
+            self.pv_power_filename,
+            start_date=self.time_periods.iloc[0]["start_dt"],
+            end_date=self.time_periods.iloc[-1]["end_dt"],
         )
         pv_metadata = _load_pv_metadata(self.pv_metadata_filename)
         # Ensure pv_metadata, pv_power_watts, and pv_capacity_wp all have the same set of
@@ -100,6 +105,12 @@ class RawPVDataSource(
             pv_system_row_number=pv_system_row_number,
             t0_idx=self.t0_idx,
             sample_period_duration=self.sample_period_duration,
+        )
+
+        self._data_in_ram = select_time_periods(
+            xr_data=self.data_in_ram,
+            time_periods=self.time_periods,
+            dim_name="time_utc",
         )
 
         # Sanity checks:
@@ -137,10 +148,8 @@ class RawPVDataSource(
         # Drop any PV systems which have NaN readings at every timestep in the example:
         selected_data = selected_data.dropna(dim="pv_system_id", how="all")
 
-        # If there are no PV systems then return empty_example:
         if len(selected_data.pv_system_id) == 0:
-            self._allow_nans = True
-            return self.empty_example
+            raise NoPVSystemsInSlice()
 
         # Interpolate forwards to fill NaNs which follow finite data:
         selected_data = selected_data.interpolate_na(dim="time_utc")

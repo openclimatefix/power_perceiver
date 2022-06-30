@@ -16,6 +16,7 @@ import einops
 # ML imports
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
@@ -25,18 +26,10 @@ from torch import nn
 
 from power_perceiver.analysis.log_national_pv import LogNationalPV
 from power_perceiver.analysis.plot_probability_timeseries import LogProbabilityTimeseriesPlots
-from power_perceiver.analysis.plot_satellite import LogSatellitePlots
 from power_perceiver.analysis.plot_tsne import LogTSNEPlot
 
 # power_perceiver imports
-from power_perceiver.consts import (
-    T0_IDX_30_MIN,
-    X_OSGB_MEAN,
-    X_OSGB_STD,
-    Y_OSGB_MEAN,
-    Y_OSGB_STD,
-    BatchKey,
-)
+from power_perceiver.consts import X_OSGB_MEAN, X_OSGB_STD, Y_OSGB_MEAN, Y_OSGB_STD, BatchKey
 from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
 from power_perceiver.load_raw.data_sources.raw_nwp_data_source import RawNWPDataSource
@@ -44,6 +37,10 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import RawPVDataSo
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.national_pv_dataset import NationalPVDataset
 from power_perceiver.load_raw.raw_dataset import RawDataset
+from power_perceiver.np_batch_processor.align_gsp_to_5_min import AlignGSPTo5Min
+from power_perceiver.np_batch_processor.delete_forecast_satellite_imagery import (
+    DeleteForecastSatelliteImagery,
+)
 from power_perceiver.np_batch_processor.encode_space_time import EncodeSpaceTime
 from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
 from power_perceiver.np_batch_processor.sun_position import SunPosition
@@ -58,6 +55,7 @@ from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.transforms.pv import PVPowerRollingWindow
+from power_perceiver.utils import assert_num_dims, pandas_periods_to_our_periods_dt
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
 
 logging.basicConfig()
@@ -80,8 +78,10 @@ SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
 N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 # PowerPerceiver options
-D_MODEL = 128
-N_HEADS = 16
+D_MODEL = 256  # Must be divisible by N_HEADS
+N_HEADS = 32
+
+NWP_CHANNELS = ("t", "dswrf", "prate", "r", "si10", "vis", "lcc", "mcc", "hcc")
 
 ON_DONATELLO = socket.gethostname() == "donatello"
 
@@ -96,16 +96,8 @@ else:  # On GCP
     GPUS = [0, 1]
 
 
-# Important to seed the models when using DistributedDataProcessing, so the
-# models on different GPUs are initialised the same way. But we *do* want
-# to seed our data loader workers differently for each GPU, so we do that
-# in our own worker_init_fn.
-pl.seed_everything(42)
-
-
 def get_dataloader(
-    start_date,
-    end_date,
+    time_periods,
     num_workers,
     n_batches_per_epoch_per_worker,
     load_subset_every_epoch,
@@ -113,8 +105,7 @@ def get_dataloader(
 ) -> torch.utils.data.DataLoader:
 
     data_source_kwargs = dict(
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
     )
@@ -150,8 +141,7 @@ def get_dataloader(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
     )
@@ -169,30 +159,34 @@ def get_dataloader(
         roi_width_pixels=4,
         y_coarsen=16,
         x_coarsen=16,
-        channels=["dswrf", "t", "si10", "prate"],
-        start_date=start_date,
-        end_date=end_date,
+        channels=NWP_CHANNELS,
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
     )
 
-    np_batch_processors = [
-        EncodeSpaceTime(),
-        SaveT0Time(pv_t0_idx=NUM_HIST_SAT_IMAGES - 1, gsp_t0_idx=T0_IDX_30_MIN),
-    ]
+    np_batch_processors = [AlignGSPTo5Min(), EncodeSpaceTime(), SaveT0Time()]
     if USE_SUN_POSITION:
-        for satellite_or_gsp in ["satellite", "gsp"]:
-            np_batch_processors.append(SunPosition(modality_name=satellite_or_gsp))
+        for modality_name in ["hrvsatellite", "gsp", "gsp_5_min", "pv", "nwp_target_time"]:
+            np_batch_processors.append(SunPosition(modality_name=modality_name))
     if USE_TOPOGRAPHY:
         np_batch_processors.append(Topography("/home/jack/europe_dem_2km_osgb.tif"))
+    # Delete imagery of the future, because we're not training the U-Net,
+    # and we want to save GPU RAM.
+    # But we do want hrvsatellite_time_utc to continue into the future by 2 hours because
+    # downstream code relies on hrvsatellite_time_utc.
+    # This must come last.
+    np_batch_processors.append(
+        DeleteForecastSatelliteImagery(num_hist_sat_images=NUM_HIST_SAT_IMAGES)
+    )
 
     raw_dataset_kwargs = dict(
-        n_examples_per_batch=16,  # TODO: Increase to more like 32!
+        n_examples_per_batch=14,  # TODO: Increase to more like 32!
         n_batches_per_epoch=n_batches_per_epoch_per_worker,
         np_batch_processors=np_batch_processors,
         load_subset_every_epoch=load_subset_every_epoch,
         min_duration_to_load_per_epoch=datetime.timedelta(
-            hours=48 if DEBUG else ((12 * 48) if ON_DONATELLO else (12 * 24))
+            hours=48 if DEBUG else ((12 * 32) if ON_DONATELLO else (12 * 24))
         ),
         data_source_combos=dict(
             gsp_pv_nwp_sat=(gsp_data_source, pv_data_source, nwp_data_source, sat_data_source),
@@ -232,29 +226,6 @@ def get_dataloader(
     )
 
     return dataloader
-
-
-train_dataloader = get_dataloader(
-    start_date="2020-01-01",
-    end_date="2020-03-01" if DEBUG else "2020-12-31",
-    num_workers=0 if DEBUG else 4,
-    n_batches_per_epoch_per_worker=64 if DEBUG else 512,
-    load_subset_every_epoch=True,
-    train=True,
-)
-
-N_GSPS_AFTER_FILTERING = 313
-val_dataloader = get_dataloader(
-    start_date="2021-01-01",
-    end_date="2021-03-01" if DEBUG else "2021-12-31",
-    # num_workers for NationalPVDataset MUST BE SAME 1!
-    # OTHERWISE LogNationalPV BREAKS! See:
-    # https://github.com/openclimatefix/power_perceiver/issues/130
-    num_workers=0 if DEBUG else 1,
-    n_batches_per_epoch_per_worker=64 if DEBUG else N_GSPS_AFTER_FILTERING,
-    load_subset_every_epoch=False,
-    train=False,
-)
 
 
 # ---------------------------------- SatellitePredictor ----------------------------------
@@ -415,6 +386,40 @@ TOP_IDX = (SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS // 2) - (
 BOTTOM_IDX = TOP_IDX + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
 
+def _crop_satellite_and_spatial_coords(
+    x: dict[BatchKey, torch.Tensor]
+) -> dict[BatchKey, torch.Tensor]:
+    """Crop satellite data & spatial coordinates.
+
+    This is necessary because we want to give the "satellite predictor"
+    a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
+    coming, but we probably don't want to give that huge image to a full-self-attention model.
+    """
+    assert_num_dims(x[BatchKey.hrvsatellite_actual], num_expected_dims=5)
+    assert_num_dims(x[BatchKey.hrvsatellite_predicted], num_expected_dims=4)
+
+    def _check_shape(batch_key, y_idx=1, x_idx=2):
+        error_msg = f"{batch_key.name}.shape = {x[batch_key].shape}"
+        assert x[batch_key].shape[y_idx] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
+        assert x[batch_key].shape[x_idx] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, error_msg
+
+    # Crop the predicted and actual imagery:
+    for batch_key in (BatchKey.hrvsatellite_actual, BatchKey.hrvsatellite_predicted):
+        x[batch_key] = x[batch_key][..., TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
+        _check_shape(batch_key, y_idx=-2, x_idx=-1)
+
+    # Crop the coords (which have to be done in a separate loop, because `y` and `x`
+    # are at different positions):
+    for batch_key in (
+        BatchKey.hrvsatellite_y_osgb_fourier,
+        BatchKey.hrvsatellite_x_osgb_fourier,
+        BatchKey.hrvsatellite_surface_height,
+    ):
+        x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
+        _check_shape(batch_key)
+    return x
+
+
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class SatelliteTransformer(nn.Module):
@@ -428,11 +433,11 @@ class SatelliteTransformer(nn.Module):
     # byte_array and query will be automatically padded with zeros to get to d_model.
     # Set d_model to be divisible by `num_heads`.
     d_model: int = D_MODEL
-    pv_system_id_embedding_dim: int = 8
+    pv_system_id_embedding_dim: int = 16
     num_heads: int = N_HEADS
     dropout: float = 0.0
     share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 16
+    num_latent_transformer_encoders: int = 8
 
     def __post_init__(self):
         super().__init__()
@@ -462,39 +467,19 @@ class SatelliteTransformer(nn.Module):
             num_latent_transformer_encoders=self.num_latent_transformer_encoders,
         )
 
-        self.power_output = nn.Sequential(
-            nn.Linear(in_features=self.d_model, out_features=self.d_model),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model, out_features=self.d_model // 2),
-            nn.GELU(),
-            nn.Linear(in_features=self.d_model // 2, out_features=1),
-            nn.ReLU(),  # Ensure the output is always positive!
-        )
-
-    def forward(
-        self, x: dict[BatchKey, torch.Tensor], hrvsatellite: torch.Tensor
-    ) -> dict[str, torch.Tensor]:
+    def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Reshape so each timestep is considered a different example:
         num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
-        # TODO: Fix this `original_x` hack, which is needed to prevent the reshaping affecting
-        # the time_transformer, too!
-        original_x = {}
-        for batch_key in (
-            # BatchKey.gsp_5_min_time_utc_fourier,
-            BatchKey.pv_time_utc_fourier,
-            BatchKey.hrvsatellite_solar_azimuth,
-            BatchKey.hrvsatellite_solar_elevation,
-            BatchKey.hrvsatellite_time_utc_fourier,
-        ):
-            original_x[batch_key] = x[batch_key]
-            x[batch_key] = einops.rearrange(x[batch_key], "example time ... -> (example time) ...")
-
-        hrvsatellite = einops.rearrange(hrvsatellite, "example time ... -> (example time) ...")
 
         # Process satellite data and queries:
-        pv_query = self.pv_query_generator(x)
-        gsp_query = self.gsp_query_generator(x, for_satellite_transformer=True)
-        satellite_data = self.hrvsatellite_processor(x, hrvsatellite)
+        pv_query = self.pv_query_generator(x)  # shape: example * time, n_pv_systems, features
+        gsp_query = self.gsp_query_generator(
+            x,
+            include_history=True,
+            base_batch_key=BatchKey.gsp_5_min,
+            do_reshape_time_as_batch=True,
+        )  # shape: example * time, 1, features
+        satellite_data = self.hrvsatellite_processor(x)  # shape: example * time, positions, feats.
 
         # Pad with zeros if necessary to get up to self.d_model:
         pv_query = maybe_pad_with_zeros(pv_query, requested_dim=self.d_model)
@@ -527,26 +512,99 @@ class SatelliteTransformer(nn.Module):
         pv_attn_out = attn_output[:, :, :gsp_start_idx]
         gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
 
-        # Power output:
-        pv_power_out = self.power_output(pv_attn_out).squeeze()
-        gsp_power_out = self.power_output(gsp_attn_out).squeeze()
-
-        # Put back the original data! TODO: Remove this hack!
-        x.update(original_x)
-
         return {
             "pv_attn_out": pv_attn_out,  # shape: (example, 5_min_time, n_pv_systems, d_model)
             "gsp_attn_out": gsp_attn_out,  # shape: (example, 5_min_time, 1, d_model)
-            "pv_power_out": pv_power_out,  # shape: (example, 5_min_time, n_pv_systems)
-            "gsp_power_out": gsp_power_out,  # shape: (example, 5_min_time)
         }
+
+
+@dataclass(eq=False)
+class PVRNN(nn.Module):
+    hidden_size: int
+    num_layers: int
+    dropout: float
+
+    def __post_init__(self):
+        super().__init__()
+
+        rnn_kwargs = dict(
+            hidden_size=self.hidden_size,
+            num_layers=self.num_layers,
+            dropout=self.dropout,
+            batch_first=True,
+        )
+        self.pv_rnn_history_encoder = nn.RNN(
+            # Each timestep of the encoder RNN receives the output of the satellite_transformer
+            # (which is of size d_model per PV system and per timestep), for a single PV system,
+            # plus one timestep of that PV system's history.
+            input_size=self.hidden_size + 1,
+            **rnn_kwargs,
+        )
+        self.pv_rnn_future_decoder = nn.RNN(
+            # Each timestep of the decoder RNN receives the output of the satellite_transformer
+            # (which is of size d_model per PV system and per timestep) for a single PV system.
+            input_size=self.hidden_size,
+            **rnn_kwargs,
+        )
+
+    def forward(
+        self, x: dict[BatchKey, torch.Tensor], sat_trans_pv_attn_out: torch.Tensor
+    ) -> torch.Tensor:
+        # Prepare inputs for the pv_rnn_history_encoder:
+        # Each timestep of the encoder RNN receives the output of the satellite_transformer
+        # (which is of size d_model per PV system and per timestep), for a single PV system,
+        # plus one timestep of that PV system's history.
+        # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
+        # And use nan_to_num later in this function.
+        pv_t0_idx = x[BatchKey.pv_t0_idx]
+        num_pv_timesteps = x[BatchKey.pv].shape[1]
+        hist_pv = x[BatchKey.pv][:, : pv_t0_idx + 1]  # Shape: example, time, n_pv_systems
+
+        # Reshape so each PV system is seen as a different example:
+        hist_pv = einops.rearrange(
+            hist_pv, "example time n_pv_systems -> (example n_pv_systems) time 1"
+        )
+        sat_trans_pv_attn_out = einops.rearrange(
+            sat_trans_pv_attn_out,
+            "example time n_pv_systems d_model -> (example n_pv_systems) time d_model",
+            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,  # sanity check
+            time=num_pv_timesteps,
+        )
+        hist_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, : pv_t0_idx + 1]
+
+        pv_rnn_hist_enc_in = torch.concat((hist_pv, hist_sat_trans_pv_attn_out), dim=2)
+        pv_rnn_hist_enc_in = pv_rnn_hist_enc_in.nan_to_num(0)
+        pv_rnn_hist_enc_out, pv_rnn_hist_enc_hidden = self.pv_rnn_history_encoder(
+            pv_rnn_hist_enc_in
+        )
+
+        # Now for the pv_rnn_future_decoder:
+        future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, pv_t0_idx + 1 :]
+        future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num(0)
+        pv_rnn_fut_dec_out, _ = self.pv_rnn_future_decoder(
+            future_sat_trans_pv_attn_out,
+            pv_rnn_hist_enc_hidden,
+        )
+
+        # Concatenate the output from the encoder and decoder RNNs, and reshape
+        # so each timestep and each PV system is a separate element into `time_transformer`.
+        pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
+        # rnn_out shape: (example n_pv_systems), time, d_model
+        assert pv_rnn_out.isfinite().all()
+        pv_rnn_out = einops.rearrange(
+            pv_rnn_out,
+            "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
+            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
+            d_model=self.hidden_size,
+            time=num_pv_timesteps,
+        )
+        return pv_rnn_out
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
     d_model: int = D_MODEL
-    pv_system_id_embedding_dim: int = 16
     num_heads: int = N_HEADS
     dropout: float = 0.1
     share_weights_across_latent_transformer_layers: bool = False
@@ -555,7 +613,7 @@ class FullModel(pl.LightningModule):
     #: Compute the loss on a central crop of the imagery.
     num_5_min_history_timesteps_during_training: Optional[int] = 4
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
-    num_gaussians: int = 2
+    num_gaussians: int = 4
     num_rnn_layers: int = 4
 
     def __post_init__(self):
@@ -571,8 +629,9 @@ class FullModel(pl.LightningModule):
         self.satellite_predictor.load_state_dict(
             torch.load(
                 (
-                    "/home/jack/dev/ocf/power_perceiver/experiments/power_perceiver/3qvkf1dy/"
-                    "checkpoints/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                    "/home/jack/dev/ocf/power_perceiver/power_perceiver/experiments/"
+                    "power_perceiver/3qvkf1dy/checkpoints/"
+                    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
                 )
                 if ON_DONATELLO
                 else (
@@ -585,28 +644,13 @@ class FullModel(pl.LightningModule):
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
 
-        self.nwp_processor = NWPProcessor()
+        self.nwp_processor = NWPProcessor(n_channels=len(NWP_CHANNELS))
 
         # Find temporal features, and help calibrate predictions using recent history:
-        # TODO: Move the RNN into its own nn.Module.
-        rnn_kwargs = dict(
+        self.pv_rnn = PVRNN(
             hidden_size=self.d_model,
             num_layers=self.num_rnn_layers,
-            batch_first=True,
             dropout=self.dropout,
-        )
-        self.pv_rnn_history_encoder = nn.RNN(
-            # Each timestep of the encoder RNN receives the output of the satellite_transformer
-            # (which is of size d_model per PV system and per timestep), for a single PV system,
-            # plus one timestep of that PV system's history.
-            input_size=self.d_model + 1,
-            **rnn_kwargs,
-        )
-        self.pv_rnn_future_decoder = nn.RNN(
-            # Each timestep of the decoder RNN receives the output of the satellite_transformer
-            # (which is of size d_model per PV system and per timestep) for a single PV system.
-            input_size=self.d_model,
-            **rnn_kwargs,
         )
 
         # Look across timesteps to produce the final output.
@@ -631,151 +675,104 @@ class FullModel(pl.LightningModule):
         # Do this at the end of __post_init__ to capture model topology to wandb:
         self.save_hyperparameters()
 
+    def _predict_satellite(self, x: dict[BatchKey, torch.Tensor]) -> dict[BatchKey, torch.Tensor]:
+        """Predict future satellite images. The SatellitePredictor always gets every timestep."""
+        if self.cheat:
+            predicted = x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0]
+        else:
+            predicted = self.satellite_predictor(x=x)  # Shape: example, time, y, x
+
+        assert predicted.isfinite().all()
+        x[BatchKey.hrvsatellite_predicted] = predicted
+        return x
+
+    def _select_random_subset_of_timesteps(
+        self, x: dict[BatchKey, torch.Tensor]
+    ) -> dict[BatchKey, torch.Tensor]:
+        random_history_timestep_indexes = random_int_without_replacement(
+            start=0,
+            stop=NUM_HIST_SAT_IMAGES,
+            num=self.num_5_min_history_timesteps_during_training,
+        )
+        random_forecast_timestep_indexes = random_int_without_replacement(
+            start=NUM_HIST_SAT_IMAGES,
+            stop=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
+            num=self.num_5_min_forecast_timesteps_during_training,
+        )
+        random_timestep_indexes = np.concatenate(
+            (random_history_timestep_indexes, random_forecast_timestep_indexes)
+        )
+        x[BatchKey.hrvsatellite_actual] = x[BatchKey.hrvsatellite_actual][
+            :, random_history_timestep_indexes
+        ]
+        x[BatchKey.hrvsatellite_predicted] = x[BatchKey.hrvsatellite_predicted][
+            :, random_forecast_timestep_indexes - NUM_HIST_SAT_IMAGES
+        ]
+        for batch_key in (
+            # If we go back to training the u-net, then we'll have to save `hrvsatellite`
+            # before it is subsampled. See issue #156.
+            # Don't include BatchKey.hrvsatellite_time_utc because all it's used for
+            # is plotting satellite predictions, and we need all timesteps for that!
+            # Subselect pv_time_utc here, so `plot_probabability_timeseries.plot_pv_power`
+            # works correctly.
+            # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
+            # satellite_transformer.
+            BatchKey.hrvsatellite_time_utc_fourier,
+            BatchKey.hrvsatellite_solar_azimuth,
+            BatchKey.hrvsatellite_solar_elevation,
+            BatchKey.pv,
+            BatchKey.pv_time_utc,
+            BatchKey.pv_time_utc_fourier,
+            BatchKey.pv_solar_azimuth,
+            BatchKey.pv_solar_elevation,
+            BatchKey.gsp_5_min,
+            BatchKey.gsp_5_min_time_utc_fourier,
+            BatchKey.gsp_5_min_solar_azimuth,
+            BatchKey.gsp_5_min_solar_elevation,
+        ):
+            x[batch_key] = x[batch_key][:, random_timestep_indexes]
+
+        for batch_key in (
+            BatchKey.hrvsatellite_t0_idx,
+            BatchKey.pv_t0_idx,
+            BatchKey.gsp_5_min_t0_idx,
+        ):
+            x[batch_key] = self.num_5_min_history_timesteps_during_training - 1
+
+        return x
+
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
         # Predict future satellite images. The SatellitePredictor always gets every timestep.
-        if self.cheat:
-            predicted_sat = x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0]
-        else:
-            predicted_sat = self.satellite_predictor(x=x)  # Shape: example, time, y, x
-
-        hrvsatellite = torch.concat(
-            (x[BatchKey.hrvsatellite_actual][:, :NUM_HIST_SAT_IMAGES, 0], predicted_sat), dim=1
-        )
-        assert hrvsatellite.isfinite().all()
+        x = self._predict_satellite(x)
 
         # Select a subset of 5-minute timesteps during training:
         if self.num_5_min_history_timesteps_during_training and self.training:
-            random_history_timestep_indexes = random_int_without_replacement(
-                start=0,
-                stop=NUM_HIST_SAT_IMAGES,
-                num=self.num_5_min_history_timesteps_during_training,
-            )
-            random_forecast_timestep_indexes = random_int_without_replacement(
-                start=NUM_HIST_SAT_IMAGES,
-                stop=NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES,
-                num=self.num_5_min_forecast_timesteps_during_training,
-            )
-            random_timestep_indexes = np.concatenate(
-                (random_history_timestep_indexes, random_forecast_timestep_indexes)
-            )
-            hrvsatellite = hrvsatellite[:, random_timestep_indexes]
-            for batch_key in (
-                # Don't include BatchKey.hrvsatellite, because we need all timesteps to
-                # compute the loss for the SatellitePredictor!
-                # Don't include BatchKey.hrvsatellite_time_utc because all it's used for
-                # is plotting satellite predictions, and we need all timesteps for that!
-                # Don't subselect pv_time_utc here, because we subselect that in
-                # `plot_probabability_timeseries.plot_pv_power`.
-                # We *do* subset hrvsatellite_time_utc_fourier because it's used in the
-                # satellite_transformer.
-                BatchKey.hrvsatellite_time_utc_fourier,
-                BatchKey.pv,
-                BatchKey.pv_time_utc_fourier,
-                BatchKey.hrvsatellite_solar_azimuth,
-                BatchKey.hrvsatellite_solar_elevation,
-            ):
-                x[batch_key] = x[batch_key][:, random_timestep_indexes]
+            x = self._select_random_subset_of_timesteps(x)
             num_5_min_timesteps = (
                 self.num_5_min_history_timesteps_during_training
                 + self.num_5_min_forecast_timesteps_during_training
             )
         else:
             num_5_min_timesteps = NUM_HIST_SAT_IMAGES + NUM_FUTURE_SAT_IMAGES
-            random_timestep_indexes = None
 
-        # Detach because it looks like it hurts performance to let the gradients go backwards
-        # from here
-        hrvsatellite = hrvsatellite.detach()
-
-        # Crop satellite data:
-        # This is necessary because we want to give the "satellite predictor"
-        # a large rectangle of imagery (e.g. 256 wide x 128 high) so it can see clouds
-        # coming, but we probably don't want to give that huge image to a full-self-attention model.
-        hrvsatellite = hrvsatellite[..., TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
-        assert hrvsatellite.shape[-2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-        assert hrvsatellite.shape[-1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-
-        # Crop spatial coordinates:
-        original_x = {}
-        for batch_key in (
-            BatchKey.hrvsatellite_y_osgb_fourier,
-            BatchKey.hrvsatellite_x_osgb_fourier,
-            BatchKey.hrvsatellite_surface_height,
-        ):
-            # Save a backup so we can put the backup back at the end of this function!
-            # This is useful so we can plot the full surface height.
-            original_x[batch_key] = x[batch_key]
-            x[batch_key] = x[batch_key][:, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX]
-            assert x[batch_key].shape[1] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-            assert x[batch_key].shape[2] == SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
+        x = _crop_satellite_and_spatial_coords(x)
 
         # Pass through the transformer!
-        assert hrvsatellite.isfinite().all()
-        sat_trans_out = self.satellite_transformer(x=x, hrvsatellite=hrvsatellite)
-        sat_trans_pv_attn_out = sat_trans_out[
-            "pv_attn_out"
-        ]  # Shape: (example time n_pv_systems d_model)
-        sat_trans_gsp_attn_out = sat_trans_out["gsp_attn_out"]
+        sat_trans_out = self.satellite_transformer(x=x)
 
-        assert sat_trans_pv_attn_out.isfinite().all()
-        assert sat_trans_gsp_attn_out.isfinite().all()
-
-        # Prepare inputs for the pv_rnn_history_encoder:
-        # Each timestep of the encoder RNN receives the output of the satellite_transformer
-        # (which is of size d_model per PV system and per timestep), for a single PV system,
-        # plus one timestep of that PV system's history.
-        # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
-        # And use nan_to_num later in this function.
-        hist_pv = x[BatchKey.pv][:, : self.t0_idx_5_min + 1]  # Shape: example, time, n_pv_systems
-
-        # Reshape so each PV system is seen as a different example:
-        hist_pv = einops.rearrange(
-            hist_pv, "example time n_pv_systems -> (example n_pv_systems) time 1"
-        )
-        sat_trans_pv_attn_out = einops.rearrange(
-            sat_trans_pv_attn_out,
-            "example time n_pv_systems d_model -> (example n_pv_systems) time d_model",
-            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,  # sanity check
-            time=num_5_min_timesteps,
-        )
-        hist_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, : self.t0_idx_5_min + 1]
-
-        pv_rnn_hist_enc_in = torch.concat((hist_pv, hist_sat_trans_pv_attn_out), dim=2)
-        pv_rnn_hist_enc_in = pv_rnn_hist_enc_in.nan_to_num(0)
-        pv_rnn_hist_enc_out, pv_rnn_hist_enc_hidden = self.pv_rnn_history_encoder(
-            pv_rnn_hist_enc_in
-        )
-
-        # Now for the pv_rnn_future_decoder:
-        future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, self.t0_idx_5_min + 1 :]
-        future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num(0)
-        pv_rnn_fut_dec_out, _ = self.pv_rnn_future_decoder(
-            future_sat_trans_pv_attn_out,
-            pv_rnn_hist_enc_hidden,
-        )
-
-        # Concatenate the output from the encoder and decoder RNNs, and reshape
-        # so each timestep and each PV system is a separate element into `time_transformer`.
-        pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
-        # rnn_out shape: (example n_pv_systems), time, d_model
-        assert pv_rnn_out.isfinite().all()
-        pv_rnn_out = einops.rearrange(
-            pv_rnn_out,
-            "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
-            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
-            d_model=self.d_model,
-            time=num_5_min_timesteps,
-        )
+        # Pass through PV RNN:
+        sat_trans_pv_attn_out = sat_trans_out["pv_attn_out"]
+        # Shape of `sat_trans_pv_attn_out`: (example time n_pv_systems d_model)
+        pv_rnn_out = self.pv_rnn(x=x, sat_trans_pv_attn_out=sat_trans_pv_attn_out)
+        del sat_trans_pv_attn_out
         n_pv_elements = pv_rnn_out.shape[1]
-        del sat_trans_pv_attn_out, hist_sat_trans_pv_attn_out, future_sat_trans_pv_attn_out
-        del hist_pv, pv_rnn_hist_enc_hidden
 
-        # Reshape gsp attention outputs so each timestep is
-        # seen as a separate element into the `time transformer`. Remember that, at this stage,
-        # the sat_trans_gsp_attn_out is 5-minutely.
-        sat_trans_gsp_attn_out = einops.rearrange(
-            sat_trans_gsp_attn_out, "example time 1 d_model -> example time d_model"
-        )
+        # ----------------- Prepare inputs for the `time_transformer` -----------------------------
+
+        # Get GSP attention outputs. Each GSP attention output timestep is seen as a separate
+        # element into the `time transformer`. Remember, at this stage, `sat_trans_gsp_attn_out`
+        # is 5-minutely. Shape (after squeeze): example time d_model.
+        sat_trans_gsp_attn_out = sat_trans_out["gsp_attn_out"].squeeze()
 
         # Pad with zeros
         pv_rnn_out = maybe_pad_with_zeros(pv_rnn_out, requested_dim=self.d_model)
@@ -785,9 +782,14 @@ class FullModel(pl.LightningModule):
 
         # Get GSP query for the time_transformer:
         # The query for the time_transformer is just for the half-hourly timesteps
-        # (not the half-hourly timesteps resampled to 5-minutely.)
-        gsp_query_generator = self.satellite_transformer.gsp_query_generator
-        gsp_query = gsp_query_generator(x, for_satellite_transformer=False)
+        # (not the 5-minutely GSP queries used in the `SatelliteTransformer`.)
+        gsp_query_generator: GSPQueryGenerator = self.satellite_transformer.gsp_query_generator
+        gsp_query = gsp_query_generator.forward(
+            x,
+            include_history=True,
+            base_batch_key=BatchKey.gsp,
+            do_reshape_time_as_batch=False,
+        )
         gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
 
         # Prepare NWP inputs
@@ -795,20 +797,29 @@ class FullModel(pl.LightningModule):
         nwp_query = maybe_pad_with_zeros(nwp_query, requested_dim=self.d_model)
 
         # Concatenate all the things we're going to feed into the "time transformer":
+        # Shape: (example, elements, d_model)
         # `pv_rnn_out` must be the first set of elements.
         # `gsp_query` must be the last set of elements.
+        # The shape is (example, query_elements, d_model).
         time_attn_in = torch.concat(
             (pv_rnn_out, sat_trans_gsp_attn_out, nwp_query, gsp_query), dim=1
         )
 
+        # It's necessary to mask the time_transformer because some examples, where we're trying to
+        # predict GSP PV power, might have NaN PV data (because the GSP is so far north it has no
+        # PV systems!), and we don't want the attention mechanism to pay any attention to the
+        # zero'd out (previously NaN) PV data when predicting GSP PV power.
+        mask = time_attn_in.isnan().any(dim=2)
         time_attn_in = time_attn_in.nan_to_num(0)
-        time_attn_out = self.time_transformer(time_attn_in)
+        time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
 
-        # The MDN doesn't like NaNs:
+        # ---------------------------- MIXTURE DENSITY NETWORK -----------------------------------
+        # The MDN doesn't like NaNs, and I think there will be NaNs when, for example,
+        # the example is missing PV data:
         time_attn_out = time_attn_out.nan_to_num(0)
+        predicted_pv_power = self.pv_mixture_density_net(time_attn_out[:, :n_pv_elements])
 
         # Reshape the PV power predictions
-        predicted_pv_power = self.pv_mixture_density_net(time_attn_out[:, :n_pv_elements])
         predicted_pv_power = einops.rearrange(
             predicted_pv_power,
             "example (time n_pv_systems) mdn_features -> example time n_pv_systems mdn_features",
@@ -821,25 +832,12 @@ class FullModel(pl.LightningModule):
         n_gsp_elements = gsp_query.shape[1]
         predicted_gsp_power = self.pv_mixture_density_net(time_attn_out[:, -n_gsp_elements:])
 
-        x.update(original_x)
-
         return dict(
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)
             predicted_gsp_power=predicted_gsp_power,  # Shape: (example time mdn_features)
-            predicted_sat=predicted_sat,  # Shape: example, time, y, x
-            # shape: (example, 5_min_time, n_pv_systems):
-            pv_power_from_sat_transformer=sat_trans_out["pv_power_out"],
-            # shape: (example, 5_min_time):
-            gsp_power_from_sat_transformer=sat_trans_out["gsp_power_out"],
-            random_timestep_indexes=random_timestep_indexes,
+            predicted_sat=x[BatchKey.hrvsatellite_predicted],  # Shape: example, time, y, x
+            pv_time_utc=x[BatchKey.pv_time_utc],  # Give the subsampled times to plotting functions.
         )
-
-    @property
-    def t0_idx_5_min(self) -> int:
-        if self.training and self.num_5_min_history_timesteps_during_training:
-            return self.num_5_min_history_timesteps_during_training - 1
-        else:
-            return NUM_HIST_SAT_IMAGES - 1
 
     @property
     def tag(self) -> str:
@@ -866,15 +864,29 @@ class FullModel(pl.LightningModule):
         # For more discussion of how to mask losses in pytorch, see:
         # https://discuss.pytorch.org/t/masking-input-to-loss-function/121830/3
         pv_mask = actual_pv_power.isfinite()
-        pv_mask_from_t0 = pv_mask[:, self.t0_idx_5_min + 1 :]
+        pv_t0_idx = batch[BatchKey.pv_t0_idx]
+        pv_slice_from_t0 = slice(pv_t0_idx + 1, None)
+        pv_mask_from_t0 = pv_mask[:, pv_slice_from_t0]
+
         gsp_mask = actual_gsp_power.isfinite()
-        gsp_mask_from_t0 = gsp_mask[:, T0_IDX_30_MIN + 1 :]
+        gsp_t0_idx = batch[BatchKey.gsp_t0_idx]
+        gsp_slice_from_t0 = slice(gsp_t0_idx + 1, None)
+        gsp_slice_from_t0_to_1h = slice(gsp_t0_idx + 1, gsp_t0_idx + 3)
+        gsp_mask_from_t0 = gsp_mask[:, gsp_slice_from_t0]
+        gsp_mask_from_t0_to_1h = gsp_mask[:, gsp_slice_from_t0_to_1h]
 
-        predicted_pv_power_from_t0 = predicted_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
-        actual_pv_power_from_t0 = actual_pv_power[:, self.t0_idx_5_min + 1 :][pv_mask_from_t0]
+        predicted_pv_power_from_t0 = predicted_pv_power[:, pv_slice_from_t0][pv_mask_from_t0]
+        actual_pv_power_from_t0 = actual_pv_power[:, pv_slice_from_t0][pv_mask_from_t0]
 
-        predicted_gsp_power_from_t0 = predicted_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0]
-        actual_gsp_power_from_t0 = actual_gsp_power[:, T0_IDX_30_MIN + 1 :][gsp_mask_from_t0]
+        predicted_gsp_power_from_t0 = predicted_gsp_power[:, gsp_slice_from_t0][gsp_mask_from_t0]
+        actual_gsp_power_from_t0 = actual_gsp_power[:, gsp_slice_from_t0][gsp_mask_from_t0]
+
+        predicted_gsp_power_from_t0_to_1h = predicted_gsp_power[:, gsp_slice_from_t0_to_1h][
+            gsp_mask_from_t0_to_1h
+        ]
+        actual_gsp_power_from_t0_to_1h = actual_gsp_power[:, gsp_slice_from_t0_to_1h][
+            gsp_mask_from_t0_to_1h
+        ]
 
         # PV negative log prob loss:
         pv_distribution = get_distribution(predicted_pv_power_from_t0)
@@ -888,37 +900,41 @@ class FullModel(pl.LightningModule):
         pv_nmae_loss = F.l1_loss(pv_distribution.mean, actual_pv_power_from_t0)
         self.log(f"{self.tag}/pv_nmae", pv_nmae_loss)
 
-        # PV loss from satellite transformer:
-        # (don't do this for GSP because GSP data from sat transformer is 5-minutely!)
-        # We include the history as well as the forecast, because the satellite transformer
-        # doesn't see the history, and we want to encourage the satellite transformer to
-        # infer PV yield from historical and future images.
-        pv_from_sat_trans_mse_loss = F.mse_loss(
-            network_out["pv_power_from_sat_transformer"][pv_mask], actual_pv_power[pv_mask]
-        )
-        self.log(f"{self.tag}/pv_from_sat_trans_mse_loss", pv_from_sat_trans_mse_loss)
+        # GSP negative log prob loss from t0:
+        gsp_distribution_from_t0 = get_distribution(predicted_gsp_power_from_t0)
+        gsp_neg_log_prob_loss_from_t0 = -gsp_distribution_from_t0.log_prob(
+            actual_gsp_power_from_t0
+        ).mean()
+        self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss_from_t0)
 
-        # GSP negative log prob loss:
-        gsp_distribution_masked = get_distribution(predicted_gsp_power_from_t0)
-        gsp_neg_log_prob_loss = -gsp_distribution_masked.log_prob(actual_gsp_power_from_t0).mean()
-        self.log(f"{self.tag}/gsp_neg_log_prob", gsp_neg_log_prob_loss)
+        # GSP negative log prob loss from t0 to 1h forecast:
+        gsp_distribution_from_t0_to_1h = get_distribution(predicted_gsp_power_from_t0_to_1h)
+        gsp_neg_log_prob_loss_from_t0_to_1h = -gsp_distribution_from_t0_to_1h.log_prob(
+            actual_gsp_power_from_t0_to_1h
+        ).mean()
+        self.log(f"{self.tag}/gsp_neg_log_prob_from_t0_to_1h", gsp_neg_log_prob_loss_from_t0_to_1h)
 
         # GSP power loss:
-        gsp_mse_loss = F.mse_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
+        gsp_mse_loss = F.mse_loss(gsp_distribution_from_t0.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_mse", gsp_mse_loss)
 
-        gsp_nmae_loss = F.l1_loss(gsp_distribution_masked.mean, actual_gsp_power_from_t0)
+        gsp_nmae_loss = F.l1_loss(gsp_distribution_from_t0.mean, actual_gsp_power_from_t0)
         self.log(f"{self.tag}/gsp_nmae", gsp_nmae_loss)
 
-        # Total PV and GSP loss:
-        total_pv_and_gsp_mse_loss = gsp_mse_loss + pv_mse_loss + pv_from_sat_trans_mse_loss
-        total_pv_and_gsp_neg_log_prob_loss = gsp_neg_log_prob_loss + pv_neg_log_prob_loss
+        # Total PV and GSP MSE loss:
+        total_pv_and_gsp_mse_loss = gsp_mse_loss + pv_mse_loss
         self.log(f"{self.tag}/total_mse", total_pv_and_gsp_mse_loss)
 
         # Total NMAE loss:
         total_nmae_loss = pv_nmae_loss + gsp_nmae_loss
         self.log(f"{self.tag}/total_nmae", total_nmae_loss)
 
+        # Total PV and GSP negative log probability loss:
+        total_pv_and_gsp_neg_log_prob_loss = (
+            gsp_neg_log_prob_loss_from_t0
+            + (gsp_neg_log_prob_loss_from_t0_to_1h * 2)
+            + pv_neg_log_prob_loss
+        )
         self.log(
             f"{self.tag}/total_pv_and_gsp_neg_log_prob_loss", total_pv_and_gsp_neg_log_prob_loss
         )
@@ -932,11 +948,9 @@ class FullModel(pl.LightningModule):
             "actual_pv_power": actual_pv_power,
             "predicted_pv_power": predicted_pv_power,
             "predicted_pv_power_mean": get_distribution(predicted_pv_power).mean,
+            "pv_time_utc": network_out["pv_time_utc"],
             "predicted_sat": network_out["predicted_sat"],  # Shape: example, time, y, x
             "actual_sat": batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0],
-            "pv_power_from_sat_transformer": network_out["pv_power_from_sat_transformer"],
-            "gsp_power_from_sat_transformer": network_out["gsp_power_from_sat_transformer"],
-            "random_timestep_indexes": network_out["random_timestep_indexes"],
         }
 
     def configure_optimizers(self):
@@ -951,48 +965,87 @@ class FullModel(pl.LightningModule):
 
 # ---------------------------------- Training ----------------------------------
 
-model = FullModel()
+if __name__ == "__main__":
+    # Important to seed the models when using DistributedDataProcessing, so the
+    # models on different GPUs are initialised the same way. But we *do* want
+    # to seed our data loader workers differently for each GPU, so we do that
+    # in our own worker_init_fn.
+    pl.seed_everything(42)
 
-if ENABLE_WANDB:
-    wandb_logger = WandbLogger(
-        name=(
-            "027.01: Fix plots. Sun elev & az in GSP query. 8 hr GSP fcst."
-            " num_latent_transformer_encoders=8. GCP-2 with dual GPU."
-        ),
-        project="power_perceiver",
-        entity="openclimatefix",
-        log_model=True,
+    if DEBUG:
+        train_time_periods = pd.DataFrame({"start_dt": "2020-01-01", "end_dt": "2020-03-01"})
+        val_time_periods = pd.DataFrame({"start_dt": "2021-01-01", "end_dt": "2021-03-01"})
+    else:
+        # Train on all of 2020. Plus every 5th week of 2021.
+        every_week = pd.period_range("2020-01-01", "2021-12-31", freq="W")
+        val_weeks = every_week[53::5]
+        train_weeks = set(every_week) - set(val_weeks)
+        train_weeks = pd.PeriodIndex(train_weeks).sort_values()
+
+        # Now convert to our "time_periods" DataFrame:
+        train_time_periods = pandas_periods_to_our_periods_dt(train_weeks)
+        val_time_periods = pandas_periods_to_our_periods_dt(val_weeks)
+
+    # Get data loaders
+    train_dataloader = get_dataloader(
+        time_periods=train_time_periods,
+        num_workers=0 if DEBUG else 4,
+        n_batches_per_epoch_per_worker=64 if DEBUG else 1024,
+        load_subset_every_epoch=True,
+        train=True,
     )
-    callbacks = [
-        # Save the top 3 model params
-        pl.callbacks.ModelCheckpoint(
-            monitor="validation/gsp_nmae",
-            mode="min",
-            save_top_k=3,
-        ),
-        # Always save the most recent model (so we can resume training)
-        pl.callbacks.ModelCheckpoint(filename="{epoch}"),
-        pl.callbacks.LearningRateMonitor(logging_interval="step"),
-        LogProbabilityTimeseriesPlots(),
-        LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
-        LogSatellitePlots(),
-        LogNationalPV(),
-    ]
-else:
-    wandb_logger = False
-    callbacks = None
 
-# WARNING: Don't run multiple GPUs in ipython.
-trainer = pl.Trainer(
-    gpus=GPUS,
-    strategy="ddp" if len(GPUS) > 1 else None,
-    max_epochs=200,
-    logger=wandb_logger,
-    callbacks=callbacks,
-)
+    N_GSPS_AFTER_FILTERING = 313
+    val_dataloader = get_dataloader(
+        time_periods=val_time_periods,
+        # num_workers for NationalPVDataset MUST BE SAME 1!
+        # OTHERWISE LogNationalPV BREAKS! See:
+        # https://github.com/openclimatefix/power_perceiver/issues/130
+        num_workers=0 if DEBUG else 1,
+        n_batches_per_epoch_per_worker=64 if DEBUG else N_GSPS_AFTER_FILTERING,
+        load_subset_every_epoch=False,
+        train=False,
+    )
 
-trainer.fit(
-    model=model,
-    train_dataloaders=train_dataloader,
-    val_dataloaders=val_dataloader,
-)
+    # Init model:
+    model = FullModel()
+
+    if ENABLE_WANDB:
+        wandb_logger = WandbLogger(
+            name="027.08: Train on more data. GCP-1",
+            project="power_perceiver",
+            entity="openclimatefix",
+            log_model=True,
+        )
+        callbacks = [
+            # Save the top 3 model params
+            pl.callbacks.ModelCheckpoint(
+                monitor="validation/gsp_nmae",
+                mode="min",
+                save_top_k=3,
+            ),
+            # Always save the most recent model (so we can resume training)
+            pl.callbacks.ModelCheckpoint(filename="{epoch}"),
+            pl.callbacks.LearningRateMonitor(logging_interval="step"),
+            LogProbabilityTimeseriesPlots(),
+            LogTSNEPlot(query_generator_name="satellite_transformer.pv_query_generator"),
+            LogNationalPV(),
+        ]
+    else:
+        wandb_logger = False
+        callbacks = None
+
+    # WARNING: Don't run multiple GPUs in ipython.
+    trainer = pl.Trainer(
+        gpus=GPUS,
+        strategy="ddp" if len(GPUS) > 1 else None,
+        max_epochs=200,
+        logger=wandb_logger,
+        callbacks=callbacks,
+    )
+
+    trainer.fit(
+        model=model,
+        train_dataloaders=train_dataloader,
+        val_dataloaders=val_dataloader,
+    )

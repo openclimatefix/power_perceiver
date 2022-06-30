@@ -94,7 +94,7 @@ def sat_data_opened() -> RawSatelliteDataSource:
     # on the "unopened" `sat_data_source` fixture, and so tests which expect an "unopened"
     # RawSatelliteDataSource object would actually get an opened object!
     sat_data_source = _get_sat_data_source()
-    sat_data_source.per_worker_init(worker_id=1)
+    sat_data_source.per_worker_init(worker_id=1, seed=0)
     return sat_data_source
 
 
@@ -103,7 +103,7 @@ def sat_data_loaded() -> RawSatelliteDataSource:
     # Don't use `sat_data_source` fixture, because that will run `per_worker_init`
     # on the "unopened" `sat_data_source` fixture!
     sat_data_source = _get_sat_data_source()
-    sat_data_source.per_worker_init(worker_id=1)
+    sat_data_source.per_worker_init(worker_id=1, seed=0)
 
     periods = sat_data_source.get_contiguous_t0_time_periods()
     periods = periods.iloc[:3]
@@ -125,7 +125,7 @@ def pv_data_source() -> RawPVDataSource:
         roi_width_meters=64_000,
         n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
     )
-    pv.per_worker_init(worker_id=0)
+    pv.per_worker_init(worker_id=0, seed=0)
     return pv
 
 
@@ -140,14 +140,15 @@ def gsp_data_source() -> RawGSPDataSource:  # noqa: D103
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
     )
-    gsp.per_worker_init(worker_id=0)
+    gsp.per_worker_init(worker_id=0, seed=0)
     return gsp
 
 
 @pytest.fixture(scope="session")
 def raw_dataset_with_sat_only(sat_data_source: RawSatelliteDataSource) -> RawDataset:
     return RawDataset(
-        data_source_combos=dict(sat_only=(sat_data_source,)),
+        # deepcopy sat_data_source so we don't affect the fixture.
+        data_source_combos=dict(sat_only=(deepcopy(sat_data_source),)),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),
         n_batches_per_epoch=16,
         n_examples_per_batch=N_EXAMPLES_PER_BATCH,
@@ -162,7 +163,8 @@ def raw_dataset_with_sat_only_and_gsp_pv_sat(
 ) -> RawDataset:
     return RawDataset(
         data_source_combos=dict(
-            sat_only=(sat_data_source,),
+            # deepcopy sat_data_source so we don't affect the fixture.
+            sat_only=(deepcopy(sat_data_source),),
             gsp_pv_sat=(gsp_data_source, pv_data_source, deepcopy(sat_data_source)),
         ),
         min_duration_to_load_per_epoch=datetime.timedelta(hours=20),

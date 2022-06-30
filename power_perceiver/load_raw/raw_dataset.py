@@ -21,7 +21,11 @@ from power_perceiver.time import (
     intersection_of_multiple_dataframes_of_periods,
     time_periods_to_datetime_index,
 )
-from power_perceiver.utils import sample_row_and_drop_row_from_df, set_fsspec_for_multiprocess
+from power_perceiver.utils import (
+    sample_row_and_drop_row_from_df,
+    set_fsspec_for_multiprocess,
+    stack_np_examples_into_batch,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -200,16 +204,7 @@ class RawDataset(torch.utils.data.IterableDataset):
 
     def _get_np_batch(self) -> NumpyBatch:
         np_examples = [self._get_np_example() for _ in range(self.n_examples_per_batch)]
-        np_batch: NumpyBatch = {}
-        batch_keys = np_examples[0]  # Batch keys should be the same across all examples.
-        for batch_key in batch_keys:
-            if batch_key.name.endswith("t0_idx"):
-                # The t0_idx is always the same for all examples. So keep it as a scalar:
-                np_batch[batch_key] = np_examples[0][batch_key]
-            else:
-                # All batch keys except *_t0_idx:
-                examples_for_key = [np_example[batch_key] for np_example in np_examples]
-                np_batch[batch_key] = np.stack(examples_for_key)
+        np_batch = stack_np_examples_into_batch(np_examples)
         return self._process_np_batch(np_batch)
 
     def _get_np_example(self) -> NumpyBatch:
@@ -262,17 +257,12 @@ class RawDataset(torch.utils.data.IterableDataset):
         chosen_data_source_combo = self.data_source_combos[chosen_combo_name]
         xr_example: XarrayBatch = {}
         for data_source in self._unique_data_sources:
-            if any([data_source is ds for ds in chosen_data_source_combo]):
+            if data_source in chosen_data_source_combo:
                 xr_example[data_source.__class__] = data_source.get_example(
                     t0_datetime_utc, location_osgb
                 )
             else:
-                try:
-                    xr_example[data_source.__class__] = data_source.empty_example
-                except AttributeError as e:
-                    raise AttributeError(
-                        "If this is a duplicate data_source then we should ignore."
-                    ) from e
+                xr_example[data_source.__class__] = data_source.empty_example
 
         return xr_example
 

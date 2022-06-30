@@ -24,3 +24,13 @@ def repeat_over_time(
         tensor = einops.repeat(tensor, "batch_size ... -> batch_size time ...", time=n_timesteps)
         repeated_tensors.append(tensor)
     return repeated_tensors
+
+
+def get_spacer_tensor(template: torch.Tensor, length: int) -> torch.Tensor:
+    """Get a tensor of zeros."""
+    shape = template.shape[:-1] + (length,)
+    return torch.zeros(
+        shape,
+        dtype=torch.float32,
+        device=template.device,
+    )

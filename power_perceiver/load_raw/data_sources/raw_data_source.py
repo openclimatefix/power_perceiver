@@ -10,6 +10,7 @@ import pandas as pd
 import xarray as xr
 
 from power_perceiver.consts import Location
+from power_perceiver.exceptions import NoPVSystemsInSlice
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.time import get_contiguous_time_periods
 from power_perceiver.utils import check_path_exists
@@ -75,17 +76,23 @@ class RawDataSource:
 
         The returned Dataset must not include an `example` dimension.
         """
-        self._allow_nans = False
-        xr_data = self._get_slice(t0_datetime_utc=t0_datetime_utc, center_osgb=center_osgb)
+        using_empty_example = False
+        try:
+            xr_data = self._get_slice(t0_datetime_utc=t0_datetime_utc, center_osgb=center_osgb)
+        except NoPVSystemsInSlice:
+            xr_data = self.empty_example
+            using_empty_example = True
         xr_data = self._post_process(xr_data)
         xr_data = self._set_attributes(xr_data)
         xr_data = self._transform(xr_data)
-        try:
-            self.check_xarray_data(xr_data)
-        except Exception as e:
-            raise e.__class__(
-                f"Exception raised when checking xr data! {t0_datetime_utc=} {center_osgb=}"
-            ) from e
+
+        if not using_empty_example:
+            try:
+                self.check_xarray_data(xr_data)
+            except Exception as e:
+                raise e.__class__(
+                    f"Exception raised when checking xr data! {t0_datetime_utc=} {center_osgb=}"
+                ) from e
         return xr_data
 
     def _get_slice(self, t0_datetime_utc: datetime.datetime, center_osgb: Location) -> xr.DataArray:
@@ -99,8 +106,7 @@ class RawDataSource:
         return xr_data
 
     def check_xarray_data(self, xr_data: xr.DataArray):  # noqa: D102
-        if not self._allow_nans:
-            assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
+        assert np.isfinite(xr_data).all(), "Some xr_data is non-finite!"
 
     def _set_attributes(self, xr_data: xr.DataArray) -> xr.DataArray:
         return xr_data
@@ -164,23 +170,22 @@ class TimeseriesDataSource:
             zero then there will still be a single timestep at t0.
         forecast_duration: Total duration of the forecast: dt_end - t0.
         sample_period_duration: The maximum legal `timedelta` between samples. Cannot be zero.
-        start_date:
-        end_date:
+        time_periods: The time periods to consider. A pd.DataFrame with two columns:
+            start_dt and end_dt.
     """
 
     history_duration: datetime.timedelta
     forecast_duration: datetime.timedelta
-    start_date: datetime.datetime
-    end_date: datetime.datetime
+    time_periods: pd.DataFrame
     sample_period_duration: ClassVar[datetime.timedelta]
     _time_dim_name: ClassVar[str] = "time_utc"
 
     def __post_init__(self):  # noqa: D105
         # Sanity checks.
         assert self.sample_period_duration, "sample_period_duration cannot be zero length!"
-        assert (
-            self.start_date < self.end_date
-        ), f"{self.start_date=} must be before {self.end_date=}"
+        assert (self.time_periods["start_dt"] < self.time_periods["end_dt"]).all()
+        start_dt = pd.DatetimeIndex(self.time_periods["start_dt"])
+        assert start_dt.is_monotonic_increasing
         if self.history_duration:
             assert (
                 self.history_duration >= self.sample_period_duration
@@ -193,8 +198,12 @@ class TimeseriesDataSource:
 
     @property
     def total_seq_length(self) -> int:
-        """Total number of timesteps per example, including t0."""
-        return int(self.total_duration / self.sample_period_duration) + 1  # Plus 1 for t0.
+        """Total number of timesteps per example, including t0.
+
+        Our definition "total_seq_length" is inclusive of both the first and last timestep.
+        """
+        # Plus 1 because "total_seq_length" is inclusive of both the first and last timestep.
+        return int(self.total_duration / self.sample_period_duration) + 1
 
     @property
     def total_duration(self) -> datetime.timedelta:
@@ -203,7 +212,12 @@ class TimeseriesDataSource:
 
     @property
     def t0_idx(self) -> int:
-        """The index into the array for the most recent observation (t0)."""
+        """The index into the array for the most recent observation (t0).
+
+        Remember that, in this code, we consider t0 to be part of the history.
+        So, if the history_duration is 1 hour, and sample_period_duration is 30 minutes,
+        then "history" will be at indicies 0, 1, and 2.
+        """
         return int(self.history_duration / self.sample_period_duration)
 
     @property
