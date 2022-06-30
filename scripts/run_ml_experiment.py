@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-from omegaconf import DictConfig, OmegaConf
 import hydra
+from omegaconf import DictConfig, OmegaConf
 
 
 @hydra.main(config_path="../configs/", config_name="config")
