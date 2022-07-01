@@ -111,57 +111,45 @@ Design objectives:
 Definitely haven't fully thought this through yet!
 """
 
-
-# -------------- Instantiate DataSources ------------
-pv = ProductionPVDataSource(
-    # Processing functions that run when a data source first opens the source data,
-    # before any ML examples are selected:
-    pre_processors=[
-        RemoveBadPVSystems(),
-        FillNighttimePVWithNaNs(),
-        NormalizePV(),
-        EncodePVSystemsWithGSPID(),
-    ],
-    # Post processors run after an example has been selected:
-    post_processors=[SunPosition()],
+# The PV and Satellite pipes both need to be told which locations to load during training:
+space_time_locations = SpaceTimeLocationPicker(
+    data_sources=(SatelliteMetaData(), PVMetaData()),
+    t0_freq="15T",
 )
+space_time_locations = DisableForecastsRunAtNight(space_time_locations)
 
-satellite = SatelliteDataSource(
-    pre_processors=[
-        Select15MinSatellite(),
-        NormalizeSatellite(),
-        PatchSatellite(),
-        EncodePixelsWithGSPID(),
-    ],
-    post_processors=[SunPosition()],
-)
+space_time_loc_1, space_time_loc_2 = Forker(space_time_locations, num_instances=2, buffer_size=0)
 
-# -------------- Instantiate Dataset -----------------
-input_dataset = NowcastingProductionDataset(
-    data_sources=[pv, satellite],
-)
+# -------------- PV DataPipe ------------
+pv_pipe = LoadPVFromDB(space_time_locations)  # Replace with LoadPVFromNetCDF when training.
+pv_pipe = RemoveBadPVSystems(pv_pipe)
+pv_pipe = FillNighttimePVWithNaNs(pv_pipe)
+pv_pipe = NormalizePV(pv_pipe)
+pv_pipe = SunPosition(pv_pipe)
 
-# ------------ Build production data pipeline ----------
-# (It maybe only works like this if we can predict national PV in one forward pass.)
-# A `BatchML` object is passed from one step to the next.
-production_data_pipeline = [
-    input_dataset,
-    # Processing functions which operate across multiple data sources:
-    FourierEncodeRelativeSpaceTime(),
-    # Saving batches to disk is entirely optional during production,
-    # where it may be useful for debugging:
-    # During training, SaveBatchesToDisk can be used to save pre-prepared batches.
-    # And then `LoadBatchesFromDisk()` can be used to load batches into this pipeline.
-    SaveBatchesToDisk(),
-    # Run ML model:
-    RunModel(model=PVNet()),
-    # Post-process output from model:
-    ClipPredictedPowerToZeroAtNight(elevation_threshold_degrees=5),
-    DisableForecastsRunAtNight(),
-    SaveForecastsToDB(),
-]
 
-run_data_pipeline(
-    production_data_pipeline,
-    space_time_location_selector=now,
-)
+# -------------- Satellite DataPipe ---------
+sat_pipe = OpenSatelliteZarr(space_time_locations)
+sat_pipe = Select15MinSatellite(sat_pipe)
+sat_pipe = NormalizeSatellite(sat_pipe)
+sat_pipe = PatchSatellite(sat_pipe)
+sat_pipe = EncodePixelsWithGSPID(sat_pipe)
+sat_pipe = SunPosition(sat_pipe)
+
+# -------------- Merge & process -----------------
+main_pipe = MergeBatchML(pv_pipe, sat_pipe)
+
+main_pipe = FourierEncodeRelativeSpaceTime(main_pipe)
+
+# Saving batches to disk is entirely optional during production,
+# where it may be useful for debugging:
+# During training, SaveBatchesToDisk can be used to save pre-prepared batches.
+# And then `LoadBatchesFromDisk()` can be used to load batches into this pipeline.
+main_pipe = SaveBatchesToDisk(main_pipe)
+
+# Run ML model:
+main_pipe = RunModel(main_pipe, model=PVNet())
+
+# Post-process output from model:
+main_pipe = ClipPredictedPowerToZeroAtNight(main_pipe, elevation_threshold_degrees=5)
+main_pipe = SaveForecastsToDB(main_pipe)
