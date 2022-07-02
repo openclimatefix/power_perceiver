@@ -111,6 +111,13 @@ Design objectives:
 Definitely haven't fully thought this through yet!
 """
 
+sat_loader = OpenSatelliteZarr(sat_config)
+# OpenSatelliteZarr yields the entire, lazily-opened satellite dataset
+pv_loader = LoadPVFromDB(
+    pipeline_to_run_when_loading_into_ram=[RemoveBadPVSystems()]
+    )
+# LoadPV yields an xr.DataArray of all the PV data in RAM.
+
 # The PV and Satellite pipes both need to be told which locations to load during training:
 # This sends the following instructoins to the data loaders:
 # Batch 1: Load super-batch 0 into RAM. When done, yield example at t0 & location x,y.
@@ -119,7 +126,7 @@ Definitely haven't fully thought this through yet!
 # <last batch of the epoch>: Switch to super-batch 1. (Delete super-batch 0 from RAM).
 # In the background, load super-batch 2. Yield example at t0, location x, y.
 space_time_locations = SpaceTimeLocationPicker(
-    data_sources=(SatelliteMetaData(), PVMetaData()),
+    data_sources=(Ssat_loader, pv_loader),
     t0_freq="15T",
 )
 space_time_locations = DisableForecastsRunAtNight(space_time_locations)
@@ -127,8 +134,13 @@ space_time_locations = DisableForecastsRunAtNight(space_time_locations)
 space_time_loc_1, space_time_loc_2 = Forker(space_time_locations, num_instances=2, buffer_size=0)
 
 # -------------- PV DataPipe ------------
-pv_pipe = LoadPVFromDB(space_time_locations, pv_config)
 # Replace `LoadPVFromDB` with LoadPVFromNetCDF when training. Both output data in exactly the same shape.
+pv_pipe = SelectTimeSlice(pv_loader, space_time_locations)  # Forwards the t0_datetime & location.
+pv_pipe = SelectPVSystemsWithinRegion(
+    pv_pipe,
+    roi_width_km=config.pv.roi.width_km,
+    roi_height_km=config.pv.roi.height_km,
+    )
 pv_pipe = FillNighttimePVWithNaNs(pv_pipe)
 pv_pipe = InterpolateMissingPV(pv_pipe)
 pv_pipe = NormalizePV(pv_pipe)
@@ -136,7 +148,11 @@ pv_pipe = SunPosition(pv_pipe)
 
 
 # -------------- Satellite DataPipe ---------
-sat_pipe = OpenSatelliteZarr(space_time_locations, sat_config)
+sat_pipe = LoadSuperBatchIntoRAM(sat_loader, space_time_locations)  # Optional. Useful during training.
+# LoadSuperBatchIntoRAM speeds up training by caching a subset of the on-disk dataset into RAM,
+# specified by SpateTimeLocationPicker.
+sat_pipe = SelectTimeSlice(sat_pipe)
+sat_pipe = SelectSpatialSlice(sat_pipe)
 sat_pipe = NormalizeSatellite(sat_pipe)
 sat_pipe = PatchSatellite(sat_pipe)
 sat_pipe = SunPosition(sat_pipe)
