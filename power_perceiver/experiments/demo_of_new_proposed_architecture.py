@@ -112,6 +112,12 @@ Definitely haven't fully thought this through yet!
 """
 
 # The PV and Satellite pipes both need to be told which locations to load during training:
+# This sends the following instructoins to the data loaders:
+# Batch 1: Load super-batch 0 into RAM. When done, yield example at t0 & location x,y.
+#          The, in the background, load super-batch 1.
+# Batch 2: Yield exmaple at t0, location x, y
+# <last batch of the epoch>: Switch to super-batch 1. (Delete super-batch 0 from RAM).
+# In the background, load super-batch 2. Yield example at t0, location x, y.
 space_time_locations = SpaceTimeLocationPicker(
     data_sources=(SatelliteMetaData(), PVMetaData()),
     t0_freq="15T",
@@ -121,19 +127,18 @@ space_time_locations = DisableForecastsRunAtNight(space_time_locations)
 space_time_loc_1, space_time_loc_2 = Forker(space_time_locations, num_instances=2, buffer_size=0)
 
 # -------------- PV DataPipe ------------
-pv_pipe = LoadPVFromDB(space_time_locations)  # Replace with LoadPVFromNetCDF when training.
-pv_pipe = RemoveBadPVSystems(pv_pipe)
+pv_pipe = LoadPVFromDB(space_time_locations, pv_config)
+# Replace `LoadPVFromDB` with LoadPVFromNetCDF when training. Both output data in exactly the same shape.
 pv_pipe = FillNighttimePVWithNaNs(pv_pipe)
+pv_pipe = InterpolateMissingPV(pv_pipe)
 pv_pipe = NormalizePV(pv_pipe)
 pv_pipe = SunPosition(pv_pipe)
 
 
 # -------------- Satellite DataPipe ---------
-sat_pipe = OpenSatelliteZarr(space_time_locations)
-sat_pipe = Select15MinSatellite(sat_pipe)
+sat_pipe = OpenSatelliteZarr(space_time_locations, sat_config)
 sat_pipe = NormalizeSatellite(sat_pipe)
 sat_pipe = PatchSatellite(sat_pipe)
-sat_pipe = EncodePixelsWithGSPID(sat_pipe)
 sat_pipe = SunPosition(sat_pipe)
 
 # -------------- Merge & process -----------------
