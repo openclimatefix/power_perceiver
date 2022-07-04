@@ -113,9 +113,7 @@ Definitely haven't fully thought this through yet!
 
 sat_loader = OpenSatelliteZarr(sat_config)
 # OpenSatelliteZarr yields the entire, lazily-opened satellite dataset
-pv_loader = LoadPVFromDB(
-    pipeline_to_run_when_loading_into_ram=[RemoveBadPVSystems()]
-    )
+pv_loader = LoadPVFromDB(pipeline_to_run_when_loading_into_ram=[RemoveBadPVSystems()])
 # LoadPV yields an xr.DataArray of all the PV data in RAM.
 
 # The PV and Satellite pipes both need to be told which locations to load during training:
@@ -140,7 +138,7 @@ pv_pipe = SelectPVSystemsWithinRegion(
     pv_pipe,
     roi_width_km=config.pv.roi.width_km,
     roi_height_km=config.pv.roi.height_km,
-    )
+)
 pv_pipe = FillNighttimePVWithNaNs(pv_pipe)
 pv_pipe = InterpolateMissingPV(pv_pipe)
 pv_pipe = NormalizePV(pv_pipe)
@@ -148,7 +146,9 @@ pv_pipe = SunPosition(pv_pipe)
 
 
 # -------------- Satellite DataPipe ---------
-sat_pipe = LoadSuperBatchIntoRAM(sat_loader, space_time_locations)  # Optional. Useful during training.
+sat_pipe = LoadSuperBatchIntoRAM(
+    sat_loader, space_time_locations
+)  # Optional. Useful during training.
 # LoadSuperBatchIntoRAM speeds up training by caching a subset of the on-disk dataset into RAM,
 # specified by SpateTimeLocationPicker.
 sat_pipe = SelectTimeSlice(sat_pipe)
