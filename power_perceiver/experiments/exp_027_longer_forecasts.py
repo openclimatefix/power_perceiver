@@ -128,8 +128,8 @@ def get_dataloader(
     )
 
     pv_data_source = RawPVDataSource(
-        pv_power_filename="~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf",
-        pv_metadata_filename="~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv",
+        pv_power_filename="/home/jack/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf",
+        pv_metadata_filename="/home/jack/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv",
         roi_height_meters=96_000,
         roi_width_meters=96_000,
         n_pv_systems_per_example=N_PV_SYSTEMS_PER_EXAMPLE,
@@ -138,9 +138,9 @@ def get_dataloader(
     )
 
     gsp_data_source = RawGSPDataSource(
-        gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
-        gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
-        sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
+        gsp_pv_power_zarr_path="/home/jack/data/PV/GSP/v3/pv_gsp.zarr",
+        gsp_id_to_region_id_filename="/home/jack/data/PV/GSP/eso_metadata.csv",
+        sheffield_solar_region_path="/home/jack/data/PV/GSP/gsp_shape",
         time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=8),
