@@ -123,6 +123,22 @@ pv_xr_dataset = LoadPVFromDB(db_credentials)
 pv_xr_dataset = remove_bad_pv_systems(pv_xr_dataset)
 
 ############# GET LIST OF ALL AVAILABLE T0 DATETIMES, ACROSS MODALITIES ##################
+# This only needs to be done once (not for every example).
+# `sat_t0_datetimes` and `pv_t0_datetimes` could just be `pd.DatetimeIndex` objects.
+sat_t0_datetimes = get_all_available_t0_datetimes(
+    sat_xr_dataset,
+    history_duration=config.satellite.history_duration,
+    forecast_duration=config.satellite.forecast_duration,
+)
+pv_t0_datetimes = get_all_available_t0_datetimes(
+    pv_xr_dataset,
+    history_duration=config.pv.history_duration,
+    forecast_duration=config.pv.forecast_duration,
+)
+
+# Find all available t0 datetimes across all modalities:
+available_t0_datetimes = sat_t0_datetimes.intersection(pv_t0_datetimes)
+
 # The PV and Satellite pipes both need to be told which locations to load during training:
 # This sends the following instructions to the data loaders:
 # Batch 1: Load super-batch 0 into RAM. When done, yield example at t0 & location x,y.
@@ -130,13 +146,6 @@ pv_xr_dataset = remove_bad_pv_systems(pv_xr_dataset)
 # Batch 2: Yield example at t0, location x, y
 # <last batch of the epoch>: Switch to super-batch 1. (Delete super-batch 0 from RAM).
 # In the background, load super-batch 2. Yield example at t0, location x, y.
-sat_t0_datetimes = get_t0_datetimes(
-    sat_xr_dataset, history_duration=timedelta(hours=24), forecast_duration=0
-)
-pv_t0_datetimes = get_t0_datetimes(
-    pv_xr_dataset, history_duration=timedelta(hours=24), forecast_duration=timedelta(hours=48)
-)
-available_t0_datetimes = sat_t0_datetimes.intersection(pv_t0_datetimes)
 # Replace T0PickerForSuperBatchLoader when in production, if when training and you don't want to load super batches.
 t0 = T0PickerForSuperBatchLoader(
     available_t0_datetimes=available_t0_datetimes,
@@ -144,13 +153,9 @@ t0 = T0PickerForSuperBatchLoader(
     locations_per_timestep=4,
 )
 t0_for_pv, t0_for_sat = Forker(t0, num_instances=2, buffer_size=0)
-location = LocationPicker(
-    locations=get_dense_locations(
-        sat_xr_dataset,
-        roi_width_pixels=config.sat.roi.width_pixels,
-        roi_height_pixels=config.sat_roi.height_pixels,
-    ),
-)
+
+# Select random locations for each example. Center each example on a random PV system:
+location = LocationPicker(locations=pv_xr_dataset)
 
 # -------------- PV DataPipe ------------
 pv_pipe = SelectTimeSlice(
