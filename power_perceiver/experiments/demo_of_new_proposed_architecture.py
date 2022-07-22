@@ -175,6 +175,10 @@ pv_pipe = InterpolateMissingPV(pv_pipe)
 pv_pipe = NormalizePV(pv_pipe)
 pv_pipe = SunPosition(pv_pipe)
 
+# Validation:
+# In this example, don't check for NaNs in PV, because the model expects missing PV to be represented as NaNs.
+pv_pipe = CheckStatisticalProperties(pv_pipe)
+pv_pipe = CheckPVShape(pv_pipe)
 
 # -------------- Satellite DataPipe ---------
 sat_pipe = LoadSuperBatchIntoRAM(sat_xr_dataset, t0_for_sat)  # Optional. Useful during training.
@@ -185,6 +189,11 @@ sat_pipe = SelectSpatialSlice(sat_pipe)
 sat_pipe = NormalizeSatellite(sat_pipe)
 sat_pipe = PatchSatellite(sat_pipe)
 sat_pipe = SunPosition(sat_pipe)
+
+# Validation:
+sat_pipe = CheckForNaNs(sat_pipe)
+sat_pipe = CheckStatisticalProperties(sat_pipe)
+sat_pipe = CheckSatShape(sat_pipe)
 
 # -------------- Merge & process -----------------
 main_pipe = MergeBatchML(pv_pipe, sat_pipe)
