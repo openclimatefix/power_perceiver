@@ -84,9 +84,12 @@ class RawSatelliteDataSource(
         _log.info("After filtering: " + date_summary_str(self.data_on_disk.time_utc))
 
     def _post_process(self, xr_data: xr.DataArray) -> xr.DataArray:
-        # hrvsatellite is int16 on disk but we convert to uint8 to save RAM.
-        # We divide the mean and std by 4 because, to convert satellite data to uint8,
-        # we divide by 4 to get from pixels in the range [0, 1023] to [0, 255].
+        # hrvsatellite is int16 on disk but, upstream of this method, we convert to uint8 to save
+        # RAM. We convert to uint8 by dividing by 4 (to get from pixel values in the range
+        # [0, 1023] to the range [0, 255]). So `xr_data` will be uint8 when it gets to this method.
+        # But `SAT_MEAN` and `SAT_STD` were computed on the original satellite data,
+        # which is in the range [0, 1023] (i.e. 4 times greater than the uint8 range of [0, 255])
+        # We divide the mean and std by 4 because the `xr_data` has also been divided by 4.
         xr_data = xr_data.astype(np.float32)
         xr_data = xr_data - (SAT_MEAN["HRV"] / 4)
         xr_data = xr_data / (SAT_STD["HRV"] / 4)
