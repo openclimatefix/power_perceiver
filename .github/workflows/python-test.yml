@@ -22,13 +22,13 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Do some macOS specific installs for Python 3.10
         run: |
-          brew install c-blosc hdf5
+          brew install c-blosc hdf5 proj
         if: matrix.os == 'macos-latest'
       - name: Do some Ubunutu specific installs for Python 3.10
         if: runner.os == 'Linux'
         run: |
           sudo apt update
-          sudo apt install libproj-dev libgeos-dev
+          sudo apt install proj-bin, libproj-dev libgeos-dev
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
