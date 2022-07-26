@@ -1,7 +1,8 @@
 import datetime
-import pytest
+
 import numpy as np
 import pandas as pd
+import pytest
 from conftest import N_EXAMPLES_PER_BATCH
 
 from power_perceiver.consts import BatchKey
