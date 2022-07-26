@@ -1,6 +1,8 @@
 import datetime
+from datetime import timedelta
 from copy import deepcopy
 
+import pandas as pd
 import pytest
 
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
@@ -26,6 +28,13 @@ NWP_ZARR_PATH = (
 )
 
 
+def get_time_period(start_date, end_date):
+    time_periods = pd.DataFrame(index=pd.date_range(start=start_date, end=end_date, freq='30T'))
+    time_periods['start_dt'] = time_periods.index
+    time_periods['end_dt'] = time_periods.index + timedelta(minutes=30)
+
+    return time_periods
+
 def _get_nwp_data_source(
     zarr_path=NWP_ZARR_PATH,
     height_in_pixels=4,
@@ -35,18 +44,20 @@ def _get_nwp_data_source(
     start_date="2020-01-01",
     end_date="2020-12-31 12:59",
 ) -> RawNWPDataSource:
+    time_periods = get_time_period(start_date, end_date)
+
     return RawNWPDataSource(
         zarr_path=zarr_path,
         roi_height_pixels=height_in_pixels,
         roi_width_pixels=width_in_pixels,
         history_duration=history_duration,
         forecast_duration=forecast_duration,
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods,
         y_coarsen=16,
         x_coarsen=16,
         channels=["dswrf", "t", "si10", "prate"],
     )
+
 
 
 @pytest.fixture(scope="session")
@@ -66,16 +77,20 @@ def _get_sat_data_source(
     history_duration=datetime.timedelta(hours=1),
     forecast_duration=datetime.timedelta(hours=2),
     start_date="2020-01-01",
-    end_date="2020-12-31 12:59",
+    end_date="2020-12-31 12:59"
 ) -> RawSatelliteDataSource:
+
+    time_periods = get_time_period(start_date, end_date)
+
     return RawSatelliteDataSource(
         zarr_path=zarr_path,
         roi_height_pixels=height_in_pixels,
         roi_width_pixels=width_in_pixels,
         history_duration=history_duration,
         forecast_duration=forecast_duration,
-        start_date=start_date,
-        end_date=end_date,
+        time_periods=time_periods
+        # start_date=start_date,
+        # end_date=end_date,
     )
 
 
@@ -114,11 +129,13 @@ def sat_data_loaded() -> RawSatelliteDataSource:
 
 @pytest.fixture(scope="session")
 def pv_data_source() -> RawPVDataSource:
+
+    time_periods = get_time_period("2020-01-01", "2020-01-03")
+
     pv = RawPVDataSource(
         pv_power_filename=PV_POWER_FILENAME,
         pv_metadata_filename=PV_METADATA_FILENAME,
-        start_date="2020-01-01",
-        end_date="2020-01-03",
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
         roi_height_meters=64_000,
@@ -131,12 +148,14 @@ def pv_data_source() -> RawPVDataSource:
 
 @pytest.fixture(scope="session")
 def gsp_data_source() -> RawGSPDataSource:  # noqa: D103
+
+    time_periods = get_time_period("2020-01-01", "2020-01-03")
+
     gsp = RawGSPDataSource(
         gsp_pv_power_zarr_path="~/data/PV/GSP/v3/pv_gsp.zarr",
         gsp_id_to_region_id_filename="~/data/PV/GSP/eso_metadata.csv",
         sheffield_solar_region_path="~/data/PV/GSP/gsp_shape",
-        start_date="2020-01-01",
-        end_date="2020-06-01",
+        time_periods=time_periods,
         history_duration=datetime.timedelta(hours=1),
         forecast_duration=datetime.timedelta(hours=2),
     )
