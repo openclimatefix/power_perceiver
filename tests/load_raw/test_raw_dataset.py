@@ -12,16 +12,25 @@ from power_perceiver.consts import BatchKey
 from power_perceiver.load_raw.raw_dataset import RawDataset
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_init(raw_dataset_with_sat_only: RawDataset):
     assert len(raw_dataset_with_sat_only._all_t0_periods_per_combo) == 0
     assert len(raw_dataset_with_sat_only._t0_datetimes_per_combo_for_epoch) == 0
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_per_worker_init(raw_dataset_with_sat_only: RawDataset):
     dataset = deepcopy(raw_dataset_with_sat_only)
     dataset.per_worker_init(worker_id=1)
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 @pytest.mark.parametrize(
     "raw_dataset_str", ["raw_dataset_with_sat_only", "raw_dataset_with_sat_only_and_gsp_pv_sat"]
 )
@@ -80,5 +89,8 @@ def test_iter(raw_dataset_str: str, request):
         ), f"{key.name=} has shape {value.shape}, not {expected_shape}"
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_dataset_with_sat_only_and_gsp_pv_sat(raw_dataset_with_sat_only_and_gsp_pv_sat: RawDataset):
     pass

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources import PV, HRVSatellite
@@ -15,6 +16,9 @@ def test_fourier_features():
     assert fourier_features.dtype == np.float32
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_encode_space_time():
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),

@@ -1,9 +1,13 @@
 import pandas as pd
+import pytest
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_nwp_data_source import RawNWPDataSource
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_convert_t0_time_periods_to_periods_to_load(nwp_data_source: RawNWPDataSource):
     nwp_data_source.per_worker_init(worker_id=0, seed=0)
     t0_periods = pd.DataFrame(
