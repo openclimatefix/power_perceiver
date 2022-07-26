@@ -1,0 +1,19 @@
+# Scientific Python
+numpy
+pandas
+xarray
+h5netcdf
+pathy
+fsspec
+pvlib
+pyproj
+geopandas
+dask
+pyresample
+cartopy
+rioxarray
+
+# Machine Learning
+torch
+pytorch-lightning
+einops
