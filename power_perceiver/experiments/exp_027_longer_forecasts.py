@@ -615,6 +615,7 @@ class FullModel(pl.LightningModule):
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
     num_gaussians: int = 4
     num_rnn_layers: int = 4
+    load_satellite_weights: bool = True
 
     def __post_init__(self):
         super().__init__()
@@ -626,20 +627,21 @@ class FullModel(pl.LightningModule):
         self.satellite_predictor = SatellitePredictor()
 
         # Load SatellitePredictor weights
-        self.satellite_predictor.load_state_dict(
-            torch.load(
-                (
-                    "/home/jack/dev/ocf/power_perceiver/power_perceiver/experiments/"
-                    "power_perceiver/3qvkf1dy/checkpoints/"
-                    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
-                )
-                if ON_DONATELLO
-                else (
-                    "/home/jack/model_params/satellite_predictor/"
-                    "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+        if self.load_satellite_weights:
+            self.satellite_predictor.load_state_dict(
+                torch.load(
+                    (
+                        "/home/jack/dev/ocf/power_perceiver/power_perceiver/experiments/"
+                        "power_perceiver/3qvkf1dy/checkpoints/"
+                        "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                    )
+                    if ON_DONATELLO
+                    else (
+                        "/home/jack/model_params/satellite_predictor/"
+                        "epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
+                    )
                 )
             )
-        )
 
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
