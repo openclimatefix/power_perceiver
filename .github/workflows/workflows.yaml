@@ -31,7 +31,7 @@ jobs:
           $CONDA/bin/conda install python=3.10
           $CONDA/bin/conda install numpy matplotlib rasterio cartopy -c conda-forge
           $CONDA/bin/pip install -e .
-          $CONDA/bin/pip pip install --upgrade pip
+          $CONDA/bin/pip install --upgrade pip
           pip install pytest-xdist
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f "setup.py" ]; then pip install -e .; else export PYTHONPATH=$PYTHONPATH:./src; fi
