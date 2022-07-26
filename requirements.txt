@@ -11,6 +11,7 @@ geopandas
 dask
 pyresample
 rioxarray
+cartopy
 
 # Machine Learning
 torch
