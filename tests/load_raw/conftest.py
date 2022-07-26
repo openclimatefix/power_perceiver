@@ -1,6 +1,6 @@
 import datetime
-from datetime import timedelta
 from copy import deepcopy
+from datetime import timedelta
 
 import pandas as pd
 import pytest
@@ -29,11 +29,12 @@ NWP_ZARR_PATH = (
 
 
 def get_time_period(start_date, end_date):
-    time_periods = pd.DataFrame(index=pd.date_range(start=start_date, end=end_date, freq='30T'))
-    time_periods['start_dt'] = time_periods.index
-    time_periods['end_dt'] = time_periods.index + timedelta(minutes=30)
+    time_periods = pd.DataFrame(index=pd.date_range(start=start_date, end=end_date, freq="30T"))
+    time_periods["start_dt"] = time_periods.index
+    time_periods["end_dt"] = time_periods.index + timedelta(minutes=30)
 
     return time_periods
+
 
 def _get_nwp_data_source(
     zarr_path=NWP_ZARR_PATH,
@@ -59,7 +60,6 @@ def _get_nwp_data_source(
     )
 
 
-
 @pytest.fixture(scope="session")
 def nwp_data_source() -> RawNWPDataSource:
     return _get_nwp_data_source()
@@ -77,7 +77,7 @@ def _get_sat_data_source(
     history_duration=datetime.timedelta(hours=1),
     forecast_duration=datetime.timedelta(hours=2),
     start_date="2020-01-01",
-    end_date="2020-12-31 12:59"
+    end_date="2020-12-31 12:59",
 ) -> RawSatelliteDataSource:
 
     time_periods = get_time_period(start_date, end_date)
