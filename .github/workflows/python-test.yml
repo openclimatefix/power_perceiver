@@ -27,6 +27,7 @@ jobs:
       - name: Do some Ubunutu specific installs for Python 3.10
         if: runner.os == 'Linux'
         run: |
+          sudo apt update
           sudo apt install libproj-dev libgeos-dev
       - name: Install dependencies
         run: |
