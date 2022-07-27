@@ -4,7 +4,7 @@ from typing import Union
 
 import numpy as np
 import torch
-from pydantic import BaseModel, Field, root_validator, validator
+from pydantic import BaseModel, Field
 
 Array = Union[np.ndarray, torch.Tensor]
 
@@ -42,11 +42,13 @@ class HRVSatellite(BaseModelExtension):
     )
     hrvsatellite_x_osgb: Array = Field(
         ...,
+        ge=0,
         description="The C coordinates [OSGB] of the HRV Satellite image. "
         "Shape is # shape: [batch_size, y, x]",
     )
     hrvsatellite_y_geostationary: Array = Field(
         ...,
+        ge=0,
         description="The Y coordinates (in geo stationary coordinates)"
         " of the HRV Satellite image. "
         "Shape is # shape: [batch_size, y, x]",
@@ -59,7 +61,8 @@ class HRVSatellite(BaseModelExtension):
     )
     hrvsatellite_time_utc: Array = Field(
         ...,
-        description="Time is seconds since UNIX epoch (1970-01-01). Shape: [batch_size, n_timesteps]",
+        description="Time is seconds since UNIX epoch (1970-01-01). "
+        "Shape: [batch_size, n_timesteps]",
     )
 
     @classmethod
@@ -85,7 +88,8 @@ class NWP(BaseModelExtension):
 
     nwp: Array = Field(
         ...,
-        description="The NWP data. The shape is  [batch_size, target_time_utc, channel, y_osgb, x_osgb]",
+        description="The NWP data. The shape is  "
+        "[batch_size, target_time_utc, channel, y_osgb, x_osgb]",
     )
     nwp_t0_idx: int = Field(
         ..., description="The t0 of the data. The time when the data is available"
@@ -127,19 +131,24 @@ class PV(BaseModelExtension):
 
     pv: Array = Field(
         ...,
-        description="The PV data from that region. The shape is [batch_size, time, n_pv_systems]",
+        description="The PV data from that region."
+        " The shape is [batch_size, time, n_pv_systems]",
     )
     pv_t0_idx: int = Field(..., description="The t0 time of the PV data")
     pv_system_row_number: Array = Field(
-        ..., description="The row number of the pv system. The shape is [batch_size, n_pv_systems]"
+        ...,
+        description="The row number of the pv system. " 
+                    "The shape is [batch_size, n_pv_systems]",
     )
     pv_y_osgb: Array = Field(
         ...,
-        description="The Y coordinates [OSGB] of the data. The shape is [batch_size, n_pv_systems ].",
+        description="The Y coordinates [OSGB] of the data. "
+        "The shape is [batch_size, n_pv_systems ].",
     )
     pv_x_osgb: Array = Field(
         ...,
-        description="The Y coordinates [OSGB] of the data. The shape is [batch_size, n_pv_systems ].",
+        description="The Y coordinates [OSGB] of the data. "
+        "The shape is [batch_size, n_pv_systems ].",
     )
     pv_time_utc: Array = Field(
         ...,
