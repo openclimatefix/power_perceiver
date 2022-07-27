@@ -1,10 +1,10 @@
 """ The idea is to have a pydantic model that will be used to be passed into the models """
 
-from pydantic import BaseModel, Field, root_validator, validator
 from typing import Union
 
 import numpy as np
 import torch
+from pydantic import BaseModel, Field, root_validator, validator
 
 Array = Union[np.ndarray, torch.Tensor]
 
