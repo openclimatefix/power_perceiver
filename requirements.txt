@@ -20,3 +20,4 @@ pytorch-msssim
 torch
 pytorch-lightning
 einops
+fastai
