@@ -4,15 +4,26 @@ from typing import Union
 
 import numpy as np
 import torch
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, root_validator
 
 Array = Union[np.ndarray, torch.Tensor]
 
 
 def validate_shape(shape, correct_shape, variable_name):
+    """Validate shape is what is should be"""
     assert shape == correct_shape, Exception(
         f"{variable_name} should be of dimension {correct_shape}, it actually is of dim {shape}"
     )
+
+
+def assert_values_ge_value(values: np.ndarray, min_value, variable_name):
+    """Validate values are great than a certain value"""
+    if (values < min_value).any():
+        message = f"Some variable_name data values are less than {min_value}. "
+        message += f"The minimum value is {values.min()}. "
+        if variable_name is not None:
+            message += f" ({variable_name})"
+        raise Exception(message)
 
 
 class BaseModelExtension(BaseModel):
@@ -42,13 +53,11 @@ class HRVSatellite(BaseModelExtension):
     )
     hrvsatellite_x_osgb: Array = Field(
         ...,
-        ge=0,
         description="The C coordinates [OSGB] of the HRV Satellite image. "
         "Shape is # shape: [batch_size, y, x]",
     )
     hrvsatellite_y_geostationary: Array = Field(
         ...,
-        ge=0,
         description="The Y coordinates (in geo stationary coordinates)"
         " of the HRV Satellite image. "
         "Shape is # shape: [batch_size, y, x]",
@@ -65,13 +74,20 @@ class HRVSatellite(BaseModelExtension):
         "Shape: [batch_size, n_timesteps]",
     )
 
-    @classmethod
+    @root_validator
     def v_shape(cls, v):
-        validate_shape(len(v.hrvsatellite_actual), 5, "hrvsatellite_actual")
-        validate_shape(len(v.hrvsatellite_y_osgb), 3, "hrvsatellite_y_osgb")
-        validate_shape(len(v.hrvsatellite_x_osgb), 3, "hrvsatellite_x_osgb")
-        validate_shape(len(v.hrvsatellite_y_geostationary), 3, "hrvsatellite_y_osgb")
-        validate_shape(len(v.hrvsatellite_x_geostationary), 3, "hrvsatellite_x_osgb")
+        expected_dims = {
+            "hrvsatellite_actual": 5,
+            "hrvsatellite_y_osgb": 3,
+            "hrvsatellite_x_osgb": 3,
+            "hrvsatellite_y_geostationary": 3,
+            "hrvsatellite_x_geostationary": 3,
+        }
+
+        for key, item in expected_dims.items():
+            validate_shape(len(v[key].shape), item, key)
+
+        return v
 
     # TODO
     # - validate all variables have same batch_size
@@ -108,13 +124,21 @@ class NWP(BaseModelExtension):
         ..., description="The X coordinates [OSGB] of the data. The shape is [batch_size, x_osgb]. "
     )
 
-    @classmethod
+    @root_validator
     def v_shape(cls, v):
-        validate_shape(len(v.nwp), 5, "nwp")
-        validate_shape(len(v.nwp_target_time_utc), 2, "nwp_target_time_utc")
-        validate_shape(len(v.nwp_init_time_utc), 2, "nwp_init_time_utc")
-        validate_shape(len(v.nwp_y_osgb), 2, "nwp_y_osgb")
-        validate_shape(len(v.nwp_x_osgb), 2, "nwp_x_osgb")
+
+        expected_dims = {
+            "nwp": 5,
+            "nwp_target_time_utc": 2,
+            "nwp_init_time_utc": 2,
+            "nwp_y_osgb": 2,
+            "nwp_x_osgb": 2,
+        }
+
+        for key, item in expected_dims.items():
+            validate_shape(len(v[key].shape), item, key)
+
+        return v
 
     # TODO
     # - validate all variables have same batch_size
@@ -163,13 +187,30 @@ class PV(BaseModelExtension):
     # validate x and y coordinates in correct range
     # validate pv values in correct range
 
-    @classmethod
+    @root_validator
     def v_shape(cls, v):
-        validate_shape(len(v.pv), 3, "pv")
-        validate_shape(len(v.pv_system_row_number), 2, "pv_system_row_number")
-        validate_shape(len(v.pv_y_osgb), 2, "pv_y_osgb")
-        validate_shape(len(v.pv_x_osgb), 2, "pv_x_osgb")
-        validate_shape(len(v.pv_time_utc), 2, "pv_time_utc")
+
+        expected_dims = {
+            "pv": 3,
+            "pv_system_row_number": 2,
+            "pv_y_osgb": 2,
+            "pv_x_osgb": 2,
+            "pv_time_utc": 2,
+        }
+
+        for key, item in expected_dims.items():
+            validate_shape(len(v[key].shape), item, key)
+
+        return v
+
+    @root_validator
+    def v_values_constraints(cls, v):
+        """Check fields are greater than certain values"""
+
+        assert_values_ge_value(values=v["pv_x_osgb"], min_value=0, variable_name="pv_x_osgb")
+        assert_values_ge_value(values=v["pv_y_osgb"], min_value=0, variable_name="pv_y_osgb")
+
+        return v
 
 
 class GSP(BaseModelExtension):
@@ -192,13 +233,21 @@ class GSP(BaseModelExtension):
         "The shape is [batch_size, time]",
     )
 
-    @classmethod
+    @root_validator
     def v_shape(cls, v):
-        validate_shape(len(v.gsp), 3, "gsp")  # This might be two, need to check what works
-        validate_shape(len(v.gsp_id), 1, "gsp_id")
-        validate_shape(len(v.gsp_y_osgb), 1, "gsp_y_osgb")
-        validate_shape(len(v.gsp_x_osgb), 1, "gsp_x_osgb")
-        validate_shape(len(v.gsp_time_utc), 1, "gsp_time_utc")
+
+        expected_dims = {
+            "gsp": 3,
+            "gsp_id": 1,
+            "gsp_y_osgb": 1,
+            "gsp_x_osgb": 1,
+            "gsp_time_utc": 1,
+        }
+
+        for key, item in expected_dims.items():
+            validate_shape(len(v[key].shape), item, key)
+
+        return v
 
     # TODO
     # - validate all variables have same batch_size
