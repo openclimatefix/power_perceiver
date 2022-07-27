@@ -33,6 +33,9 @@ def setup_module():
         download_batches_for_data_source_if_necessary(data_source_name)
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 @pytest.mark.parametrize(
     argnames=["max_n_batches_per_epoch", "expected_n_batches"],
     argvalues=[(None, len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)), (1, 1)],
@@ -47,6 +50,9 @@ def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
     assert len(dataset) == expected_n_batches
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 @pytest.mark.parametrize(
     argnames=["data_loader", "expected_batch_keys"],
     argvalues=[
@@ -99,6 +105,9 @@ def _check_pv_batch(
     assert ((~pv_is_finite | ~pv_mask) == ~pv_mask).all()
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_select_pv_systems_near_center_of_image():
     xr_batch_processors = [SelectPVSystemsNearCenterOfImage()]
 
@@ -116,6 +125,9 @@ def test_select_pv_systems_near_center_of_image():
     _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 4)
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 @pytest.mark.parametrize(argnames="transforms", argvalues=[None, [PVPowerRollingWindow()]])
 def test_pv(transforms: Iterable[Callable]):
     pv_data_loader = PV(transforms=transforms)
@@ -129,6 +141,9 @@ def test_pv(transforms: Iterable[Callable]):
         _check_pv_batch(np_batch)
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_all_data_loaders_and_all_transforms():
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),

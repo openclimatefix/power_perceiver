@@ -1,0 +1,20 @@
+# Scientific Python
+numpy
+pandas
+xarray
+h5netcdf
+pathy
+fsspec
+pvlib
+pyproj
+geopandas
+dask
+pyresample
+rioxarray
+cartopy==0.19.0.post1
+gcsfs
+
+# Machine Learning
+torch
+pytorch-lightning
+einops
