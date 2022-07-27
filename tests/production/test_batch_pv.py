@@ -13,3 +13,10 @@ def test_pv_check_negative(pv):
         pv_x_osgb = pv.pv_x_osgb
         pv_x_osgb[0, 0] = -1
         pv.pv_x_osgb = pv_x_osgb
+
+
+def test_pv_check_wrong_shape(pv):
+    with pytest.raises(Exception):
+        pv_x_osgb = pv.pv_x_osgb
+        pv_x_osgb = pv_x_osgb[0]
+        pv.pv_x_osgb = pv_x_osgb
