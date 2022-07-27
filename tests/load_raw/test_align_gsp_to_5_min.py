@@ -2,6 +2,7 @@ import datetime
 
 import numpy as np
 import pandas as pd
+import pytest
 from conftest import N_EXAMPLES_PER_BATCH
 
 from power_perceiver.consts import BatchKey
@@ -11,6 +12,9 @@ from power_perceiver.load_raw.raw_dataset import RawDataset
 from power_perceiver.np_batch_processor.align_gsp_to_5_min import AlignGSPTo5Min
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_raw_dataset_with_sat_and_gsp(
     sat_data_source: RawSatelliteDataSource,
     gsp_data_source: RawGSPDataSource,
