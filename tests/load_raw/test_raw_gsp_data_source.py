@@ -1,14 +1,21 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_init(gsp_data_source: RawGSPDataSource):  # noqa: D103
     assert np.isfinite(gsp_data_source._data_in_ram.data).all()
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_get_osgb_location_for_example(gsp_data_source: RawGSPDataSource):  # noqa: D103
     location = gsp_data_source.get_osgb_location_for_example()
     assert isinstance(location, Location)
@@ -16,6 +23,9 @@ def test_get_osgb_location_for_example(gsp_data_source: RawGSPDataSource):  # no
     assert isinstance(location.y, float)
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_get_spatial_slice(gsp_data_source: RawGSPDataSource):  # noqa: D103
     for gsp_id in gsp_data_source.data_in_ram.gsp_id:
         gsp = gsp_data_source.data_in_ram.sel(gsp_id=gsp_id)
@@ -25,6 +35,9 @@ def test_get_spatial_slice(gsp_data_source: RawGSPDataSource):  # noqa: D103
         assert len(spatial_slice.gsp_id) == 1
 
 
+@pytest.mark.skip(
+    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
+)
 def test_get_example_and_empty_example(gsp_data_source: RawGSPDataSource):  # noqa: D103
     periods = gsp_data_source.get_contiguous_t0_time_periods()
     period = periods.iloc[0]
