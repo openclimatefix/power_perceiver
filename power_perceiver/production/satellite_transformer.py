@@ -7,9 +7,9 @@ from pytorch_msssim import ms_ssim
 from torch import nn
 from torch.nn import functional as F
 
-from power_perceiver.consts import BatchKey, Y_OSGB_MEAN, Y_OSGB_STD, X_OSGB_MEAN, X_OSGB_STD
-from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_STD, SAT_MEAN
-from power_perceiver.pytorch_modules.query_generator import PVQueryGenerator, GSPQueryGenerator
+from power_perceiver.consts import X_OSGB_MEAN, X_OSGB_STD, Y_OSGB_MEAN, Y_OSGB_STD, BatchKey
+from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
 from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
 from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder

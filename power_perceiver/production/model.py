@@ -22,9 +22,20 @@ from torch import nn
 # power_perceiver imports
 from power_perceiver.consts import BatchKey
 from power_perceiver.production.pvrnn import N_PV_SYSTEMS_PER_EXAMPLE, PVRNN
-from power_perceiver.production.satellite_transformer import NUM_HIST_SAT_IMAGES, NUM_FUTURE_SAT_IMAGES, \
-    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, D_MODEL, N_HEADS, SatellitePredictor, maybe_pad_with_zeros, LEFT_IDX, \
-    RIGHT_IDX, TOP_IDX, BOTTOM_IDX, SatelliteTransformer
+from power_perceiver.production.satellite_transformer import (
+    BOTTOM_IDX,
+    D_MODEL,
+    LEFT_IDX,
+    N_HEADS,
+    NUM_FUTURE_SAT_IMAGES,
+    NUM_HIST_SAT_IMAGES,
+    RIGHT_IDX,
+    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS,
+    TOP_IDX,
+    SatellitePredictor,
+    SatelliteTransformer,
+    maybe_pad_with_zeros,
+)
 from power_perceiver.pytorch_modules.mixture_density_network import (
     MixtureDensityNetwork,
     get_distribution,
@@ -132,7 +143,7 @@ class FullModel(pl.LightningModule):
         #            "/home/jack/model_params/satellite_predictor/epoch=170-step=175104-just-satellite-predictor.state_dict.pth"
         #        )
         #    )
-        #)
+        # )
 
         # Infer GSP and PV power output for a single timestep of satellite imagery.
         self.satellite_transformer = SatelliteTransformer()
