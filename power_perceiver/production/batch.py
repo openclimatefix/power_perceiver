@@ -137,8 +137,7 @@ class PV(BaseModelExtension):
     pv_t0_idx: int = Field(..., description="The t0 time of the PV data")
     pv_system_row_number: Array = Field(
         ...,
-        description="The row number of the pv system. " 
-                    "The shape is [batch_size, n_pv_systems]",
+        description="The row number of the pv system. " "The shape is [batch_size, n_pv_systems]",
     )
     pv_y_osgb: Array = Field(
         ...,
