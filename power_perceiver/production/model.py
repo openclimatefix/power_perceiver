@@ -21,6 +21,7 @@ from torch import nn
 
 # power_perceiver imports
 from power_perceiver.consts import BatchKey
+from power_perceiver.hub import NowcastingModelHubMixin
 from power_perceiver.production.pvrnn import N_PV_SYSTEMS_PER_EXAMPLE, PVRNN
 from power_perceiver.production.satellite_transformer import (
     BOTTOM_IDX,
@@ -45,7 +46,6 @@ from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.utils import assert_num_dims
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
-from power_perceiver.hub import NowcastingModelHubMixin
 
 logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
