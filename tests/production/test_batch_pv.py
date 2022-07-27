@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 
 from power_perceiver.production.batch import get_batch
