@@ -6,7 +6,6 @@ See this issue for a diagram: https://github.com/openclimatefix/power_perceiver/
 
 # General imports
 import logging
-import socket
 from dataclasses import dataclass
 from typing import Optional
 
@@ -18,22 +17,20 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from pytorch_msssim import ms_ssim
 from torch import nn
 
-from power_perceiver.hub import NowcastingModelHubMixin
-
 # power_perceiver imports
-from power_perceiver.consts import X_OSGB_MEAN, X_OSGB_STD, Y_OSGB_MEAN, Y_OSGB_STD, BatchKey
-from power_perceiver.load_prepared_batches.data_sources.satellite import SAT_MEAN, SAT_STD
+from power_perceiver.consts import BatchKey
+from power_perceiver.production.pvrnn import N_PV_SYSTEMS_PER_EXAMPLE, PVRNN
+from power_perceiver.production.satellite_transformer import NUM_HIST_SAT_IMAGES, NUM_FUTURE_SAT_IMAGES, \
+    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS, D_MODEL, N_HEADS, SatellitePredictor, maybe_pad_with_zeros, LEFT_IDX, \
+    RIGHT_IDX, TOP_IDX, BOTTOM_IDX, SatelliteTransformer
 from power_perceiver.pytorch_modules.mixture_density_network import (
     MixtureDensityNetwork,
     get_distribution,
 )
 from power_perceiver.pytorch_modules.nwp_processor import NWPProcessor
-from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator, PVQueryGenerator
-from power_perceiver.pytorch_modules.satellite_predictor import XResUNet
-from power_perceiver.pytorch_modules.satellite_processor import HRVSatelliteProcessor
+from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.utils import assert_num_dims
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
@@ -46,182 +43,22 @@ plt.rcParams["figure.figsize"] = (18, 10)
 plt.rcParams["figure.facecolor"] = "white"
 
 # SatellitePredictor options
-NUM_HIST_SAT_IMAGES = 12  # v15 pre-prepared batches use 7
-NUM_FUTURE_SAT_IMAGES = 25  # v15 pre-prepared batches use 24
-USE_TOPOGRAPHY = True
-USE_SUN_POSITION = True
-
-SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS = 256
-SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS = 128
-
-SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS = 64
-N_PV_SYSTEMS_PER_EXAMPLE = 8
 
 # PowerPerceiver options
-D_MODEL = 256  # Must be divisible by N_HEADS
-N_HEADS = 32
 
 NWP_CHANNELS = ("t", "dswrf", "prate", "r", "si10", "vis", "lcc", "mcc", "hcc")
-
-ON_DONATELLO = socket.gethostname() == "donatello"
 
 DEBUG = False
 ENABLE_WANDB = False
 
 
-def get_osgb_coords_for_coord_conv(batch: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-    """Returns tensor of shape (example, 2, y, x)."""
-    y_osgb = batch[BatchKey.hrvsatellite_y_osgb]
-    x_osgb = batch[BatchKey.hrvsatellite_x_osgb]
-
-    # Normalise:
-    y_osgb = (y_osgb - Y_OSGB_MEAN) / Y_OSGB_STD
-    x_osgb = (x_osgb - X_OSGB_MEAN) / X_OSGB_STD
-
-    # Concat:
-    return torch.stack((y_osgb, x_osgb), dim=1)
-
-
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
-@dataclass(eq=False)
-class SatellitePredictor(pl.LightningModule):
-    use_coord_conv: bool = False
-    crop: bool = False
-    use_topography: bool = USE_TOPOGRAPHY
-    use_sun_position: bool = USE_SUN_POSITION
-
-    # kwargs to fastai DynamicUnet. See this page for details:
-    # https://fastai1.fast.ai/vision.models.unet.html#DynamicUnet
-    pretrained: bool = False
-    blur_final: bool = True  # Blur final layer. fastai default is True.
-    self_attention: bool = True  # Use SA layer at the third block before the end.
-    last_cross: bool = True  # Use a cross-connection with the direct input of the model.
-    bottle: bool = False  # Bottleneck the last skip connection.
-
-    def __post_init__(self):
-        super().__init__()
-
-        self.satellite_predictor = XResUNet(
-            img_size=(
-                SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS,
-                SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS,
-            ),
-            n_in=(
-                NUM_HIST_SAT_IMAGES
-                + (2 if self.use_coord_conv else 0)
-                + (1 if self.use_topography else 0)
-                + (2 if self.use_sun_position else 0)
-            ),
-            n_out=NUM_FUTURE_SAT_IMAGES,
-            pretrained=self.pretrained,
-            blur_final=self.blur_final,
-            self_attention=self.self_attention,
-            last_cross=self.last_cross,
-            bottle=self.bottle,
-        )
-
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> torch.Tensor:
-        data = x[BatchKey.hrvsatellite_actual][
-            :, :NUM_HIST_SAT_IMAGES, 0
-        ]  # Shape: (example, time, y, x)
-        height, width = data.shape[2:]
-        assert height == SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS, f"{height=}"
-        assert width == SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS, f"{width=}"
-
-        if self.use_coord_conv:
-            osgb_coords = get_osgb_coords_for_coord_conv(x)
-            data = torch.concat((data, osgb_coords), dim=1)
-
-        if self.use_topography:
-            surface_height = x[BatchKey.hrvsatellite_surface_height]
-            surface_height = surface_height.unsqueeze(1)  # Add channel dim
-            data = torch.concat((data, surface_height), dim=1)
-
-        if self.use_sun_position:
-            azimuth_at_t0 = x[BatchKey.hrvsatellite_solar_azimuth][:, NUM_HIST_SAT_IMAGES]
-            elevation_at_t0 = x[BatchKey.hrvsatellite_solar_elevation][:, NUM_HIST_SAT_IMAGES]
-            sun_pos = torch.stack((azimuth_at_t0, elevation_at_t0), dim=1)  # Shape: (example, 2)
-            del azimuth_at_t0, elevation_at_t0
-            # Repeat over y and x:
-            sun_pos = einops.repeat(sun_pos, "example chan -> example chan y x", y=height, x=width)
-            data = torch.concat((data, sun_pos), dim=1)
-
-        assert data.isfinite().all()
-        predicted_sat = self.satellite_predictor(data)
-        assert predicted_sat.isfinite().all()
-        return predicted_sat  # Shape: example, time, y, x
-
-    def validation_step(
-        self, batch: dict[BatchKey, torch.Tensor], batch_idx: int
-    ) -> dict[str, object]:
-        predicted_sat = self(batch)
-        actual_sat = batch[BatchKey.hrvsatellite_actual][:, NUM_HIST_SAT_IMAGES:, 0]
-
-        sat_mse_loss = F.mse_loss(predicted_sat, actual_sat)
-        self.log(f"{self.tag}/sat_mse", sat_mse_loss)
-
-        # MS-SSIM. Requires images to be de-normalised:
-        actual_sat_denorm = (actual_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
-        predicted_sat_denorm = (predicted_sat * SAT_STD["HRV"]) + SAT_MEAN["HRV"]
-        ms_ssim_loss = 1 - ms_ssim(
-            predicted_sat_denorm,
-            actual_sat_denorm,
-            data_range=1023.0,
-            size_average=True,  # Return a scalar.
-            win_size=3,  # ClimateHack folks used win_size=3.
-        )
-        self.log(f"{self.tag}/ms_ssim", ms_ssim_loss)
-        self.log(f"{self.tag}/ms_ssim+sat_mse", ms_ssim_loss + sat_mse_loss)
-
-        if self.crop_sat_before_sat_predictor_loss:
-            # Loss on a central crop:
-            # The cropped image has to be larger than 32x32 otherwise ms-ssim complains:
-            # "Image size should be larger than 32 due to the 4 downsamplings in ms-ssim"
-            sat_mse_loss_crop = F.mse_loss(
-                predicted_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-                actual_sat[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-            )
-            self.log(f"{self.tag}/sat_mse_crop", sat_mse_loss_crop)
-            ms_ssim_loss_crop = 1 - ms_ssim(
-                predicted_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-                actual_sat_denorm[:, :, TOP_IDX:BOTTOM_IDX, LEFT_IDX:RIGHT_IDX],
-                data_range=1023.0,
-                size_average=True,  # Return a scalar.
-                win_size=3,  # The Illinois ClimateHack folks used win_size=3.
-            )
-            self.log(f"{self.tag}/ms_ssim_crop", ms_ssim_loss_crop)
-            self.log(f"{self.tag}/ms_ssim_crop+sat_mse_crop", ms_ssim_loss_crop + sat_mse_loss_crop)
-            sat_loss = ms_ssim_loss_crop + sat_mse_loss_crop
-        else:
-            sat_loss = ms_ssim_loss + sat_mse_loss
-
-        return dict(
-            lost=sat_loss,
-        )
 
 
 # ---------------------------------- SatelliteTransformer ----------------------------------
 
 
-def maybe_pad_with_zeros(tensor: torch.Tensor, requested_dim: int) -> torch.Tensor:
-    num_zeros_to_pad = requested_dim - tensor.shape[-1]
-    assert num_zeros_to_pad >= 0, f"{requested_dim=}, {tensor.shape=}"
-    if num_zeros_to_pad > 0:
-        zero_padding_shape = tensor.shape[:2] + (num_zeros_to_pad,)
-        zero_padding = torch.zeros(*zero_padding_shape, dtype=tensor.dtype, device=tensor.device)
-        tensor = torch.concat((tensor, zero_padding), dim=2)
-    return tensor
-
-
 # Indexes for cropping the centre of the satellite image:
-LEFT_IDX = (SATELLITE_PREDICTOR_IMAGE_WIDTH_PIXELS // 2) - (
-    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
-)
-RIGHT_IDX = LEFT_IDX + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
-TOP_IDX = (SATELLITE_PREDICTOR_IMAGE_HEIGHT_PIXELS // 2) - (
-    SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS // 2
-)
-BOTTOM_IDX = TOP_IDX + SATELLITE_TRANSFORMER_IMAGE_SIZE_PIXELS
 
 
 def _crop_satellite_and_spatial_coords(
@@ -259,184 +96,7 @@ def _crop_satellite_and_spatial_coords(
 
 
 # See https://discuss.pytorch.org/t/typeerror-unhashable-type-for-my-torch-nn-module/109424/6
-@dataclass(eq=False)
-class SatelliteTransformer(nn.Module):
-    """Infers a single timestep of PV power and GSP power at a time.
 
-    Currently just uses HRV satellite imagery as the input. In the near future it could also
-    use NWP temperature, wind speed & precipitation, and absolute geo position.
-    """
-
-    # Params for Perceiver
-    # byte_array and query will be automatically padded with zeros to get to d_model.
-    # Set d_model to be divisible by `num_heads`.
-    d_model: int = D_MODEL
-    pv_system_id_embedding_dim: int = 16
-    num_heads: int = N_HEADS
-    dropout: float = 0.0
-    share_weights_across_latent_transformer_layers: bool = False
-    num_latent_transformer_encoders: int = 8
-
-    def __post_init__(self):
-        super().__init__()
-        self.hrvsatellite_processor = HRVSatelliteProcessor()
-
-        NUM_PV_SYSTEMS = 1400
-        NUM_GSPS = 360
-        id_embedding = nn.Embedding(
-            num_embeddings=NUM_PV_SYSTEMS + NUM_GSPS,
-            embedding_dim=self.pv_system_id_embedding_dim,
-        )
-
-        self.pv_query_generator = PVQueryGenerator(
-            pv_system_id_embedding=id_embedding,
-            num_gsps=NUM_GSPS,
-        )
-
-        self.gsp_query_generator = GSPQueryGenerator(gsp_id_embedding=id_embedding)
-
-        self.transformer_encoder = MultiLayerTransformerEncoder(
-            d_model=self.d_model,
-            num_heads=self.num_heads,
-            dropout=self.dropout,
-            share_weights_across_latent_transformer_layers=(
-                self.share_weights_across_latent_transformer_layers
-            ),
-            num_latent_transformer_encoders=self.num_latent_transformer_encoders,
-        )
-
-    def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
-        # Reshape so each timestep is considered a different example:
-        num_examples, num_timesteps = x[BatchKey.pv].shape[:2]
-
-        # Process satellite data and queries:
-        pv_query = self.pv_query_generator(x)  # shape: example * time, n_pv_systems, features
-        gsp_query = self.gsp_query_generator(
-            x,
-            include_history=True,
-            base_batch_key=BatchKey.gsp_5_min,
-            do_reshape_time_as_batch=True,
-        )  # shape: example * time, 1, features
-        satellite_data = self.hrvsatellite_processor(x)  # shape: example * time, positions, feats.
-
-        # Pad with zeros if necessary to get up to self.d_model:
-        pv_query = maybe_pad_with_zeros(pv_query, requested_dim=self.d_model)
-        gsp_query = maybe_pad_with_zeros(gsp_query, requested_dim=self.d_model)
-        satellite_data = maybe_pad_with_zeros(satellite_data, requested_dim=self.d_model)
-
-        # Prepare inputs for the transformer_encoder:
-        attn_input = torch.concat((pv_query, gsp_query, satellite_data), dim=1)
-
-        # Mask the NaN GSP and PV queries. True or non-zero value indicates value will be ignored.
-        mask = attn_input.isnan().any(dim=2)
-        attn_input = attn_input.nan_to_num(0)
-
-        # Pass data into transformer_encoder:
-        attn_output = attn_input + self.transformer_encoder(attn_input, src_key_padding_mask=mask)
-
-        # Reshape to (example time element d_model):
-        attn_output = einops.rearrange(
-            attn_output,
-            "(example time) ... -> example time ...",
-            example=num_examples,
-            time=num_timesteps,
-        )
-
-        assert attn_output.isfinite().all()
-
-        # Select the elements of the output which correspond to the query:
-        gsp_start_idx = pv_query.shape[1]
-        gsp_end_idx = gsp_start_idx + gsp_query.shape[1]
-        pv_attn_out = attn_output[:, :, :gsp_start_idx]
-        gsp_attn_out = attn_output[:, :, gsp_start_idx:gsp_end_idx]
-
-        return {
-            "pv_attn_out": pv_attn_out,  # shape: (example, 5_min_time, n_pv_systems, d_model)
-            "gsp_attn_out": gsp_attn_out,  # shape: (example, 5_min_time, 1, d_model)
-        }
-
-
-@dataclass(eq=False)
-class PVRNN(nn.Module):
-    hidden_size: int
-    num_layers: int
-    dropout: float
-
-    def __post_init__(self):
-        super().__init__()
-
-        rnn_kwargs = dict(
-            hidden_size=self.hidden_size,
-            num_layers=self.num_layers,
-            dropout=self.dropout,
-            batch_first=True,
-        )
-        self.pv_rnn_history_encoder = nn.RNN(
-            # Each timestep of the encoder RNN receives the output of the satellite_transformer
-            # (which is of size d_model per PV system and per timestep), for a single PV system,
-            # plus one timestep of that PV system's history.
-            input_size=self.hidden_size + 1,
-            **rnn_kwargs,
-        )
-        self.pv_rnn_future_decoder = nn.RNN(
-            # Each timestep of the decoder RNN receives the output of the satellite_transformer
-            # (which is of size d_model per PV system and per timestep) for a single PV system.
-            input_size=self.hidden_size,
-            **rnn_kwargs,
-        )
-
-    def forward(
-        self, x: dict[BatchKey, torch.Tensor], sat_trans_pv_attn_out: torch.Tensor
-    ) -> torch.Tensor:
-        # Prepare inputs for the pv_rnn_history_encoder:
-        # Each timestep of the encoder RNN receives the output of the satellite_transformer
-        # (which is of size d_model per PV system and per timestep), for a single PV system,
-        # plus one timestep of that PV system's history.
-        # Some of `x[BatchKey.pv]` will be NaN. But that's OK. We mask missing examples.
-        # And use nan_to_num later in this function.
-        pv_t0_idx = x[BatchKey.pv_t0_idx]
-        num_pv_timesteps = x[BatchKey.pv].shape[1]
-        hist_pv = x[BatchKey.pv][:, : pv_t0_idx + 1]  # Shape: example, time, n_pv_systems
-
-        # Reshape so each PV system is seen as a different example:
-        hist_pv = einops.rearrange(
-            hist_pv, "example time n_pv_systems -> (example n_pv_systems) time 1"
-        )
-        sat_trans_pv_attn_out = einops.rearrange(
-            sat_trans_pv_attn_out,
-            "example time n_pv_systems d_model -> (example n_pv_systems) time d_model",
-            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,  # sanity check
-            time=num_pv_timesteps,
-        )
-        hist_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, : pv_t0_idx + 1]
-
-        pv_rnn_hist_enc_in = torch.concat((hist_pv, hist_sat_trans_pv_attn_out), dim=2)
-        pv_rnn_hist_enc_in = pv_rnn_hist_enc_in.nan_to_num(0)
-        pv_rnn_hist_enc_out, pv_rnn_hist_enc_hidden = self.pv_rnn_history_encoder(
-            pv_rnn_hist_enc_in
-        )
-
-        # Now for the pv_rnn_future_decoder:
-        future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, pv_t0_idx + 1 :]
-        future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num(0)
-        pv_rnn_fut_dec_out, _ = self.pv_rnn_future_decoder(
-            future_sat_trans_pv_attn_out,
-            pv_rnn_hist_enc_hidden,
-        )
-
-        # Concatenate the output from the encoder and decoder RNNs, and reshape
-        # so each timestep and each PV system is a separate element into `time_transformer`.
-        pv_rnn_out = torch.concat((pv_rnn_hist_enc_out, pv_rnn_fut_dec_out), dim=1)
-        # rnn_out shape: (example n_pv_systems), time, d_model
-        assert pv_rnn_out.isfinite().all()
-        pv_rnn_out = einops.rearrange(
-            pv_rnn_out,
-            "(example n_pv_systems) time d_model -> example (time n_pv_systems) d_model",
-            n_pv_systems=N_PV_SYSTEMS_PER_EXAMPLE,
-            d_model=self.hidden_size,
-            time=num_pv_timesteps,
-        )
-        return pv_rnn_out
 
 @dataclass(eq=False)
 class FullModel(pl.LightningModule):
