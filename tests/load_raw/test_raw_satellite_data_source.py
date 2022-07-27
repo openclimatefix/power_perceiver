@@ -2,11 +2,13 @@ import datetime
 
 import pandas as pd
 import pytest
-from conftest import SAT_HEIGHT_IN_PIXELS, SAT_WIDTH_IN_PIXELS, _get_sat_data_source
 
 from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 
+# for the moment
+SAT_HEIGHT_IN_PIXELS = 128
+SAT_WIDTH_IN_PIXELS = 256
 
 @pytest.mark.skip(
     "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
@@ -19,9 +21,9 @@ def test_init(sat_data_source):
 @pytest.mark.skip(
     "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
 )
-def test_init_start_and_end_dates_swapped():
+def test_init_start_and_end_dates_swapped(get_sat_data_source):
     with pytest.raises(AssertionError):
-        _get_sat_data_source(
+        get_sat_data_source(
             end_date=datetime.datetime(year=2020, month=1, day=1),
             start_date=datetime.datetime(year=2020, month=12, day=31, hour=23, minute=59),
         )
