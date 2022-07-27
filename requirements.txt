@@ -16,6 +16,7 @@ gcsfs
 matplotlib
 pytorch-msssim
 pydantic
+huggingface_hub
 
 # Machine Learning
 torch

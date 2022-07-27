@@ -45,6 +45,7 @@ from power_perceiver.pytorch_modules.query_generator import GSPQueryGenerator
 from power_perceiver.pytorch_modules.self_attention import MultiLayerTransformerEncoder
 from power_perceiver.utils import assert_num_dims
 from power_perceiver.xr_batch_processor.reduce_num_timesteps import random_int_without_replacement
+from power_perceiver.hub import NowcastingModelHubMixin
 
 logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
@@ -110,7 +111,7 @@ def _crop_satellite_and_spatial_coords(
 
 
 @dataclass(eq=False)
-class FullModel(pl.LightningModule):
+class FullModel(pl.LightningModule, NowcastingModelHubMixin):
     d_model: int = D_MODEL
     num_heads: int = N_HEADS
     dropout: float = 0.1
