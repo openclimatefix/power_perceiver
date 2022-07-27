@@ -3,7 +3,6 @@ from copy import copy
 import numpy as np
 import pytest
 import xarray as xr
-from conftest import PV_METADATA_FILENAME, PV_POWER_FILENAME
 
 from power_perceiver.consts import BatchKey, Location
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
@@ -11,6 +10,10 @@ from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
     _load_pv_metadata,
     _load_pv_power_watts_and_capacity_wp,
 )
+
+# TODO: Use public data :)
+PV_METADATA_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/system_metadata_OCF_ONLY.csv"
+PV_POWER_FILENAME = "~/data/PV/Passiv/ocf_formatted/v0/passiv.netcdf"
 
 
 @pytest.mark.skip(

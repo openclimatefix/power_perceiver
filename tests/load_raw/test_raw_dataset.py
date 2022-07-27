@@ -1,15 +1,14 @@
 from copy import deepcopy
 
 import pytest
-from conftest import (
-    N_EXAMPLES_PER_BATCH,
-    SAT_HEIGHT_IN_PIXELS,
-    SAT_N_EXPECTED_TIMESTEPS,
-    SAT_WIDTH_IN_PIXELS,
-)
 
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_raw.raw_dataset import RawDataset
+
+N_EXAMPLES_PER_BATCH = 16
+SAT_HEIGHT_IN_PIXELS = 128
+SAT_WIDTH_IN_PIXELS = 256
+SAT_N_EXPECTED_TIMESTEPS = 37  # 12 steps of history + 1 for t0 + 24 of forecast
 
 
 @pytest.mark.skip(
