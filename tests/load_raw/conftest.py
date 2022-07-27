@@ -98,6 +98,7 @@ def _get_sat_data_source(
 def get_sat_data_source():
     return _get_sat_data_source
 
+
 @pytest.fixture(scope="session")
 def sat_data_source() -> RawSatelliteDataSource:
     return _get_sat_data_source()

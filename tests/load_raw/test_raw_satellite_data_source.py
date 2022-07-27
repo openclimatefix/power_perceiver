@@ -10,6 +10,7 @@ from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawS
 SAT_HEIGHT_IN_PIXELS = 128
 SAT_WIDTH_IN_PIXELS = 256
 
+
 @pytest.mark.skip(
     "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
 )

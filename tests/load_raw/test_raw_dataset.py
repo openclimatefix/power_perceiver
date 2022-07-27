@@ -10,6 +10,7 @@ SAT_HEIGHT_IN_PIXELS = 128
 SAT_WIDTH_IN_PIXELS = 256
 SAT_N_EXPECTED_TIMESTEPS = 37  # 12 steps of history + 1 for t0 + 24 of forecast
 
+
 @pytest.mark.skip(
     "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
 )
