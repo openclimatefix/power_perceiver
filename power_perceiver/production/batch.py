@@ -32,6 +32,7 @@ class BaseModelExtension(BaseModel):
 
         # TODO maybe there is a better way to do this
         arbitrary_types_allowed = True
+        validate_assignment = True
 
 
 class HRVSatellite(BaseModelExtension):
