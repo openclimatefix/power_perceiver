@@ -32,6 +32,7 @@ jobs:
           $CONDA/bin/conda install numpy matplotlib rasterio cartopy proj -c conda-forge
           $CONDA/bin/pip install -e .
           pip install pytest-xdist
+          pip install git+https://github.com/peterdudfield/fastai.git@bug/3745-unet-xse_resnext50
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f "setup.py" ]; then pip install -e .; else export PYTHONPATH=$PYTHONPATH:./src; fi
           echo "PYTHONPATH=$PYTHONPATH" >> $GITHUB_ENV
