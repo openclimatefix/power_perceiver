@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from power_perceiver.production.batch import PV, GSP, NWP, HRVSatellite
+from power_perceiver.production.batch import GSP, NWP, PV, HRVSatellite
 
 
 @pytest.fixture()
@@ -55,8 +55,8 @@ def nwp():
     batch_size = 4
     timesteps = 3
     channels = 2
-    x_steps =5
-    y_steps =6
+    x_steps = 5
+    y_steps = 6
 
     nwp = np.random.random([batch_size, timesteps, channels, y_steps, x_steps])
     nwp_target_time_utc = np.random.random([batch_size, timesteps])
@@ -80,8 +80,8 @@ def hrv_satellite():
     batch_size = 4
     timesteps = 3
     channels = 2
-    x_steps =5
-    y_steps =6
+    x_steps = 5
+    y_steps = 6
 
     hrvsatellite_actual = np.random.random([batch_size, timesteps, channels, y_steps, x_steps])
     hrvsatellite_x_geostationary = np.random.random([batch_size, y_steps, x_steps])
@@ -99,5 +99,3 @@ def hrv_satellite():
         hrvsatellite_time_utc=hrvsatellite_time_utc,
         hrvsatellite_t0_idx=10,
     )
-
-
