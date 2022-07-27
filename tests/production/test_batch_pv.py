@@ -1,6 +1,7 @@
-from power_perceiver.production.batch import PV
 import numpy as np
 import pytest
+
+from power_perceiver.production.batch import PV
 
 
 def test_pv(pv):
