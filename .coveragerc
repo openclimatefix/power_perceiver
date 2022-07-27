@@ -1,0 +1,2 @@
+[run]
+omit = power_perceiver/experiments/*, power_perceiver/analysis/*
