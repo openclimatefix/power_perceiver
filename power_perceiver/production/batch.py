@@ -242,7 +242,7 @@ class GSP(BaseModelExtension):
             "gsp_id": 1,
             "gsp_y_osgb": 1,
             "gsp_x_osgb": 1,
-            "gsp_time_utc": 1,
+            "gsp_time_utc": 2,
         }
 
         for key, item in expected_dims.items():
