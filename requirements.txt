@@ -13,7 +13,10 @@ pyresample
 rioxarray
 cartopy==0.19.0.post1
 gcsfs
+matplotlib
+pytorch-msssim
 pydantic
+huggingface_hub
 
 # Machine Learning
 torch
