@@ -57,22 +57,10 @@ class NWP(PreparedDataSource):
 
         # Downsample spatially:
         dataset = dataset.coarsen(
-            y_osgb=16,
-            x_osgb=16,  # Downsamples from 64x64 to 4x4
+            y_osgb_index=16,
+            x_osgb_index=16,  # Downsamples from 64x64 to 4x4
             boundary="trim",
         ).mean()
-
-        # Drop redundant coordinates (these are redundant because they
-        # just repeat the contents of each *dimension*):
-        dataset = dataset.drop_vars(
-            [
-                "example",
-                "y_geostationary_index",
-                "x_geostationary_index",
-                "time_index",
-                "channels_index",
-            ]
-        )
 
         # Rename coords to be more explicit about exactly what some coordinates hold:
         dataset = dataset.rename_vars(
@@ -87,14 +75,12 @@ class NWP(PreparedDataSource):
         # by definition, they are indicies!
         dataset = dataset.rename_dims(
             {
-                "y_geostationary_index": "y",
-                "x_geostationary_index": "x",
+                "y_osgb_index": "y",
+                "x_osgb_index": "x",
                 "time_index": "time",
                 "channels_index": "channel",
             }
         )
-
-        dataset = dataset.transpose(*NWP_CHANNEL_NAMES)
 
         return dataset
 
