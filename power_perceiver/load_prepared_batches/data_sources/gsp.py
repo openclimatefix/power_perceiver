@@ -30,8 +30,6 @@ class GSP(PreparedDataSource):
             {
                 "time": "time_utc",
                 "id": "gsp_id",
-                "y_coords": "y_osgb",
-                "x_coords": "x_osgb",
             }
         )
 

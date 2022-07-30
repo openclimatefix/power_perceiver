@@ -32,8 +32,6 @@ class PV(PreparedDataSource):
                 "power_mw": "power_w",
                 "capacity_mwp": "capacity_wp",
                 "id": "pv_system_id",
-                "y_coords": "y_osgb",
-                "x_coords": "x_osgb",
             }
         )
 
