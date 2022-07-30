@@ -96,7 +96,9 @@ class PV(PreparedDataSource):
         # PV power
         # Note that some capacities are 0. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-        batch[BatchKey.pv] = dataset["power_normalised"].values
+        batch[BatchKey.pv] = dataset[
+            "power_normalised"
+        ].values  # TODO Normalized in RawPVDataSource post process, but already done here?
 
         # In v15 of the dataset, `pv_system_row_number` is int64. This will be fixed in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624

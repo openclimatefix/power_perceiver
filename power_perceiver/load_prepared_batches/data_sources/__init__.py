@@ -1,4 +1,5 @@
 from power_perceiver.load_prepared_batches.data_sources.gsp import GSP
+from power_perceiver.load_prepared_batches.data_sources.nwp import NWP
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
     NumpyBatch,
     PreparedDataSource,
