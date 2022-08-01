@@ -2,7 +2,7 @@ import datetime
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, ClassVar, Iterable, Optional
+from typing import Callable, Iterable, Optional
 
 import fsspec
 import numpy as np
@@ -34,7 +34,7 @@ class PreparedDataSource:
     """
 
     history_duration: datetime.timedelta
-    sample_period_duration: ClassVar[datetime.timedelta]
+    sample_period_duration: datetime.timedelta
     data_path: Optional[Path] = None
     filename_suffix: str = "nc"
     transforms: Optional[Iterable[Callable]] = None
@@ -57,7 +57,6 @@ class PreparedDataSource:
     def __getitem__(self, batch_idx: int) -> xr.Dataset:
         filename = self.get_filename(batch_idx=batch_idx)
         dataset = load_netcdf(filename)
-        print(dataset)
         dataset = self.process_before_transforms(dataset)
         if self.transforms:
             for transform in self.transforms:
@@ -84,7 +83,7 @@ class PreparedDataSource:
         So, if the history_duration is 1 hour, and sample_period_duration is 30 minutes,
         then "history" will be at indicies 0, 1, and 2.
         """
-        return self.t0_idx
+        return int(self.history_duration / self.sample_period_duration)
 
     @staticmethod
     def to_numpy(dataset: xr.Dataset) -> NumpyBatch:

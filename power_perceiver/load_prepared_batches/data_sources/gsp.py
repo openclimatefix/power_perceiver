@@ -87,7 +87,7 @@ class GSP(PreparedDataSource):
 
         batch[BatchKey.gsp_id] = dataset["gsp_id"].values
         batch[BatchKey.gsp_t0_idx] = dataset.attrs["t0_idx"]
-        batch[BatchKey.gsp_capacity_mwp] = dataset.isel(time_utc=0)["capacity_mwp"].values
+        batch[BatchKey.gsp_capacity_mwp] = dataset.isel(time=0)["capacity_mwp"].values
 
         # Coordinates
         batch[BatchKey.gsp_time_utc] = datetime64_to_float(dataset["time_utc"].values)
