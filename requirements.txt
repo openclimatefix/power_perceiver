@@ -22,3 +22,6 @@ huggingface_hub
 torch
 pytorch-lightning
 einops
+
+# production
+nowcasting_dataset==3.7.3

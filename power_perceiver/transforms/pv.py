@@ -53,7 +53,7 @@ class PVPowerRollingWindow:
             data_to_resample = xr_data
 
         resampled = data_to_resample.rolling(
-            dim={"time_utc": self.window},
+            dim={"time": self.window},
             min_periods=self.min_periods,
             center=self.center,
         ).mean()

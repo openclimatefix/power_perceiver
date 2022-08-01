@@ -57,7 +57,7 @@ class PreparedDataset(torch.utils.data.Dataset):
         for modality_name in ["hrvsatellite", "gsp", "gsp_5_min", "pv", "nwp_target_time"]:
             np_batch_processors.append(SunPosition(modality_name=modality_name))
         np_batch_processors.append(Topography(self.topography_location))
-        self.np_batch_processors = np_batch_processors
+        # self.np_batch_processors = np_batch_processors
         super().__init__()
 
     def _set_data_path_in_data_loaders(self) -> None:
