@@ -115,9 +115,7 @@ class HRVSatellite(PreparedDataSource):
         #  It seems undone in rawSatellite, so should work
 
         # Coordinates
-        batch[BatchKey.hrvsatellite_t0_idx] = dataset.attrs[
-            "t0_idx"
-        ]  # TODO Need to figure out where this is set, or what to set here
+        batch[BatchKey.hrvsatellite_t0_idx] = dataset.attrs["t0_idx"]
         batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(dataset["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),

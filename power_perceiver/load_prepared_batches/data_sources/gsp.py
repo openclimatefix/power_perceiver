@@ -86,7 +86,7 @@ class GSP(PreparedDataSource):
         batch[BatchKey.gsp] = dataset["power_normalised"].values
 
         batch[BatchKey.gsp_id] = dataset["gsp_id"].values
-        batch[BatchKey.gsp_t0_idx] = dataset.attrs["t0_idx"]  # TODO Determine where this t0_idx is
+        batch[BatchKey.gsp_t0_idx] = dataset.attrs["t0_idx"]
         batch[BatchKey.gsp_capacity_mwp] = dataset.isel(time_utc=0)["capacity_mwp"].values
 
         # Coordinates
