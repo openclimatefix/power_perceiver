@@ -81,7 +81,7 @@ class NWP(PreparedDataSource):
                 "channels_index": "channel",
             }
         )
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod

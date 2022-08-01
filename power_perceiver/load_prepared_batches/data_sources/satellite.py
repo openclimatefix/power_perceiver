@@ -91,7 +91,7 @@ class HRVSatellite(PreparedDataSource):
         dataset = _set_sat_coords(dataset)
 
         dataset = dataset.transpose(*SATELLITE_CHANNEL_ORDER)
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod

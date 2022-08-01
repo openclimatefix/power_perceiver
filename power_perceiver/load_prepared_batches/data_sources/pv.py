@@ -80,7 +80,7 @@ class PV(PreparedDataSource):
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624
         for dataset_key in ("x_osgb", "y_osgb"):
             dataset[dataset_key] = dataset[dataset_key].astype(np.float32)
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod
@@ -99,6 +99,7 @@ class PV(PreparedDataSource):
         batch[BatchKey.pv] = dataset[
             "power_normalised"
         ].values  # TODO Normalized in RawPVDataSource post process, but already done here?
+        batch[BatchKey.pv_t0_idx] = dataset.attrs["t0_idx"]
 
         # In v15 of the dataset, `pv_system_row_number` is int64. This will be fixed in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624

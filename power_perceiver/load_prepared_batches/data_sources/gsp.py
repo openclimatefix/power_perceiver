@@ -69,7 +69,7 @@ class GSP(PreparedDataSource):
         # PV power
         # Note that some GSPs have a capacity of zero, so power_normalised will sometimes be NaN.
         dataset["power_normalised"] = dataset["power_mw"] / dataset["capacity_mwp"]
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod
