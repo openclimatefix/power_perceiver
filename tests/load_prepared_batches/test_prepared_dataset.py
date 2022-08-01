@@ -67,7 +67,13 @@ def test_dataset_with_single_data_source(
     assert len(np_batch) > 0
     assert isinstance(np_batch, dict)
     assert all([isinstance(key, BatchKey) for key in np_batch])
-    assert all([isinstance(value, np.ndarray) for value in np_batch.values()])
+    assert all(
+        [
+            isinstance(value, np.ndarray)
+            for key, value in np_batch.items()
+            if "t0_idx" not in key.name
+        ]
+    )
     for batch_key in expected_batch_keys:
         assert batch_key in np_batch, f"{batch_key} not in np_data!"
 
