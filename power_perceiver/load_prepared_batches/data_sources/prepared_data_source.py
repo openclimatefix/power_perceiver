@@ -2,7 +2,7 @@ import datetime
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Callable, ClassVar, Iterable, Optional
 
 import fsspec
 import numpy as np
@@ -34,7 +34,7 @@ class PreparedDataSource:
     """
 
     history_duration: datetime.timedelta
-    sample_period_duration: datetime.timedelta
+    sample_period_duration: ClassVar[datetime.timedelta]
     data_path: Optional[Path] = None
     filename_suffix: str = "nc"
     transforms: Optional[Iterable[Callable]] = None

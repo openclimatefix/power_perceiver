@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
@@ -14,6 +15,8 @@ _log = logging.getLogger(__name__)
 
 
 class GSP(PreparedDataSource):
+    sample_period_duration = pd.Timedelta("30 min")
+
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # TODO: MAKE ISSUE!

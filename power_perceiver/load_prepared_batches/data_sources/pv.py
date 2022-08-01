@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
@@ -14,6 +15,8 @@ _log = logging.getLogger(__name__)
 
 
 class PV(PreparedDataSource):
+    sample_period_duration = pd.Timedelta("5 min")
+
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/630

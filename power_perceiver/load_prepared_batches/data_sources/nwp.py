@@ -52,6 +52,9 @@ NWP_STD = _to_data_array(NWP_STD)
 
 
 class NWP(PreparedDataSource):
+
+    sample_period_duration = pd.Timedelta("1 hour")
+
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         target_times = pd.date_range(
             dataset.init_time.values,
