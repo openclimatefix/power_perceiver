@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
@@ -52,6 +53,12 @@ NWP_STD = _to_data_array(NWP_STD)
 
 class NWP(PreparedDataSource):
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
+        target_times = pd.date_range(
+            dataset.init_time.values,
+            dataset.init_time.values + dataset.step.values[-1],
+            freq=self.sample_period_duration,
+        )
+        dataset.coords["target_time_utc"] = target_times
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/629
 
@@ -100,7 +107,7 @@ class NWP(PreparedDataSource):
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
         example[BatchKey.nwp_channel_names] = dataset.channel.values
         example[BatchKey.nwp_step] = (dataset.step.values / np.timedelta64(1, "h")).astype(np.int64)
-        example[BatchKey.nwp_init_time_utc] = datetime64_to_float(dataset.init_time_utc.values)
+        example[BatchKey.nwp_init_time_utc] = datetime64_to_float(dataset.init_time.values)
 
         for batch_key, dataset_key in (
             (BatchKey.nwp_y_osgb, "y_osgb"),
