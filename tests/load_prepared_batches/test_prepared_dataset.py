@@ -1,6 +1,7 @@
 from typing import Callable, Iterable
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
@@ -56,8 +57,8 @@ def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
 @pytest.mark.parametrize(
     argnames=["data_loader", "expected_batch_keys"],
     argvalues=[
-        (HRVSatellite(), [BatchKey.hrvsatellite_actual]),
-        (PV(), [BatchKey.pv, BatchKey.pv_system_row_number]),
+        (HRVSatellite(history_duration=pd.Timedelta("30 min")), [BatchKey.hrvsatellite_actual]),
+        (PV(history_duration=pd.Timedelta("30 min")), [BatchKey.pv, BatchKey.pv_system_row_number]),
     ],
 )
 def test_dataset_with_single_data_source(
