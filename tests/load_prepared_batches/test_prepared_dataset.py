@@ -119,6 +119,12 @@ def test_select_pv_systems_near_center_of_image():
         xr_batch_processors=xr_batch_processors,
     )
     np_batch = dataset[0]
+    for key, value in np_batch.items():
+        if isinstance(value, np.ndarray):
+            print(f"{key}: {value.shape}")
+        else:
+            print(f"{key}: {value}")
+
     # Batch 0 has 1 example with no PV systems within the region of interest.
     _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 1)
 
@@ -137,6 +143,11 @@ def test_pv(transforms: Iterable[Callable]):
     assert len(dataset) == len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)
     for batch_idx in range(len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)):
         np_batch = dataset[batch_idx]
+        for key, value in np_batch.items():
+            if isinstance(value, np.ndarray):
+                print(f"{key}: {value.shape}")
+            else:
+                print(f"{key}: {value}")
         _check_pv_batch(np_batch)
 
 
@@ -147,7 +158,7 @@ def test_all_data_loaders_and_all_transforms():
             HRVSatellite(transforms=[PatchSatellite()], history_duration=pd.Timedelta("30 min")),
             PV(transforms=[PVPowerRollingWindow()], history_duration=pd.Timedelta("90 min")),
         ],
-        xr_batch_processors=[SelectPVSystemsNearCenterOfImage()],
+        # xr_batch_processors=[SelectPVSystemsNearCenterOfImage()],
         np_batch_processors=[EncodeSpaceTime()],
     )
     for batch_idx in range(len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)):

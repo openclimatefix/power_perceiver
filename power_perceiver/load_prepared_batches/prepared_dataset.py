@@ -9,6 +9,9 @@ import torch.utils.data
 from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources import NumpyBatch, PreparedDataSource
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import XarrayBatch
+from power_perceiver.np_batch_processor import EncodeSpaceTime, SunPosition, Topography
+from power_perceiver.np_batch_processor.align_gsp_to_5_min import AlignGSPTo5Min
+from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
 
 _log = logging.getLogger(__name__)
 
@@ -41,6 +44,7 @@ class PreparedDataset(torch.utils.data.Dataset):
     max_n_batches_per_epoch: Optional[int] = None
     xr_batch_processors: Optional[Iterable[Callable]] = None
     np_batch_processors: Optional[Iterable[Callable]] = None
+    topography_location: str = "/home/jack/europe_dem_2km_osgb.tif"
 
     def __post_init__(self):
         # Sanity checks
@@ -49,6 +53,11 @@ class PreparedDataset(torch.utils.data.Dataset):
         # Prepare PreparedDataSources.
         self._set_data_path_in_data_loaders()
         self._set_number_of_batches()
+        np_batch_processors = [AlignGSPTo5Min(), EncodeSpaceTime(), SaveT0Time()]
+        for modality_name in ["hrvsatellite", "gsp", "gsp_5_min", "pv", "nwp_target_time"]:
+            np_batch_processors.append(SunPosition(modality_name=modality_name))
+        np_batch_processors.append(Topography(self.topography_location))
+        self.np_batch_processors = np_batch_processors
         super().__init__()
 
     def _set_data_path_in_data_loaders(self) -> None:

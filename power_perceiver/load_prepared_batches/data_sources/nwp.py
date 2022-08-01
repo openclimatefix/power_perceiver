@@ -104,9 +104,9 @@ class NWP(PreparedDataSource):
         """
         example: NumpyBatch = {}
 
-        example[BatchKey.nwp] = dataset.values
+        example[BatchKey.nwp] = dataset.data.values
         example[BatchKey.nwp_t0_idx] = dataset.attrs["t0_idx"]
-        target_time = dataset.target_time_utc.values
+        target_time = dataset.coords["target_time_utc"].values
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
         example[BatchKey.nwp_channel_names] = dataset.channel.values
         example[BatchKey.nwp_step] = (dataset.step.values / np.timedelta64(1, "h")).astype(np.int64)
