@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
@@ -50,6 +51,8 @@ def _set_sat_coords(dataset: xr.Dataset) -> xr.Dataset:
 
 
 class HRVSatellite(PreparedDataSource):
+    sample_period_duration = pd.Timedelta("5 min")
+
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/629
@@ -91,7 +94,7 @@ class HRVSatellite(PreparedDataSource):
         dataset = _set_sat_coords(dataset)
 
         dataset = dataset.transpose(*SATELLITE_CHANNEL_ORDER)
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod
@@ -111,8 +114,11 @@ class HRVSatellite(PreparedDataSource):
         hrvsatellite -= SAT_MEAN["HRV"]
         hrvsatellite /= SAT_STD["HRV"]
         batch[BatchKey.hrvsatellite_actual] = hrvsatellite.values
+        # TODO: Double check it should be float32 or int8?
+        #  It seems undone in rawSatellite, so should work
 
         # Coordinates
+        batch[BatchKey.hrvsatellite_t0_idx] = dataset.attrs["t0_idx"]
         batch[BatchKey.hrvsatellite_time_utc] = datetime64_to_float(dataset["time_utc"].values)
         for batch_key, dataset_key in (
             (BatchKey.hrvsatellite_y_osgb, "y_osgb"),

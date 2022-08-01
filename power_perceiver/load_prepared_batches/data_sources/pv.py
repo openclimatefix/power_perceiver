@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
@@ -14,6 +15,8 @@ _log = logging.getLogger(__name__)
 
 
 class PV(PreparedDataSource):
+    sample_period_duration = pd.Timedelta("5 min")
+
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/630
@@ -32,8 +35,6 @@ class PV(PreparedDataSource):
                 "power_mw": "power_w",
                 "capacity_mwp": "capacity_wp",
                 "id": "pv_system_id",
-                "y_coords": "y_osgb",
-                "x_coords": "x_osgb",
             }
         )
 
@@ -82,7 +83,7 @@ class PV(PreparedDataSource):
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624
         for dataset_key in ("x_osgb", "y_osgb"):
             dataset[dataset_key] = dataset[dataset_key].astype(np.float32)
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod
@@ -98,7 +99,10 @@ class PV(PreparedDataSource):
         # PV power
         # Note that some capacities are 0. This will be fixed upstream in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/622
-        batch[BatchKey.pv] = dataset["power_normalised"].values
+        batch[BatchKey.pv] = dataset[
+            "power_normalised"
+        ].values  # TODO Normalized in RawPVDataSource post process, but already done here?
+        batch[BatchKey.pv_t0_idx] = dataset.attrs["t0_idx"]
 
         # In v15 of the dataset, `pv_system_row_number` is int64. This will be fixed in:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/624

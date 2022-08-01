@@ -1,6 +1,7 @@
 import logging
 
 import numpy as np
+import pandas as pd
 import xarray as xr
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
@@ -14,6 +15,8 @@ _log = logging.getLogger(__name__)
 
 
 class GSP(PreparedDataSource):
+    sample_period_duration = pd.Timedelta("30 min")
+
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # TODO: MAKE ISSUE!
@@ -30,8 +33,6 @@ class GSP(PreparedDataSource):
             {
                 "time": "time_utc",
                 "id": "gsp_id",
-                "y_coords": "y_osgb",
-                "x_coords": "x_osgb",
             }
         )
 
@@ -71,7 +72,7 @@ class GSP(PreparedDataSource):
         # PV power
         # Note that some GSPs have a capacity of zero, so power_normalised will sometimes be NaN.
         dataset["power_normalised"] = dataset["power_mw"] / dataset["capacity_mwp"]
-
+        dataset.attrs["t0_idx"] = self.t0_idx
         return dataset
 
     @staticmethod
@@ -88,6 +89,8 @@ class GSP(PreparedDataSource):
         batch[BatchKey.gsp] = dataset["power_normalised"].values
 
         batch[BatchKey.gsp_id] = dataset["gsp_id"].values
+        batch[BatchKey.gsp_t0_idx] = dataset.attrs["t0_idx"]
+        batch[BatchKey.gsp_capacity_mwp] = dataset.isel(time=0)["capacity_mwp"].values
 
         # Coordinates
         batch[BatchKey.gsp_time_utc] = datetime64_to_float(dataset["time_utc"].values)
