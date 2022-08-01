@@ -164,5 +164,5 @@ class BatchKey(Enum):
 
 
 REMOTE_PATH_FOR_DATA_FOR_UNIT_TESTS = Pathy(
-    "gs://ocf-public/data_for_unit_tests/prepared_ML_training_data"
+    "gs://ocf-public/data_for_unit_tests/prepared_ML_training_data_v15_v2"
 )

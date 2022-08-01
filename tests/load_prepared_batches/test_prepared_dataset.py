@@ -7,6 +7,7 @@ import pytest
 from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
 from power_perceiver.load_prepared_batches.data_sources import (
     GSP,
+    NWP,
     PV,
     HRVSatellite,
     PreparedDataSource,
@@ -23,7 +24,7 @@ from power_perceiver.transforms.pv import PVPowerRollingWindow
 from power_perceiver.transforms.satellite import PatchSatellite
 from power_perceiver.xr_batch_processor import SelectPVSystemsNearCenterOfImage
 
-_DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name, GSP.name)
+_DATA_SOURCES_TO_DOWNLOAD = (HRVSatellite.name, PV.name, GSP.name, NWP.name)
 BATCH_SIZE = 32
 N_PV_TIMESTEPS = 31
 N_PV_SYSTEMS_PER_EXAMPLE = 128
@@ -34,9 +35,6 @@ def setup_module():
         download_batches_for_data_source_if_necessary(data_source_name)
 
 
-@pytest.mark.skip(
-    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
-)
 @pytest.mark.parametrize(
     argnames=["max_n_batches_per_epoch", "expected_n_batches"],
     argvalues=[(None, len(INDEXES_OF_PUBLICLY_AVAILABLE_BATCHES_FOR_TESTING)), (1, 1)],
@@ -44,21 +42,18 @@ def setup_module():
 def test_init(max_n_batches_per_epoch: int, expected_n_batches: int):
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
-        data_loaders=[PV()],
+        data_loaders=[PV(history_duration=pd.Timedelta("90 min"))],
         max_n_batches_per_epoch=max_n_batches_per_epoch,
     )
     assert dataset.n_batches == expected_n_batches
     assert len(dataset) == expected_n_batches
 
 
-@pytest.mark.skip(
-    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
-)
 @pytest.mark.parametrize(
     argnames=["data_loader", "expected_batch_keys"],
     argvalues=[
         (HRVSatellite(history_duration=pd.Timedelta("30 min")), [BatchKey.hrvsatellite_actual]),
-        (PV(history_duration=pd.Timedelta("30 min")), [BatchKey.pv, BatchKey.pv_system_row_number]),
+        (PV(history_duration=pd.Timedelta("90 min")), [BatchKey.pv, BatchKey.pv_system_row_number]),
     ],
 )
 def test_dataset_with_single_data_source(
@@ -106,15 +101,15 @@ def _check_pv_batch(
     assert ((~pv_is_finite | ~pv_mask) == ~pv_mask).all()
 
 
-@pytest.mark.skip(
-    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
-)
 def test_select_pv_systems_near_center_of_image():
     xr_batch_processors = [SelectPVSystemsNearCenterOfImage()]
 
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
-        data_loaders=[HRVSatellite(), PV()],
+        data_loaders=[
+            HRVSatellite(history_duration=pd.Timedelta("30 min")),
+            PV(history_duration=pd.Timedelta("90 min")),
+        ],
         xr_batch_processors=xr_batch_processors,
     )
     np_batch = dataset[0]
@@ -126,12 +121,9 @@ def test_select_pv_systems_near_center_of_image():
     _check_pv_batch(np_batch, expected_batch_size=BATCH_SIZE - 4)
 
 
-@pytest.mark.skip(
-    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
-)
 @pytest.mark.parametrize(argnames="transforms", argvalues=[None, [PVPowerRollingWindow()]])
 def test_pv(transforms: Iterable[Callable]):
-    pv_data_loader = PV(transforms=transforms)
+    pv_data_loader = PV(transforms=transforms, history_duration=pd.Timedelta("90 min"))
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[pv_data_loader],
@@ -142,15 +134,12 @@ def test_pv(transforms: Iterable[Callable]):
         _check_pv_batch(np_batch)
 
 
-@pytest.mark.skip(
-    "Skip for the moment - https://github.com/openclimatefix/power_perceiver/issues/187"
-)
 def test_all_data_loaders_and_all_transforms():
     dataset = PreparedDataset(
         data_path=get_path_of_local_data_for_testing(),
         data_loaders=[
-            HRVSatellite(transforms=[PatchSatellite()]),
-            PV(transforms=[PVPowerRollingWindow()]),
+            HRVSatellite(transforms=[PatchSatellite()], history_duration=pd.Timedelta("30 min")),
+            PV(transforms=[PVPowerRollingWindow()], history_duration=pd.Timedelta("90 min")),
         ],
         xr_batch_processors=[SelectPVSystemsNearCenterOfImage()],
         np_batch_processors=[EncodeSpaceTime()],
