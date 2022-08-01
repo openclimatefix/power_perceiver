@@ -64,7 +64,8 @@ class PVPowerRollingWindow:
 
         # Resampling removes the attributes, so put them back:
         for attr_name in ("t0_idx", "sample_period_duration"):
-            resampled.attrs[attr_name] = xr_data.attrs[attr_name]
+            if attr_name in xr_data.attrs.keys():
+                resampled.attrs[attr_name] = xr_data.attrs[attr_name]
 
         return resampled
 

@@ -123,6 +123,11 @@ class SelectPVSystemsNearCenterOfImage:
         bounds["bottom"] = y_osgb.isel(y=0).max().values
         bounds["top"] = y_osgb.isel(y=-1).min().values
 
+        if bounds["bottom"] > bounds["top"]:
+            _log.warning('Looks like Y are reversed')
+            bounds["top"] = y_osgb.isel(y=0).min().values
+            bounds["bottom"] = y_osgb.isel(y=-1).max().values
+
         # Sanity check!
         x_osgb_range = bounds["right"] - bounds["left"]
         y_osgb_range = bounds["top"] - bounds["bottom"]
