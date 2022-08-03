@@ -12,6 +12,7 @@ from power_perceiver.load_prepared_batches.data_sources.prepared_data_source imp
 from power_perceiver.np_batch_processor import EncodeSpaceTime, SunPosition, Topography
 from power_perceiver.np_batch_processor.align_gsp_to_5_min import AlignGSPTo5Min
 from power_perceiver.np_batch_processor.save_t0_time import SaveT0Time
+from power_perceiver.testing import get_path_of_local_topo_data
 
 _log = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class PreparedDataset(torch.utils.data.Dataset):
     max_n_batches_per_epoch: Optional[int] = None
     xr_batch_processors: Optional[Iterable[Callable]] = None
     np_batch_processors: Optional[Iterable[Callable]] = None
-    topography_location: str = "/home/jack/europe_dem_2km_osgb.tif"
+    topography_location: str = str(get_path_of_local_topo_data())
 
     def __post_init__(self):
         # Sanity checks
