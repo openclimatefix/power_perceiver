@@ -56,7 +56,9 @@ class HRVSatellite(PreparedDataSource):
     def process_before_transforms(self, dataset: xr.Dataset) -> xr.Dataset:
         # None of this will be necessary once this is implemented:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/629
-
+        # Its backwards inteh prepared ones apparently
+        dataset = dataset.reindex(y_geostationary_index=dataset.y_geostationary_index[::-1])
+        # dataset = dataset.reindex(x=dataset.x[::-1])
         # Drop redundant coordinates (these are redundant because they
         # just repeat the contents of each *dimension*):
         dataset = dataset.drop_vars(
@@ -88,7 +90,6 @@ class HRVSatellite(PreparedDataSource):
                 "channels_index": "channel",
             }
         )
-
         # Setting coords won't be necessary once this is fixed:
         # https://github.com/openclimatefix/nowcasting_dataset/issues/627
         dataset = _set_sat_coords(dataset)

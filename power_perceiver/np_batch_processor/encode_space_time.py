@@ -202,8 +202,12 @@ def _get_min_per_example(
     coords_for_dim_from_all_modalities: dict[BatchKey, np.ndarray]
 ) -> np.ndarray:
     n_modalities = len(coords_for_dim_from_all_modalities)
+    # print(n_modalities)
     assert n_modalities > 0
     batch_size = list(coords_for_dim_from_all_modalities.values())[0].shape[0]
+    # print(batch_size)
+    # for key, value in coords_for_dim_from_all_modalities.items():
+    #    print(f"{key}: {value.shape}")
 
     # Pre-allocate arrays to hold min values for each example of each modality's coordinates.
     mins = np.full((batch_size, n_modalities), fill_value=np.NaN, dtype=np.float32)
