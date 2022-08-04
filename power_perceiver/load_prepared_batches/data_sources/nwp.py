@@ -107,10 +107,14 @@ class NWP(PreparedDataSource):
         example[BatchKey.nwp] = dataset.data.values
         example[BatchKey.nwp_t0_idx] = dataset.attrs["t0_idx"]
         target_time = dataset.coords["target_time_utc"].values
+        # Need to copy batch_size times I think TODO Check this is right?
+        target_time = np.repeat(np.expand_dims(target_time, axis=0), 32, axis=0)
         example[BatchKey.nwp_target_time_utc] = datetime64_to_float(target_time)
         example[BatchKey.nwp_channel_names] = dataset.channel.values
         example[BatchKey.nwp_step] = (dataset.step.values / np.timedelta64(1, "h")).astype(np.int64)
-        example[BatchKey.nwp_init_time_utc] = datetime64_to_float(dataset.init_time.values)
+        # TODO Ensure this is right
+        init_times = np.repeat(np.expand_dims(dataset.init_time.values, axis=0), 32, axis=0)
+        example[BatchKey.nwp_init_time_utc] = datetime64_to_float(init_times)
 
         for batch_key, dataset_key in (
             (BatchKey.nwp_y_osgb, "y_osgb"),

@@ -204,7 +204,8 @@ def _get_surface_height_for_satellite(
                 satellite_example.x[-1],
             ),
         )
-
+        print(surface_height_for_example)
+        print(satellite_example)
         # Align by coordinates. This will result in lots of NaNs in the surface height data:
         aligned = xr.combine_by_coords(
             (surface_height_for_example, satellite_example), join="outer"

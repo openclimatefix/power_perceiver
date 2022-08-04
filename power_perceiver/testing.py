@@ -72,3 +72,7 @@ def _get_path_of_power_perceiver_package() -> Path:
 
 def get_path_of_local_data_for_testing() -> Path:
     return _get_path_of_power_perceiver_package() / "data_for_testing"
+
+
+def get_path_of_local_topo_data() -> Path:
+    return _get_path_of_power_perceiver_package() / "data" / "europe_dem_2km_osgb.tif"
