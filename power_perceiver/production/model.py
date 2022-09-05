@@ -466,3 +466,23 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
 
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
         return [optimizer], [scheduler]
+    
+    def load_model(
+        self,
+        local_filename: Optional[str] = None,
+        use_hf: bool = True,
+    ):
+        """
+        Load model weights
+        """
+
+        if use_hf:
+            _LOG.debug('Loading mode from Hugging Face "openclimatefix/power_perceiver" ')
+            model = Model.from_pretrained("openclimatefix/power_perceiver")
+            _LOG.debug("Loading mode from Hugging Face: done")
+            return model
+        else:
+            _LOG.debug(f"Loading model weights from {local_filename}")
+            model = self.load_from_checkpoint(checkpoint_path=local_filename)
+            _LOG.debug("Loading model weights: done")
+            return model
