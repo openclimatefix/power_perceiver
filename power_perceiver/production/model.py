@@ -466,7 +466,7 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
 
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
         return [optimizer], [scheduler]
-    
+
     def load_model(
         self,
         local_filename: Optional[str] = None,
