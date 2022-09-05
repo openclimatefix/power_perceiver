@@ -478,7 +478,7 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
 
         if use_hf:
             _LOG.debug('Loading mode from Hugging Face "openclimatefix/power_perceiver" ')
-            model = Model.from_pretrained("openclimatefix/power_perceiver")
+            model = FullModel.from_pretrained("openclimatefix/power_perceiver")
             _LOG.debug("Loading mode from Hugging Face: done")
             return model
         else:
