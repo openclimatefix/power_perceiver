@@ -1,8 +1,8 @@
 from copy import deepcopy
 
 import pytest
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_raw.raw_dataset import RawDataset
 
 N_EXAMPLES_PER_BATCH = 16

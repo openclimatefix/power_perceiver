@@ -29,8 +29,8 @@ import pyproj
 import pyresample
 import rioxarray
 import xarray as xr
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 
 

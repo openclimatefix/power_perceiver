@@ -5,8 +5,8 @@ from typing import Callable, Iterable, Optional
 
 import torch
 import torch.utils.data
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources import NumpyBatch, PreparedDataSource
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import XarrayBatch
 

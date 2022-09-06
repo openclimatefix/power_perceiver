@@ -7,8 +7,9 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import xarray as xr
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey, Location
+from power_perceiver.consts import Location
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_raw.data_sources.raw_data_source import (
     RawDataSource,

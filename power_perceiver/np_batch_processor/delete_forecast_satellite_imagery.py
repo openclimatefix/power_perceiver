@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
-from power_perceiver.consts import BatchKey
+from ocf_datapipes.utils.consts import BatchKey
+
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.utils import assert_num_dims
 

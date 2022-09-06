@@ -2,9 +2,9 @@ from dataclasses import dataclass
 
 import einops
 import torch
+from ocf_datapipes.utils.consts import BatchKey
 from torch import nn
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.pytorch_modules.query_generator import reshape_time_as_batch
 from power_perceiver.utils import assert_num_dims
 

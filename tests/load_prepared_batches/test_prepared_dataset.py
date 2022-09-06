@@ -2,8 +2,9 @@ from typing import Callable, Iterable
 
 import numpy as np
 import pytest
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS, BatchKey
+from power_perceiver.consts import PV_SYSTEM_AXIS, PV_TIME_AXIS
 from power_perceiver.load_prepared_batches.data_sources import (
     GSP,
     PV,

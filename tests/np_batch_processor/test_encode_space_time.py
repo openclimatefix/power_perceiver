@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources import PV, HRVSatellite
 from power_perceiver.load_prepared_batches.prepared_dataset import PreparedDataset
 from power_perceiver.np_batch_processor import EncodeSpaceTime

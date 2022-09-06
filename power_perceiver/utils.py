@@ -5,9 +5,9 @@ import fsspec.asyn
 import numpy as np
 import pandas as pd
 import xarray as xr
+from ocf_datapipes.utils.consts import BatchKey
 from pathy import Pathy
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 
 

@@ -2,9 +2,8 @@ from dataclasses import dataclass
 
 import einops
 import torch
+from ocf_datapipes.utils.consts import BatchKey
 from torch import nn
-
-from power_perceiver.consts import BatchKey
 
 N_PV_SYSTEMS_PER_EXAMPLE = 8
 

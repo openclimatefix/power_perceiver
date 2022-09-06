@@ -2,8 +2,7 @@ from typing import Iterable
 
 import einops
 import torch
-
-from power_perceiver.consts import BatchKey
+from ocf_datapipes.utils.consts import BatchKey
 
 
 def masked_mean(tensor: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
