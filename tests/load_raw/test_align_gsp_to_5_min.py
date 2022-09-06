@@ -3,8 +3,8 @@ import datetime
 import numpy as np
 import pandas as pd
 import pytest
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_raw.data_sources.raw_gsp_data_source import RawGSPDataSource
 from power_perceiver.load_raw.data_sources.raw_satellite_data_source import RawSatelliteDataSource
 from power_perceiver.load_raw.raw_dataset import RawDataset

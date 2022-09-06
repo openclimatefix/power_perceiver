@@ -2,8 +2,8 @@ from dataclasses import dataclass
 from typing import Iterable, Optional
 
 import numpy as np
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
     PreparedDataSource,
     XarrayBatch,

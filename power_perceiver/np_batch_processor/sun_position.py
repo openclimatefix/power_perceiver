@@ -4,8 +4,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 import pvlib
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.geospatial import osgb_to_lat_lon
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 from power_perceiver.load_prepared_batches.data_sources.sun import (

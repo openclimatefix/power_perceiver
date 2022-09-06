@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from numbers import Number
 
 import numpy as np
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import NumpyBatch
 
 

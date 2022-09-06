@@ -3,9 +3,10 @@ from typing import Optional, Sequence
 
 import einops
 import torch
+from ocf_datapipes.utils.consts import BatchKey
 from torch import nn
 
-from power_perceiver.consts import SATELLITE_SPACER_LEN, BatchKey
+from power_perceiver.consts import SATELLITE_SPACER_LEN
 from power_perceiver.pytorch_modules.utils import get_spacer_tensor
 from power_perceiver.utils import assert_num_dims
 

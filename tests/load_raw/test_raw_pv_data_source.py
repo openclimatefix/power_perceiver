@@ -3,8 +3,9 @@ from copy import copy
 import numpy as np
 import pytest
 import xarray as xr
+from ocf_datapipes.utils.consts import BatchKey
 
-from power_perceiver.consts import BatchKey, Location
+from power_perceiver.consts import Location
 from power_perceiver.load_raw.data_sources.raw_pv_data_source import (
     RawPVDataSource,
     _load_pv_metadata,

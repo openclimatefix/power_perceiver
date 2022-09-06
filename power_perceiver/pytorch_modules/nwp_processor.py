@@ -2,9 +2,10 @@ from dataclasses import dataclass
 
 import einops
 import torch
+from ocf_datapipes.utils.consts import BatchKey
 from torch import nn
 
-from power_perceiver.consts import PV_SPACER_LEN, SATELLITE_SPACER_LEN, BatchKey
+from power_perceiver.consts import PV_SPACER_LEN, SATELLITE_SPACER_LEN
 from power_perceiver.pytorch_modules.utils import get_spacer_tensor
 
 
