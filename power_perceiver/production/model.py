@@ -17,10 +17,11 @@ import numpy as np
 import pytorch_lightning as pl
 import torch
 import torch.nn.functional as F
-from torch import nn
 
 # power_perceiver imports
-from power_perceiver.consts import BatchKey
+from ocf_datapipes.utils.consts import BatchKey
+from torch import nn
+
 from power_perceiver.hub import NowcastingModelHubMixin
 from power_perceiver.production.pvrnn import N_PV_SYSTEMS_PER_EXAMPLE, PVRNN
 from power_perceiver.production.satellite_transformer import (
@@ -466,7 +467,7 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
 
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, _lr_lambda, verbose=True)
         return [optimizer], [scheduler]
-    
+
     def load_model(
         self,
         local_filename: Optional[str] = None,
@@ -477,12 +478,12 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
         """
 
         if use_hf:
-            _LOG.debug('Loading mode from Hugging Face "openclimatefix/power_perceiver" ')
+            _log.debug('Loading mode from Hugging Face "openclimatefix/power_perceiver" ')
             model = FullModel.from_pretrained("openclimatefix/power_perceiver")
-            _LOG.debug("Loading mode from Hugging Face: done")
+            _log.debug("Loading mode from Hugging Face: done")
             return model
         else:
-            _LOG.debug(f"Loading model weights from {local_filename}")
+            _log.debug(f"Loading model weights from {local_filename}")
             model = self.load_from_checkpoint(checkpoint_path=local_filename)
-            _LOG.debug("Loading model weights: done")
+            _log.debug("Loading model weights: done")
             return model

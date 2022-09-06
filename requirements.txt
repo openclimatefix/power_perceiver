@@ -22,3 +22,4 @@ huggingface_hub
 torch
 pytorch-lightning
 einops
+ocf_datapipes
