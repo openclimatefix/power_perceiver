@@ -2,9 +2,9 @@ import logging
 
 import numpy as np
 import xarray as xr
+from ocf_datapipes.utils.consts import BatchKey
 
 from power_perceiver.load_prepared_batches.data_sources.prepared_data_source import (
-    BatchKey,
     NumpyBatch,
     PreparedDataSource,
 )

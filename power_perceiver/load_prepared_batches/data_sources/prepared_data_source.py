@@ -6,8 +6,7 @@ from typing import Callable, Iterable, Optional
 import fsspec
 import numpy as np
 import xarray as xr
-
-from power_perceiver.consts import BatchKey
+from ocf_datapipes.utils.consts import BatchKey
 
 _log = logging.getLogger(__name__)
 
