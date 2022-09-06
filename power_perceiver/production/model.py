@@ -12,7 +12,6 @@ from typing import Optional
 import einops
 
 # ML imports
-import matplotlib.pyplot as plt
 import numpy as np
 import pytorch_lightning as pl
 import torch
@@ -52,8 +51,6 @@ logging.basicConfig()
 _log = logging.getLogger("power_perceiver")
 _log.setLevel(logging.DEBUG)
 
-plt.rcParams["figure.figsize"] = (18, 10)
-plt.rcParams["figure.facecolor"] = "white"
 
 # SatellitePredictor options
 
