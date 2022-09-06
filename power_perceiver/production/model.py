@@ -121,6 +121,7 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
     num_5_min_forecast_timesteps_during_training: Optional[int] = 6
     num_gaussians: int = 4
     num_rnn_layers: int = 4
+    set_gsp_id_to_one: bool = False
 
     def __post_init__(self):
         super().__init__()
@@ -245,6 +246,9 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
         return x
 
     def forward(self, x: dict[BatchKey, torch.Tensor]) -> dict[str, torch.Tensor]:
+        # TODO Remove once retrained, set all GSP Ids to 1 here
+        if self.set_gsp_id_to_one:
+            x[BatchKey.gsp_id] = torch.ones_like(x[BatchKey.gsp_id])
         # Predict future satellite images. The SatellitePredictor always gets every timestep.
         x = self._predict_satellite(x)
 
