@@ -317,7 +317,7 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
         # zero'd out (previously NaN) PV data when predicting GSP PV power.
         mask = time_attn_in.isnan().any(dim=2)
         time_attn_in = time_attn_in.nan_to_num(0)
-        time_attn_out = self.time_transformer(time_attn_in, src_key_padding_mask=mask)
+        time_attn_out = self.time_transformer(time_attn_in.float(), src_key_padding_mask=mask)
 
         # ---------------------------- MIXTURE DENSITY NETWORK -----------------------------------
         # The MDN doesn't like NaNs, and I think there will be NaNs when, for example,
@@ -336,7 +336,9 @@ class FullModel(pl.LightningModule, NowcastingModelHubMixin):
 
         # GSP power. There's just 1 GSP. So each gsp element is a timestep.
         n_gsp_elements = gsp_query.shape[1]
-        predicted_gsp_power = self.pv_mixture_density_net(time_attn_out[:, -n_gsp_elements:])
+        predicted_gsp_power = self.pv_mixture_density_net(
+            time_attn_out[:, -n_gsp_elements:].float()
+        )
 
         return dict(
             predicted_pv_power=predicted_pv_power,  # Shape: (example time n_pv_sys mdn_features)

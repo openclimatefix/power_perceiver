@@ -44,7 +44,9 @@ class HRVSatelliteProcessor(nn.Module):
         hrvsatellite = torch.concat(
             (
                 x[BatchKey.hrvsatellite_actual][:, : t0_idx + 1, 0],
-                x[BatchKey.hrvsatellite_predicted].detach(),
+                x[BatchKey.hrvsatellite_predicted][
+                    :, :-1
+                ].detach(),  # Next 2 hours but has 25 timesteps, not 24
             ),
             dim=1,  # Concat on the time dimension.
         )

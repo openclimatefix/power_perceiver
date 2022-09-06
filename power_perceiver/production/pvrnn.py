@@ -65,15 +65,15 @@ class PVRNN(nn.Module):
         pv_rnn_hist_enc_in = torch.concat((hist_pv, hist_sat_trans_pv_attn_out), dim=2)
         pv_rnn_hist_enc_in = pv_rnn_hist_enc_in.nan_to_num(0)
         pv_rnn_hist_enc_out, pv_rnn_hist_enc_hidden = self.pv_rnn_history_encoder(
-            pv_rnn_hist_enc_in
+            pv_rnn_hist_enc_in.float()
         )
 
         # Now for the pv_rnn_future_decoder:
         future_sat_trans_pv_attn_out = sat_trans_pv_attn_out[:, pv_t0_idx + 1 :]
         future_sat_trans_pv_attn_out = future_sat_trans_pv_attn_out.nan_to_num(0)
         pv_rnn_fut_dec_out, _ = self.pv_rnn_future_decoder(
-            future_sat_trans_pv_attn_out,
-            pv_rnn_hist_enc_hidden,
+            future_sat_trans_pv_attn_out.float(),
+            pv_rnn_hist_enc_hidden.float(),
         )
 
         # Concatenate the output from the encoder and decoder RNNs, and reshape

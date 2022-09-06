@@ -1,6 +1,6 @@
 [project]
 name = "power_perceiver"
-version = "2022.9.4"  # TODO: Make this dynamic! https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
+version = "2022.9.5"  # TODO: Make this dynamic! https://setuptools.pypa.io/en/latest/userguide/pyproject_config.html#dynamic-metadata
 description = "Machine learning experiments to forecast the electricity system (starting with solar)"
 readme = "README.md"
 requires-python = ">=3.10"

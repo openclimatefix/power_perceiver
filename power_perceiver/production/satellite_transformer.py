@@ -103,7 +103,7 @@ class SatellitePredictor(pl.LightningModule):
             data = torch.concat((data, sun_pos), dim=1)
 
         assert data.isfinite().all()
-        predicted_sat = self.satellite_predictor(data)
+        predicted_sat = self.satellite_predictor(data.float())
         assert predicted_sat.isfinite().all()
         return predicted_sat  # Shape: example, time, y, x
 
@@ -249,7 +249,9 @@ class SatelliteTransformer(nn.Module):
         attn_input = attn_input.nan_to_num(0)
 
         # Pass data into transformer_encoder:
-        attn_output = attn_input + self.transformer_encoder(attn_input, src_key_padding_mask=mask)
+        attn_output = attn_input + self.transformer_encoder(
+            attn_input.float(), src_key_padding_mask=mask
+        )
 
         # Reshape to (example time element d_model):
         attn_output = einops.rearrange(

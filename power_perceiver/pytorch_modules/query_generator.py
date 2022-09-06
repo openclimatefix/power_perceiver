@@ -97,7 +97,6 @@ class PVQueryGenerator(nn.Module):
         pv_marker = torch.zeros_like(solar_azimuth)
 
         satellite_spacer = get_spacer_tensor(template=time_fourier, length=SATELLITE_SPACER_LEN)
-
         return torch.concat(
             (
                 time_fourier,
