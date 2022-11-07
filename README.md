@@ -56,3 +56,7 @@ The data flows through several steps, in order:
 # About the name "power perceiver"
 
 Originally, when I started work on "Power Perceiver" 5 months ago, my intention was to use [DeepMind's Perceiver IO](https://www.deepmind.com/open-source/perceiver-io) at the core of the model. Right now, the model actually just uses a standard transformer encoder, not a Perceiver. But I plan to start using a Perceiver IO again within a month or two, when we start using more input elements than a standard transformer encoder can cope with!
+
+# Acknowledgements
+
+Thank you to nvidia for their very generous support: nvidia gave us four RTX A6000 GPUs via the nvidia foundation, and a further two RTX A6000 GPUs via the nvidia hardware grant. Thank you nvidia!
